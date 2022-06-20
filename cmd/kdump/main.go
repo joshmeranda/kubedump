@@ -6,12 +6,9 @@ import (
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	kdump "kubedump/pkg"
 	"os"
 )
-
-var KDumpNamespace = "kdump"
-var KDumpAppName = "kdump"
-var KDumpPort int32 = 9000
 
 func main() {
 	kubeconfig := os.Getenv("KUBECONFIG")
@@ -30,33 +27,33 @@ func main() {
 	service := &core.Service{
 		Spec: core.ServiceSpec{
 			Selector: map[string]string{
-				"app": KDumpAppName,
+				"app": kdump.AppName,
 			},
 			Ports: []core.ServicePort{
 				{
-					Port:     KDumpPort,
-					NodePort: KDumpPort,
+					Port:     kdump.Port,
+					NodePort: kdump.Port,
 				},
 			},
 		},
 	}
 	pod := &core.Pod{
 		ObjectMeta: apismeta.ObjectMeta{
-			Name:      KDumpAppName,
-			Namespace: KDumpNamespace,
+			Name:      kdump.AppName,
+			Namespace: kdump.Namespace,
 		},
 		Spec: core.PodSpec{
 			Volumes: nil,
 			Containers: []core.Container{
 				{
-					Name:       KDumpAppName,
+					Name:       kdump.AppName,
 					Image:      "joshmeranda/kdump:latest",
 					Command:    []string{"kdump-server"},
 					Args:       []string{},
 					WorkingDir: "",
 					Ports: []core.ContainerPort{
 						{
-							ContainerPort: KDumpPort,
+							ContainerPort: kdump.Port,
 						},
 					},
 					VolumeMounts:    nil,
@@ -67,10 +64,10 @@ func main() {
 		},
 	}
 
-	podClient := client.CoreV1().Pods(KDumpNamespace)
+	podClient := client.CoreV1().Pods(kdump.Namespace)
 	createdPod, err := podClient.Create(context.TODO(), pod, apismeta.CreateOptions{})
 
-	serviceClient := client.CoreV1().Services(KDumpNamespace)
+	serviceClient := client.CoreV1().Services(kdump.Namespace)
 	createdService, err := serviceClient.Create(context.TODO(), service, apismeta.CreateOptions{})
 
 	if err != nil {
