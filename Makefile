@@ -1,4 +1,3 @@
-#SOURCES=./pkg/*.go
 SOURCES=
 TEST_PATHS=./pkg
 
@@ -27,6 +26,8 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  kdump           build the kdump binary"
+	@echo "  kdump-server    build the kdump server binary"
+	@echo "  all             build all binaries"
 	@echo "  test            run all tests"
 	@echo "  mostly-clean    clean any project generated files (not-including deliverables)"
 	@echo "  clean           clean built and generated files"
@@ -38,12 +39,19 @@ help:
 # # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: aqueduct
+.PHONY: kdump kdump-server
+
+all: kdump kdump-server
 
 kdump: bin/kdump
 
 bin/kdump: ${SOURCES} cmd/kdump/main.go
 	${GO_BUILD} -o $@ ./cmd/kdump
+
+kdump-server: bin/kdump-server
+
+bin/kdump-server: ${SOURCES} cmd/kdump-server/main.go
+	${GO_BUILD} -o $@ ./cmd/kdump-server
 
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
@@ -58,11 +66,9 @@ test: ${SOURCES}
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	make --directory examples mostly-clean
 
 clean: mostly-clean
 	${RM} --recursive bin
-	make --directory examples clean
 
 fmt:
 	${GO_FMT} ./cmd/kdump
