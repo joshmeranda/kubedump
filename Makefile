@@ -1,6 +1,9 @@
 SOURCES=
 TEST_PATHS=./pkg
 
+KDUMP_VERSION=$(shell tools/version.bash get)
+IMAGE_TAG=joshmeranda/kdump:${KDUMP_VERSION}
+
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
 # # # # # # # # # # # # # # # # # # # #
@@ -27,7 +30,8 @@ help:
 	@echo "Targets:"
 	@echo "  kdump           build the kdump binary"
 	@echo "  kdump-server    build the kdump server binary"
-	@echo "  all             build all binaries"
+	@echo "  docker          builder the kdump-serve image"
+	@echo "  all             build all binaries and docker images"
 	@echo "  test            run all tests"
 	@echo "  mostly-clean    clean any project generated files (not-including deliverables)"
 	@echo "  clean           clean built and generated files"
@@ -52,6 +56,14 @@ kdump-server: bin/kdump-server
 
 bin/kdump-server: ${SOURCES} cmd/kdump-server/main.go
 	${GO_BUILD} -o $@ ./cmd/kdump-server
+
+# # # # # # # # # # # # # # # # # # # #
+# BUild docker images                 #
+# # # # # # # # # # # # # # # # # # # #
+.PHONY: docker
+
+docker: kdump-server
+	sudo docker build --tag ${IMAGE_TAG} .
 
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #

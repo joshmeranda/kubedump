@@ -28,3 +28,6 @@ go.work
 
 # JetBrains IDE files (nuclear option)
 .idea/
+
+# Generated files
+bin/
