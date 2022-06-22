@@ -1,4 +1,4 @@
-SOURCES=
+SOURCES=./pkg/*.go
 TEST_PATHS=./pkg
 
 KDUMP_VERSION=$(shell tools/version.bash get)
