@@ -52,11 +52,13 @@ func main() {
 
 	logrus.Info("collecting...")
 
-	time.Sleep(time.Second * 60)
+	time.Sleep(time.Second * 5)
 
 	logrus.Info("stopping collector...")
 	err = collector.Stop()
 	if err != nil {
 		panic(err)
 	}
+
+	time.Sleep(time.Second * 5)
 }

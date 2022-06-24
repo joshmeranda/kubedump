@@ -18,7 +18,7 @@ const (
 	ResourceDirName = "resources"
 )
 
-type EventCollector struct {
+type Collector struct {
 	rootPath string
 	outFile  *os.File
 	logger   *logrus.Logger
@@ -26,8 +26,8 @@ type EventCollector struct {
 	stopChan chan bool
 }
 
-func NewCollector(rootPath string, watchers []watch.Interface) (*EventCollector, error) {
-	return &EventCollector{
+func NewCollector(rootPath string, watchers []watch.Interface) (*Collector, error) {
+	return &Collector{
 		rootPath: rootPath,
 		outFile:  nil,
 		logger:   logrus.New(),
@@ -36,7 +36,7 @@ func NewCollector(rootPath string, watchers []watch.Interface) (*EventCollector,
 	}, nil
 }
 
-func (collector *EventCollector) podFields(pod *corev1.Pod) logrus.Fields {
+func (collector *Collector) podFields(pod *corev1.Pod) logrus.Fields {
 	return logrus.Fields{
 		"resource":  "pod",
 		"namespace": pod.Namespace,
@@ -45,7 +45,7 @@ func (collector *EventCollector) podFields(pod *corev1.Pod) logrus.Fields {
 	}
 }
 
-func (collector *EventCollector) jobFields(job *batchv1.Job) logrus.Fields {
+func (collector *Collector) jobFields(job *batchv1.Job) logrus.Fields {
 	return logrus.Fields{
 		"resource":  "job",
 		"namespace": job.Namespace,
@@ -54,7 +54,7 @@ func (collector *EventCollector) jobFields(job *batchv1.Job) logrus.Fields {
 	}
 }
 
-func (collector *EventCollector) serviceFields(service *corev1.Service) logrus.Fields {
+func (collector *Collector) serviceFields(service *corev1.Service) logrus.Fields {
 	return logrus.Fields{
 		"resource":  "pod",
 		"namespace": service.Namespace,
@@ -62,7 +62,7 @@ func (collector *EventCollector) serviceFields(service *corev1.Service) logrus.F
 	}
 }
 
-func (collector *EventCollector) secretFields(secret *corev1.Secret) logrus.Fields {
+func (collector *Collector) secretFields(secret *corev1.Secret) logrus.Fields {
 	return logrus.Fields{
 		"resource":  "pod",
 		"namespace": secret.Namespace,
@@ -70,7 +70,7 @@ func (collector *EventCollector) secretFields(secret *corev1.Secret) logrus.Fiel
 	}
 }
 
-func (collector *EventCollector) dumpResource(resourceType string, obj apismeta.Object) error {
+func (collector *Collector) dumpResource(resourceType string, obj apismeta.Object) error {
 	resourceFilePath := path.Join(collector.rootPath, ResourceDirName, obj.GetNamespace(), resourceType, obj.GetName())
 
 	if err := createPathParents(resourceFilePath); err != nil {
@@ -102,7 +102,7 @@ func (collector *EventCollector) dumpResource(resourceType string, obj apismeta.
 	return nil
 }
 
-func (collector *EventCollector) Start() error {
+func (collector *Collector) Start() error {
 	eventsPath := path.Join(collector.rootPath, EventLogName)
 
 	if err := createPathParents(eventsPath); err != nil {
@@ -118,7 +118,12 @@ func (collector *EventCollector) Start() error {
 	collector.outFile = f
 	collector.logger.SetOutput(f)
 
-	var selectorSet []reflect.SelectCase
+	selectorSet := []reflect.SelectCase{
+		{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(collector.stopChan),
+		},
+	}
 
 	for _, watcher := range collector.watchers {
 		selectorSet = append(selectorSet, reflect.SelectCase{
@@ -129,14 +134,13 @@ func (collector *EventCollector) Start() error {
 
 	go func() {
 		for {
-			_, v, ok := reflect.Select(selectorSet)
+			i, v, _ := reflect.Select(selectorSet)
 
-			if !ok {
+			if i == 0 {
 				break
 			}
 
 			eventObj := v.Interface().(watch.Event).Object
-			apiObj, ok := eventObj.(apismeta.Object)
 
 			var fields logrus.Fields
 			var resourceType string
@@ -165,7 +169,10 @@ func (collector *EventCollector) Start() error {
 			}
 
 			logrus.WithFields(fields).Info()
-			if err := collector.dumpResource(resourceType, apiObj); err != nil {
+
+			if apiObj, ok := eventObj.(apismeta.Object); !ok {
+				logrus.Errorf("could not coerce value to api object: %s", reflect.TypeOf(apiObj))
+			} else if err := collector.dumpResource(resourceType, apiObj); err != nil {
 				logrus.Errorf("could not dump resource: %s", err)
 			}
 		}
@@ -174,11 +181,16 @@ func (collector *EventCollector) Start() error {
 	return nil
 }
 
-func (collector *EventCollector) Stop() error {
+func (collector *Collector) Stop() error {
 	err := collector.outFile.Close()
 
 	if err != nil {
 		return fmt.Errorf("could not close file handle: %w", err)
+	}
+
+	collector.stopChan <- true
+	for _, watcher := range collector.watchers {
+		watcher.Stop()
 	}
 
 	collector.outFile = nil
