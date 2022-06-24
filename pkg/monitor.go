@@ -3,23 +3,32 @@ package kdump
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"os"
+	"path"
 	"reflect"
+	"sigs.k8s.io/yaml"
+)
+
+const (
+	EventLogName    = "events.log"
+	ResourceDirName = "resources"
 )
 
 type EventCollector struct {
-	outPath  string
+	rootPath string
 	outFile  *os.File
 	logger   *logrus.Logger
 	watchers []watch.Interface
 	stopChan chan bool
 }
 
-func NewCollector(path string, watchers []watch.Interface) (*EventCollector, error) {
+func NewCollector(rootPath string, watchers []watch.Interface) (*EventCollector, error) {
 	return &EventCollector{
-		outPath:  path,
+		rootPath: rootPath,
 		outFile:  nil,
 		logger:   logrus.New(),
 		watchers: watchers,
@@ -27,8 +36,80 @@ func NewCollector(path string, watchers []watch.Interface) (*EventCollector, err
 	}, nil
 }
 
+func (collector *EventCollector) podFields(pod *corev1.Pod) logrus.Fields {
+	return logrus.Fields{
+		"resource":  "pod",
+		"namespace": pod.Namespace,
+		"name":      pod.Name,
+		"phase":     pod.Status.Phase,
+	}
+}
+
+func (collector *EventCollector) jobFields(job *batchv1.Job) logrus.Fields {
+	return logrus.Fields{
+		"resource":  "job",
+		"namespace": job.Namespace,
+		"name":      job.Name,
+		"":          job.Status.Conditions[0].Type,
+	}
+}
+
+func (collector *EventCollector) serviceFields(service *corev1.Service) logrus.Fields {
+	return logrus.Fields{
+		"resource":  "pod",
+		"namespace": service.Namespace,
+		"name":      service.Name,
+	}
+}
+
+func (collector *EventCollector) secretFields(secret *corev1.Secret) logrus.Fields {
+	return logrus.Fields{
+		"resource":  "pod",
+		"namespace": secret.Namespace,
+		"name":      secret.Name,
+	}
+}
+
+func (collector *EventCollector) dumpResource(resourceType string, obj apismeta.Object) error {
+	resourceFilePath := path.Join(collector.rootPath, ResourceDirName, obj.GetNamespace(), resourceType, obj.GetName())
+
+	if err := createPathParents(resourceFilePath); err != nil {
+		return fmt.Errorf("could not dump resource: %w", err)
+	}
+
+	if exists(resourceFilePath) {
+		if err := os.Truncate(resourceFilePath, 0); err != nil {
+			return fmt.Errorf("could not truncate existing resource file '%s': %w", resourceFilePath, err)
+		}
+	}
+
+	file, err := os.OpenFile(resourceFilePath, os.O_WRONLY|os.O_CREATE, 0644)
+
+	if err != nil {
+		return fmt.Errorf("could not open resource file '%s': %w", resourceFilePath, err)
+	}
+
+	data, err := yaml.Marshal(obj)
+
+	if err != nil {
+		return fmt.Errorf("could not marshal resource to yaml: %w", err)
+	}
+
+	if _, err := file.Write(data); err != nil {
+		return fmt.Errorf("could not write yaml to resource file '%s': %w", resourceFilePath, err)
+	}
+
+	return nil
+}
+
 func (collector *EventCollector) Start() error {
-	f, err := os.OpenFile(collector.outPath, os.O_WRONLY|os.O_CREATE, 0644)
+	eventsPath := path.Join(collector.rootPath, EventLogName)
+
+	if err := createPathParents(eventsPath); err != nil {
+		return fmt.Errorf("could not create collector: %w", err)
+	}
+
+	f, err := os.OpenFile(path.Join(collector.rootPath, EventLogName), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
 		return fmt.Errorf("could not create collector: %w", err)
@@ -54,35 +135,38 @@ func (collector *EventCollector) Start() error {
 				break
 			}
 
-			obj := v.Interface().(watch.Event).Object
+			eventObj := v.Interface().(watch.Event).Object
+			apiObj, ok := eventObj.(apismeta.Object)
 
-			switch obj.(type) {
+			var fields logrus.Fields
+			var resourceType string
+
+			switch eventObj.(type) {
 			case *corev1.Pod:
-				pod, _ := obj.(*corev1.Pod)
+				pod, _ := eventObj.(*corev1.Pod)
 
-				collector.logger.WithFields(logrus.Fields{
-					"resource":  "pod",
-					"namespace": pod.Namespace,
-					"name":      pod.Name,
-					"phase":     pod.Status.Phase,
-				}).Info("event received")
+				fields = collector.podFields(pod)
+				resourceType = "pod"
+			case *batchv1.Job:
+				job, _ := eventObj.(*batchv1.Job)
+
+				fields = collector.jobFields(job)
+				resourceType = "job"
 			case *corev1.Service:
-				service, _ := obj.(*corev1.Service)
+				service, _ := eventObj.(*corev1.Service)
 
-				collector.logger.WithFields(logrus.Fields{
-					"resource":  "pod",
-					"namespace": service.Namespace,
-					"name":      service.Name,
-				})
-
+				fields = collector.serviceFields(service)
+				resourceType = "service"
 			case *corev1.Secret:
-				secret, _ := obj.(*corev1.Secret)
+				secret, _ := eventObj.(*corev1.Secret)
 
-				collector.logger.WithFields(logrus.Fields{
-					"resource":  "pod",
-					"namespace": secret.Namespace,
-					"name":      secret.Name,
-				})
+				fields = collector.secretFields(secret)
+				resourceType = "secret"
+			}
+
+			logrus.WithFields(fields).Info()
+			if err := collector.dumpResource(resourceType, apiObj); err != nil {
+				logrus.Errorf("could not dump resource: %s", err)
 			}
 		}
 	}()

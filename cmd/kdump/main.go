@@ -27,13 +27,19 @@ func main() {
 	}
 
 	podClient := client.CoreV1().Pods(kdump.Namespace)
+	jobClient := client.BatchV1().Jobs(kdump.Namespace)
 
-	watcher, err := podClient.Watch(context.TODO(), apismeta.ListOptions{})
+	podWatcher, err := podClient.Watch(context.TODO(), apismeta.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
 
-	collector, err := kdump.NewCollector("events.log", []watch.Interface{watcher})
+	jobWatcher, err := jobClient.Watch(context.TODO(), apismeta.ListOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	collector, err := kdump.NewCollector("kdump", []watch.Interface{podWatcher, jobWatcher})
 	if err != nil {
 		panic(err)
 	}
