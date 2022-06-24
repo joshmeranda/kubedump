@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	kdump "kubedump/pkg"
+	kubedump "kubedump/pkg"
 	"os"
 	"time"
 )
@@ -26,8 +26,8 @@ func main() {
 		panic(err.Error())
 	}
 
-	podClient := client.CoreV1().Pods(kdump.Namespace)
-	jobClient := client.BatchV1().Jobs(kdump.Namespace)
+	podClient := client.CoreV1().Pods(kubedump.Namespace)
+	jobClient := client.BatchV1().Jobs(kubedump.Namespace)
 
 	podWatcher, err := podClient.Watch(context.TODO(), apismeta.ListOptions{})
 	if err != nil {
@@ -39,7 +39,7 @@ func main() {
 		panic(err)
 	}
 
-	collector, err := kdump.NewCollector("kdump", []watch.Interface{podWatcher, jobWatcher})
+	collector, err := kubedump.NewCollector("kubedump", []watch.Interface{podWatcher, jobWatcher})
 	if err != nil {
 		panic(err)
 	}

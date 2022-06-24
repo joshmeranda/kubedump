@@ -1,5 +1,4 @@
-package kdump
+package kubedump
 
-var Namespace = "kdump"
-var AppName = "kdump"
+var Namespace = "kubedump"
 var Port int32 = 9000

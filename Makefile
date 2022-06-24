@@ -1,8 +1,8 @@
 SOURCES=./pkg/*.go
 TEST_PATHS=./pkg
 
-KDUMP_VERSION=$(shell tools/version.bash get)
-IMAGE_TAG=joshmeranda/kdump:${KDUMP_VERSION}
+KUBEDUMP_VERSION=$(shell tools/version.bash get)
+IMAGE_TAG=joshmeranda/kubedump:${KUBEDUMP_VERSION}
 
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
@@ -28,9 +28,9 @@ help:
 	@echo "Usage: make [TARGETS]... [VALUES]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  kdump           build the kdump binary"
-	@echo "  kdump-server    build the kdump server binary"
-	@echo "  docker          builder the kdump-serve image"
+	@echo "  kubedump           build the kubedump binary"
+	@echo "  kubedump-server    build the kubedump server binary"
+	@echo "  docker          builder the kubedump-serve image"
 	@echo "  all             build all binaries and docker images"
 	@echo "  test            run all tests"
 	@echo "  mostly-clean    clean any project generated files (not-including deliverables)"
@@ -43,26 +43,26 @@ help:
 # # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: kdump kdump-server
+.PHONY: kubedump kubedump-server
 
-all: kdump kdump-server
+all: kubedump kubedump-server
 
-kdump: bin/kdump
+kubedump: bin/kubedump
 
-bin/kdump: ${SOURCES} cmd/kdump/main.go
-	${GO_BUILD} -o $@ ./cmd/kdump
+bin/kubedump: ${SOURCES} cmd/kubedump/main.go
+	${GO_BUILD} -o $@ ./cmd/kubedump
 
-kdump-server: bin/kdump-server
+kubedump-server: bin/kubedump-server
 
-bin/kdump-server: ${SOURCES} cmd/kdump-server/main.go
-	${GO_BUILD} -o $@ ./cmd/kdump-server
+bin/kubedump-server: ${SOURCES} cmd/kubedump-server/main.go
+	${GO_BUILD} -o $@ ./cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #
 # BUild docker images                 #
 # # # # # # # # # # # # # # # # # # # #
 .PHONY: docker
 
-docker: kdump-server
+docker: kubedump-server
 	sudo docker build --tag ${IMAGE_TAG} .
 
 # # # # # # # # # # # # # # # # # # # #
@@ -83,4 +83,4 @@ clean: mostly-clean
 	${RM} --recursive bin
 
 fmt:
-	${GO_FMT} ./cmd/kdump
+	${GO_FMT} ./cmd/kubedump

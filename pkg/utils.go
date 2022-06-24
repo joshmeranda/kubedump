@@ -1,4 +1,4 @@
-package kdump
+package kubedump
 
 import (
 	"os"

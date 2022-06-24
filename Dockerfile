@@ -1,3 +1,3 @@
 FROM golang:1.18 as builder
 
-COPY bin/kdump-server /usr/bin
+COPY bin/kubedump-server /usr/bin

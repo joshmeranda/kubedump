@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	kdump "kubedump/pkg"
+	kubedump "kubedump/pkg"
 	"net/http"
 )
 
@@ -31,7 +31,7 @@ func main() {
 	http.HandleFunc("/health", HandleHealth)
 	http.HandleFunc("/tar", HandleTar)
 
-	err := http.ListenAndServe(fmt.Sprintf(":%d", kdump.Port), nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", kubedump.Port), nil)
 
 	if err != nil {
 		logrus.Fatal("error starting http server: %s", err)
