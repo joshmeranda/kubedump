@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"github.com/sirupsen/logrus"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kdump "kubedump/pkg"
@@ -25,15 +27,36 @@ func main() {
 	}
 
 	podClient := client.CoreV1().Pods(kdump.Namespace)
+	jobClient := client.BatchV1().Jobs(kdump.Namespace)
 
-	watcher, err := podClient.Watch(context.TODO(), apismeta.ListOptions{})
-	monitor, err := kdump.MonitorPods(watcher)
-
+	podWatcher, err := podClient.Watch(context.TODO(), apismeta.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
 
-	time.Sleep(time.Second * 10)
+	jobWatcher, err := jobClient.Watch(context.TODO(), apismeta.ListOptions{})
+	if err != nil {
+		panic(err)
+	}
 
-	monitor.Stop()
+	collector, err := kdump.NewCollector("kdump", []watch.Interface{podWatcher, jobWatcher})
+	if err != nil {
+		panic(err)
+	}
+
+	logrus.Info("starting collector...")
+	err = collector.Start()
+	if err != nil {
+		panic(err)
+	}
+
+	logrus.Info("collecting...")
+
+	time.Sleep(time.Second * 60)
+
+	logrus.Info("stopping collector...")
+	err = collector.Stop()
+	if err != nil {
+		panic(err)
+	}
 }
