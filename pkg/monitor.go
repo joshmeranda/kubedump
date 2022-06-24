@@ -1,6 +1,7 @@
 package kdump
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -27,13 +28,14 @@ func NewCollector(path string, watchers []watch.Interface) (*EventCollector, err
 }
 
 func (collector *EventCollector) Start() error {
-	//f, err := os.OpenFile(collector.outPath, os.O_WRONLY|os.O_CREATE, 0644)
-	//
-	//if err != nil {
-	//	return fmt.Errorf("could not create collector: %w", err)
-	//}
-	//
-	//collector.logger.SetOutput(f)
+	f, err := os.OpenFile(collector.outPath, os.O_WRONLY|os.O_CREATE, 0644)
+
+	if err != nil {
+		return fmt.Errorf("could not create collector: %w", err)
+	}
+
+	collector.outFile = f
+	collector.logger.SetOutput(f)
 
 	var selectorSet []reflect.SelectCase
 
@@ -58,7 +60,7 @@ func (collector *EventCollector) Start() error {
 			case *corev1.Pod:
 				pod, _ := obj.(*corev1.Pod)
 
-				logrus.WithFields(logrus.Fields{
+				collector.logger.WithFields(logrus.Fields{
 					"resource":  "pod",
 					"namespace": pod.Namespace,
 					"name":      pod.Name,
@@ -67,7 +69,7 @@ func (collector *EventCollector) Start() error {
 			case *corev1.Service:
 				service, _ := obj.(*corev1.Service)
 
-				logrus.WithFields(logrus.Fields{
+				collector.logger.WithFields(logrus.Fields{
 					"resource":  "pod",
 					"namespace": service.Namespace,
 					"name":      service.Name,
@@ -76,7 +78,7 @@ func (collector *EventCollector) Start() error {
 			case *corev1.Secret:
 				secret, _ := obj.(*corev1.Secret)
 
-				logrus.WithFields(logrus.Fields{
+				collector.logger.WithFields(logrus.Fields{
 					"resource":  "pod",
 					"namespace": secret.Namespace,
 					"name":      secret.Name,
@@ -89,14 +91,13 @@ func (collector *EventCollector) Start() error {
 }
 
 func (collector *EventCollector) Stop() error {
-	//err := collector.outFile.Close()
-	//
-	//if err != nil {
-	//	return fmt.Errorf("could not close file handle: %w", err)
-	//}
+	err := collector.outFile.Close()
+
+	if err != nil {
+		return fmt.Errorf("could not close file handle: %w", err)
+	}
 
 	collector.outFile = nil
-	collector.logger = nil
 
 	return nil
 }
