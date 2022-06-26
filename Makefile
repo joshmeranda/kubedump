@@ -47,14 +47,14 @@ help:
 
 all: kubedump kubedump-server
 
-kubedump: bin/kubedump
+kubedump: bin/kubedump go.mod
 
-bin/kubedump: ${SOURCES} cmd/kubedump/main.go
+bin/kubedump: go.mod ${SOURCES} cmd/kubedump/main.go
 	${GO_BUILD} -o $@ ./cmd/kubedump
 
 kubedump-server: bin/kubedump-server
 
-bin/kubedump-server: ${SOURCES} cmd/kubedump-server/main.go
+bin/kubedump-server: go.mod ${SOURCES} cmd/kubedump-server/main.go
 	${GO_BUILD} -o $@ ./cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #
