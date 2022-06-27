@@ -4,9 +4,7 @@ import (
 	"context"
 	"github.com/sirupsen/logrus"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
 	"os"
@@ -15,6 +13,9 @@ import (
 
 func main() {
 	kubeconfig := os.Getenv("KUBECONFIG")
+
+	_ = os.Setenv(kubedump.PodRefreshIntervalEnv, "1.0")
+	_ = os.Setenv(kubedump.PodLogRefreshIntervalEnv, "1.0")
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -29,48 +30,27 @@ func main() {
 
 	podClient := client.CoreV1().Pods(kubedump.Namespace)
 
-	podWatcher, err := podClient.Watch(context.TODO(), apismeta.ListOptions{})
+	list, err := podClient.List(context.TODO(), apismeta.ListOptions{})
+
 	if err != nil {
 		panic(err)
 	}
 
-	jobWatcher, err := client.BatchV1().Jobs(kubedump.Namespace).Watch(context.TODO(), apismeta.ListOptions{})
-	if err != nil {
-		panic(err)
-	}
+	var podCollectors []*kubedump.PodCollector
 
-	eventWatcher, err := client.EventsV1().Events(kubedump.Namespace).Watch(context.TODO(), apismeta.ListOptions{})
-	if err != nil {
-		panic(err)
+	for _, pod := range list.Items {
+		collector, _ := kubedump.NewPodCollector("kubedump", podClient, &pod)
+		podCollectors = append(podCollectors, collector)
+		if err := collector.Start(); err != nil {
+			logrus.Error(err)
+		}
 	}
-
-	collector, err := kubedump.NewCollector("kubedump",
-		[]watch.Interface{
-			eventWatcher,
-			podWatcher,
-			jobWatcher,
-		},
-		map[string]v1.PodInterface{
-			kubedump.Namespace: podClient,
-		},
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	logrus.Info("starting collector...")
-	err = collector.Start()
-	if err != nil {
-		panic(err)
-	}
-
-	logrus.Info("collecting...")
 
 	time.Sleep(time.Second * 60)
 
-	logrus.Info("stopping collector...")
-	err = collector.Stop()
-	if err != nil {
-		panic(err)
+	for _, collector := range podCollectors {
+		if err := collector.Stop(); err != nil {
+			logrus.Error(err)
+		}
 	}
 }
