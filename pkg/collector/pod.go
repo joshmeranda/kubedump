@@ -45,7 +45,7 @@ func (collector *PodCollector) dumpCurrentPod() error {
 		}
 	}
 
-	f, err := os.OpenFile(podYamlPath(collector.rootPath, collector.pod), os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
 		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
