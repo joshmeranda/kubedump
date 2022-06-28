@@ -19,7 +19,6 @@ import (
 type PodCollector struct {
 	rootPath                 string
 	pod                      *corev1.Pod
-	podName                  string
 	podClient                v1.PodInterface
 	lastSyncedTransitionTime time.Time
 
@@ -38,15 +37,15 @@ func NewPodCollector(rootPath string, podClient v1.PodInterface, pod *corev1.Pod
 }
 
 func (collector *PodCollector) dumpCurrentPod() error {
-	yamlPath := kubedump.PodYamlPath(collector.rootPath, collector.pod)
+	yamlPath := podYamlPath(collector.rootPath, collector.pod)
 
-	if kubedump.Exists(yamlPath) {
+	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
 			return fmt.Errorf("error truncating pod ymal file '%s' : %w", yamlPath, err)
 		}
 	}
 
-	f, err := os.OpenFile(kubedump.PodYamlPath(collector.rootPath, collector.pod), os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(podYamlPath(collector.rootPath, collector.pod), os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
 		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
@@ -70,6 +69,7 @@ func (collector *PodCollector) dumpCurrentPod() error {
 func (collector *PodCollector) collectDescription(podRefreshDuration time.Duration) {
 	collector.wg.Add(1)
 
+	// todo: all similar logs should have descriptive fields (namespace, name, etc)
 	logrus.Infof("collecting description for pod '%s'", collector.pod.Name)
 
 	for collector.collecting {
@@ -77,9 +77,10 @@ func (collector *PodCollector) collectDescription(podRefreshDuration time.Durati
 
 		if err != nil {
 			logrus.Errorf("could not get pod '%s' in '%s': %s", collector.pod.Name, collector.pod.Namespace, err)
+			continue
 		}
 
-		newestTransition := kubedump.MostRecentTransitionTime(pod.Status.Conditions)
+		newestTransition := mostRecentPodTransitionTime(pod.Status.Conditions)
 
 		if newestTransition.After(collector.lastSyncedTransitionTime) {
 			collector.pod = pod
@@ -99,9 +100,9 @@ func (collector *PodCollector) collectDescription(podRefreshDuration time.Durati
 }
 
 func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, containerName string) {
-	logFilePath := kubedump.PodLogsPath(collector.rootPath, collector.pod, containerName)
+	logFilePath := podLogsPath(collector.rootPath, collector.pod, containerName)
 
-	if err := kubedump.CreatePathParents(logFilePath); err != nil {
+	if err := createPathParents(logFilePath); err != nil {
 		logrus.Errorf("could not create log file '%s' for container '%s' on pod '%s': %s", logFilePath, containerName, collector.pod.Name, err)
 		return
 	}
@@ -156,9 +157,9 @@ func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, con
 }
 
 func (collector *PodCollector) Start() error {
-	podDirPath := kubedump.PodDirPath(collector.rootPath, collector.pod)
+	podDirPath := podDirPath(collector.rootPath, collector.pod)
 
-	if err := kubedump.CreatePathParents(podDirPath); err != nil {
+	if err := createPathParents(podDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)
 	}
 
