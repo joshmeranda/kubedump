@@ -4,27 +4,40 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	v12 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"sync"
 )
 
 type NamespaceCollector struct {
-	rootPath      string
-	namespace     string
-	pods          corev1.PodInterface
+	rootPath  string
+	namespace string
+
+	pods corev1.PodInterface
+	jobs v12.JobInterface
+
 	podCollectors map[string]*PodCollector
-	running       bool
+	jobCollectors map[string]*JobCollector
+
+	running bool
+	wg      *sync.WaitGroup
 }
 
-func NewNamespaceCollector(rootPath string, namespace string, client corev1.PodInterface) *NamespaceCollector {
+func NewNamespaceCollector(rootPath string, namespace string, client *kubernetes.Clientset) *NamespaceCollector {
 	return &NamespaceCollector{
 		rootPath:      rootPath,
 		namespace:     namespace,
-		pods:          client,
+		pods:          client.CoreV1().Pods(namespace),
+		jobs:          client.BatchV1().Jobs(namespace),
 		podCollectors: make(map[string]*PodCollector),
+		jobCollectors: make(map[string]*JobCollector),
 		running:       false,
+		wg:            &sync.WaitGroup{},
 	}
 }
 
@@ -32,7 +45,7 @@ func (collector *NamespaceCollector) collectExistingPods() {
 	podList, err := collector.pods.List(context.TODO(), apismeta.ListOptions{})
 
 	if err != nil {
-		logrus.Errorf("could not fetch lis of existing pods in namespace '%s': %s", collector.namespace, err)
+		logrus.Errorf("could not fetch list of existing pods in namespace '%s': %s", collector.namespace, err)
 	}
 
 	for _, pod := range podList.Items {
@@ -42,6 +55,8 @@ func (collector *NamespaceCollector) collectExistingPods() {
 
 func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 	logrus.Infof("starting collectors for pods in namespace '%s'", collector.namespace)
+
+	collector.wg.Add(1)
 
 	c := watcher.ResultChan()
 
@@ -73,6 +88,59 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 			}
 		}
 	}
+
+	collector.wg.Done()
+}
+
+func (collector *NamespaceCollector) collectExistingJobs() {
+	jobList, err := collector.jobs.List(context.TODO(), apismeta.ListOptions{})
+
+	if err != nil {
+		logrus.Errorf("could not fetch list of existing jobs in namespace '%s': %s", collector.namespace, err)
+	}
+
+	for _, job := range jobList.Items {
+		collector.jobCollectors[job.Name] = NewJobCollector(collector.rootPath, collector.jobs, &job)
+	}
+}
+
+func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
+	logrus.Infof("starting collectors for jobs in namespace '%s'", collector.namespace)
+
+	collector.wg.Add(1)
+
+	c := watcher.ResultChan()
+
+	for collector.running {
+		event, ok := <-c
+
+		if !ok {
+			break
+		}
+
+		job, ok := event.Object.(*batchv1.Job)
+
+		if !ok {
+			logrus.Errorf("could not coerce event object to job")
+		}
+
+		switch event.Type {
+		case watch.Added:
+			jobCollector := NewJobCollector(collector.rootPath, collector.jobs, job)
+
+			if err := jobCollector.Start(); err != nil {
+				logrus.Errorf("could not start collector for job '%s' in namespace '%s': '%s'", job.Name, job.Namespace, err)
+			} else {
+				collector.jobCollectors[job.Name] = jobCollector
+			}
+		case watch.Deleted:
+			if err := collector.podCollectors[job.Name].Stop(); err != nil {
+				logrus.Errorf("error waiting for collector for job '%s' in namespace '%s' to stop: %s", job.Name, job.Namespace, err)
+			}
+		}
+	}
+
+	collector.wg.Done()
 }
 
 func (collector *NamespaceCollector) Start() error {
@@ -82,10 +150,19 @@ func (collector *NamespaceCollector) Start() error {
 		return fmt.Errorf("could not watch for pods: %w", err)
 	}
 
+	jobWatcher, err := collector.jobs.Watch(context.TODO(), apismeta.ListOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not watch for pods: %w", err)
+	}
+
 	collector.running = true
 
 	collector.collectExistingPods()
 	go collector.watchPods(podWatcher)
+
+	collector.collectExistingJobs()
+	go collector.watchJobs(jobWatcher)
 
 	return nil
 }
@@ -100,6 +177,16 @@ func (collector *NamespaceCollector) Stop() error {
 			logrus.Errorf("error waiting for collector for pod '%s' in namespace '%s' to stop: %s", podName, collector.namespace, err)
 		}
 	}
+
+	logrus.Infof("stopping job collectors in namespace '%s'", collector.namespace)
+
+	for jobName, jobCollector := range collector.jobCollectors {
+		if err := jobCollector.Stop(); err != nil {
+			logrus.Errorf("error waiting for collector for job '%s' in '%s' to stop: %s", jobName, collector.namespace, err)
+		}
+	}
+
+	collector.wg.Wait()
 
 	return nil
 }

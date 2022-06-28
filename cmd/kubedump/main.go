@@ -27,7 +27,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	namespaceCollector := collector.NewNamespaceCollector("kubedump", kubedump.Namespace, client.CoreV1().Pods(kubedump.Namespace))
+	namespaceCollector := collector.NewNamespaceCollector("kubedump", kubedump.Namespace, client)
 
 	if err := namespaceCollector.Start(); err != nil {
 		logrus.Errorf("could not start collector for namespace '%s' : %s", kubedump.Namespace, err)
