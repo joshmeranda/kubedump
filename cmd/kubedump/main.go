@@ -1,12 +1,11 @@
 package main
 
 import (
-	"context"
 	"github.com/sirupsen/logrus"
-	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
+	"kubedump/pkg/collector"
 	"os"
 	"time"
 )
@@ -28,29 +27,15 @@ func main() {
 		panic(err.Error())
 	}
 
-	podClient := client.CoreV1().Pods(kubedump.Namespace)
+	namespaceCollector := collector.NewNamespaceCollector("kubedump", kubedump.Namespace, client.CoreV1().Pods(kubedump.Namespace))
 
-	list, err := podClient.List(context.TODO(), apismeta.ListOptions{})
-
-	if err != nil {
-		panic(err)
-	}
-
-	var podCollectors []*kubedump.PodCollector
-
-	for _, pod := range list.Items {
-		collector, _ := kubedump.NewPodCollector("kubedump", podClient, &pod)
-		podCollectors = append(podCollectors, collector)
-		if err := collector.Start(); err != nil {
-			logrus.Error(err)
-		}
+	if err := namespaceCollector.Start(); err != nil {
+		logrus.Errorf("could not start collector for namespace '%s' : %s", kubedump.Namespace, err)
 	}
 
 	time.Sleep(time.Second * 60)
 
-	for _, collector := range podCollectors {
-		if err := collector.Stop(); err != nil {
-			logrus.Error(err)
-		}
+	if err := namespaceCollector.Stop(); err != nil {
+		logrus.Errorf("could stop start collector for namespace '%s' : %s", kubedump.Namespace, err)
 	}
 }

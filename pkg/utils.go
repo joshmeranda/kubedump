@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// createPathParents ensures that the parent directory for filePath exists.
-func createPathParents(filePath string) error {
+// CreatePathParents ensures that the parent directory for filePath exists.
+func CreatePathParents(filePath string) error {
 	dirname := path.Dir(filePath)
 
 	if err := os.MkdirAll(dirname, 0755); err != os.ErrExist {
@@ -18,8 +18,8 @@ func createPathParents(filePath string) error {
 	return nil
 }
 
-// exists checks if a file exists.
-func exists(filePath string) bool {
+// Exists checks if a file Exists.
+func Exists(filePath string) bool {
 	_, err := os.Stat(filePath)
 
 	return !os.IsNotExist(err)

@@ -27,14 +27,14 @@ type PodCollector struct {
 	wg         *sync.WaitGroup
 }
 
-func NewPodCollector(rootPath string, podClient v1.PodInterface, pod *corev1.Pod) (*PodCollector, error) {
+func NewPodCollector(rootPath string, podClient v1.PodInterface, pod *corev1.Pod) *PodCollector {
 	return &PodCollector{
 		rootPath:   rootPath,
 		pod:        pod,
 		podClient:  podClient,
 		collecting: false,
 		wg:         &sync.WaitGroup{},
-	}, nil
+	}
 }
 
 func (collector *PodCollector) dumpCurrentPod() error {
