@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	batchv1 "k8s.io/api/batch/v1"
-	v1 "k8s.io/api/core/v1"
+	apibatchv1 "k8s.io/api/batch/v1"
+	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	v12 "k8s.io/client-go/kubernetes/typed/batch/v1"
+	batchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sync"
 )
@@ -19,7 +19,7 @@ type NamespaceCollector struct {
 	namespace string
 
 	pods corev1.PodInterface
-	jobs v12.JobInterface
+	jobs batchv1.JobInterface
 
 	podCollectors map[string]*PodCollector
 	jobCollectors map[string]*JobCollector
@@ -67,7 +67,7 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 			break
 		}
 
-		pod, ok := event.Object.(*v1.Pod)
+		pod, ok := event.Object.(*apicorev1.Pod)
 
 		if !ok {
 			logrus.Errorf("could not coerce event object to pod")
@@ -118,7 +118,7 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 			break
 		}
 
-		job, ok := event.Object.(*batchv1.Job)
+		job, ok := event.Object.(*apibatchv1.Job)
 
 		if !ok {
 			logrus.Errorf("could not coerce event object to job")
