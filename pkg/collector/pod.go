@@ -43,6 +43,10 @@ func (collector *PodCollector) dumpCurrentPod() error {
 		if err := os.Truncate(yamlPath, 0); err != nil {
 			return fmt.Errorf("error truncating pod ymal file '%s' : %w", yamlPath, err)
 		}
+	} else {
+		if err := createPathParents(yamlPath); err != nil {
+			return fmt.Errorf("error creating parents for job file '%s': %s", yamlPath, err)
+		}
 	}
 
 	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
@@ -122,6 +126,7 @@ func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, con
 	stream, err := req.Stream(context.TODO())
 
 	if err != nil {
+		// todo: fails when container is still in "ContainerCreating"
 		logrus.Errorf("could not start log stream for container '%s' on pod '%s': %s", containerName, collector.pod.Name, err)
 		return
 	}

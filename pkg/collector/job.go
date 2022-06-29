@@ -42,6 +42,10 @@ func (collector *JobCollector) dumpCurrentJob() error {
 		if err := os.Truncate(yamlPath, 0); err != nil {
 			return fmt.Errorf("error truncating pod ymal file '%s' : %w", yamlPath, err)
 		}
+	} else {
+		if err := createPathParents(yamlPath); err != nil {
+			return fmt.Errorf("error creating parents for job file '%s': %s", yamlPath, err)
+		}
 	}
 
 	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
@@ -122,7 +126,7 @@ func (collector *JobCollector) Start() error {
 func (collector *JobCollector) Stop() error {
 	collector.collecting = false
 
-	collector.wg.Done()
+	collector.wg.Wait()
 
 	return nil
 }
