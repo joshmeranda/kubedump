@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	batchv1 "k8s.io/api/batch/v1"
+	apibatchv1 "k8s.io/api/batch/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/client-go/kubernetes/typed/batch/v1"
+	batchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
@@ -17,15 +17,15 @@ import (
 
 type JobCollector struct {
 	rootPath                 string
-	job                      *batchv1.Job
-	jobClient                v1.JobInterface
+	job                      *apibatchv1.Job
+	jobClient                batchv1.JobInterface
 	lastSyncedTransitionTime time.Time
 
 	collecting bool
 	wg         sync.WaitGroup
 }
 
-func NewJobCollector(rootPath string, jobClient v1.JobInterface, job *batchv1.Job) *JobCollector {
+func NewJobCollector(rootPath string, jobClient batchv1.JobInterface, job *apibatchv1.Job) *JobCollector {
 	return &JobCollector{
 		rootPath:   rootPath,
 		job:        job,

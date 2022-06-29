@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
-	corev1 "k8s.io/api/core/v1"
+	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
@@ -18,15 +18,15 @@ import (
 
 type PodCollector struct {
 	rootPath                 string
-	pod                      *corev1.Pod
-	podClient                v1.PodInterface
+	pod                      *apicorev1.Pod
+	podClient                corev1.PodInterface
 	lastSyncedTransitionTime time.Time
 
 	collecting bool
 	wg         *sync.WaitGroup
 }
 
-func NewPodCollector(rootPath string, podClient v1.PodInterface, pod *corev1.Pod) *PodCollector {
+func NewPodCollector(rootPath string, podClient corev1.PodInterface, pod *apicorev1.Pod) *PodCollector {
 	return &PodCollector{
 		rootPath:   rootPath,
 		pod:        pod,
@@ -118,7 +118,7 @@ func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, con
 		return
 	}
 
-	req := collector.podClient.GetLogs(collector.pod.Name, &corev1.PodLogOptions{
+	req := collector.podClient.GetLogs(collector.pod.Name, &apicorev1.PodLogOptions{
 		Container: containerName,
 		Follow:    true,
 	})

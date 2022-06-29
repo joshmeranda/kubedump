@@ -1,8 +1,8 @@
 package collector
 
 import (
-	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
+	apibatchv1 "k8s.io/api/batch/v1"
+	apicorev1 "k8s.io/api/core/v1"
 	"os"
 	"path"
 	"time"
@@ -37,27 +37,27 @@ func resourcePath(resourceType ResourceType, parent, namespace, name string) str
 	return path.Join(parent, namespace, string(resourceType), name)
 }
 
-func podDirPath(parent string, pod *corev1.Pod) string {
+func podDirPath(parent string, pod *apicorev1.Pod) string {
 	return resourcePath(ResourcePod, parent, pod.Namespace, pod.Name)
 }
 
-func podLogsPath(parent string, pod *corev1.Pod, container string) string {
+func podLogsPath(parent string, pod *apicorev1.Pod, container string) string {
 	return path.Join(podDirPath(parent, pod), "logs", container+".log")
 }
 
-func podYamlPath(parent string, pod *corev1.Pod) string {
+func podYamlPath(parent string, pod *apicorev1.Pod) string {
 	return path.Join(podDirPath(parent, pod), pod.Name+".yaml")
 }
 
-func jobDirPath(parent string, job *batchv1.Job) string {
+func jobDirPath(parent string, job *apibatchv1.Job) string {
 	return resourcePath(ResourceJob, parent, job.Namespace, job.Name)
 }
 
-func jobYamlPath(parent string, job *batchv1.Job) string {
+func jobYamlPath(parent string, job *apibatchv1.Job) string {
 	return path.Join(jobDirPath(parent, job), job.Name+".yaml")
 }
 
-func mostRecentPodTransitionTime(conditions []corev1.PodCondition) time.Time {
+func mostRecentPodTransitionTime(conditions []apicorev1.PodCondition) time.Time {
 	var mostRecent time.Time
 
 	for _, condition := range conditions {
@@ -69,7 +69,7 @@ func mostRecentPodTransitionTime(conditions []corev1.PodCondition) time.Time {
 	return mostRecent
 }
 
-func mostRecentJobTransitionTime(conditions []batchv1.JobCondition) time.Time {
+func mostRecentJobTransitionTime(conditions []apibatchv1.JobCondition) time.Time {
 	var mostRecent time.Time
 
 	for _, condition := range conditions {
