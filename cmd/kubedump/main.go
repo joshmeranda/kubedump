@@ -33,7 +33,7 @@ func main() {
 		logrus.Errorf("could not start collector for namespace '%s' : %s", kubedump.Namespace, err)
 	}
 
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 5)
 
 	if err := namespaceCollector.Stop(); err != nil {
 		logrus.Errorf("could stop start collector for namespace '%s' : %s", kubedump.Namespace, err)

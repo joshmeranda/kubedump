@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	"os"
@@ -79,4 +80,34 @@ func mostRecentJobTransitionTime(conditions []apibatchv1.JobCondition) time.Time
 	}
 
 	return mostRecent
+}
+
+func resourceFields(obj interface{}) logrus.Fields {
+	switch obj.(type) {
+	case *apicorev1.Pod:
+		pod, _ := obj.(*apicorev1.Pod)
+
+		return logrus.Fields{
+			"namespace": pod.Namespace,
+			"name":      pod.Name,
+		}
+	case *apibatchv1.Job:
+		job, _ := obj.(*apibatchv1.Job)
+
+		return logrus.Fields{
+			"namespace": job.Namespace,
+			"name":      job.Name,
+		}
+	case *apicorev1.Container:
+		cnt, _ := obj.(*apicorev1.Container)
+
+		return logrus.Fields{
+			"container": cnt.Name,
+		}
+	default:
+		return logrus.Fields{
+			// uncomment when checking types
+			//"type": reflect.TypeOf(obj),
+		}
+	}
 }

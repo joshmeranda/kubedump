@@ -72,13 +72,13 @@ func (collector *JobCollector) dumpCurrentJob() error {
 func (collector *JobCollector) collectDescription(jobRefreshDuration time.Duration) {
 	collector.wg.Add(1)
 
-	logrus.Infof("collecting description for job '%s'", collector.job.Name)
+	logrus.WithFields(resourceFields(collector.job)).Info("collecting description for job")
 
 	for collector.collecting {
 		job, err := collector.jobClient.Get(context.TODO(), collector.job.Name, apismeta.GetOptions{})
 
 		if err != nil {
-			logrus.Errorf("could not job job '%s' in '%s': %s", collector.job.Name, collector.job.Namespace, err)
+			logrus.WithFields(resourceFields(collector.job)).Errorf("could not collect for job: %s", err)
 			continue
 		}
 
@@ -89,14 +89,14 @@ func (collector *JobCollector) collectDescription(jobRefreshDuration time.Durati
 			collector.lastSyncedTransitionTime = newestTransition
 
 			if err := collector.dumpCurrentJob(); err != nil {
-				logrus.Errorf("%s", err)
+				logrus.WithFields(resourceFields(collector.job)).Error(err)
 			}
 		}
 
 		time.Sleep(jobRefreshDuration)
 	}
 
-	logrus.Infof("stopping description for job '%s'", collector.job.Name)
+	logrus.WithFields(resourceFields(collector.job)).Infof("stopping description for job")
 
 	collector.wg.Done()
 }
