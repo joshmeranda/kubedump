@@ -24,8 +24,9 @@ type NamespaceCollector struct {
 	podCollectors map[string]*PodCollector
 	jobCollectors map[string]*JobCollector
 
-	running bool
-	wg      *sync.WaitGroup
+	watchers []watch.Interface
+
+	wg *sync.WaitGroup
 }
 
 func NewNamespaceCollector(rootPath string, namespace string, client *kubernetes.Clientset) *NamespaceCollector {
@@ -36,7 +37,6 @@ func NewNamespaceCollector(rootPath string, namespace string, client *kubernetes
 		jobs:          client.BatchV1().Jobs(namespace),
 		podCollectors: make(map[string]*PodCollector),
 		jobCollectors: make(map[string]*JobCollector),
-		running:       false,
 		wg:            &sync.WaitGroup{},
 	}
 }
@@ -60,7 +60,7 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 
 	c := watcher.ResultChan()
 
-	for collector.running {
+	for {
 		event, ok := <-c
 
 		if !ok {
@@ -111,7 +111,7 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 
 	c := watcher.ResultChan()
 
-	for collector.running {
+	for {
 		event, ok := <-c
 
 		if !ok {
@@ -156,19 +156,24 @@ func (collector *NamespaceCollector) Start() error {
 		return fmt.Errorf("could not watch for pods: %w", err)
 	}
 
-	collector.running = true
-
 	collector.collectExistingPods()
 	go collector.watchPods(podWatcher)
 
 	collector.collectExistingJobs()
 	go collector.watchJobs(jobWatcher)
 
+	collector.watchers = []watch.Interface{
+		podWatcher, jobWatcher,
+	}
+
 	return nil
 }
 
 func (collector *NamespaceCollector) Stop() error {
-	collector.running = false
+	logrus.Infof("stopping watchers for namespace '%s'", collector.namespace)
+	for _, watcher := range collector.watchers {
+		watcher.Stop()
+	}
 
 	logrus.Infof("stopping pod collectors in namespace '%s'", collector.namespace)
 
