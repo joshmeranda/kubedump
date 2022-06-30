@@ -104,6 +104,12 @@ func resourceFields(obj interface{}) logrus.Fields {
 		return logrus.Fields{
 			"container": cnt.Name,
 		}
+	case *apicorev1.Namespace:
+		namespace, _ := obj.(*apicorev1.Namespace)
+
+		return logrus.Fields{
+			"namespace": namespace.Name,
+		}
 	default:
 		return logrus.Fields{
 			// uncomment when checking types

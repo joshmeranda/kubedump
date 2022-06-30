@@ -150,7 +150,7 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 				collector.jobCollectors[job.Name] = jobCollector
 			}
 		case watch.Deleted:
-			if err := collector.podCollectors[job.Name].Stop(); err != nil {
+			if err := collector.jobCollectors[job.Name].Stop(); err != nil {
 				logrus.WithFields(resourceFields(job)).Errorf("error waiting for job collector to stop: '%s'", err)
 			}
 		}
