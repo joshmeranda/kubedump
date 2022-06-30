@@ -7,36 +7,40 @@ import (
 	apibatchv1 "k8s.io/api/batch/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	batchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
-	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
-	"strconv"
 	"sync"
 	"time"
 )
 
+type JobCollectorOptions struct {
+	ParentPath          string
+	DescriptionInterval time.Duration
+}
+
 type JobCollector struct {
-	rootPath                 string
 	job                      *apibatchv1.Job
 	jobClient                batchv1.JobInterface
 	lastSyncedTransitionTime time.Time
 
 	collecting bool
 	wg         sync.WaitGroup
+
+	opts JobCollectorOptions
 }
 
-func NewJobCollector(rootPath string, jobClient batchv1.JobInterface, job *apibatchv1.Job) *JobCollector {
+func NewJobCollector(jobClient batchv1.JobInterface, job *apibatchv1.Job, opts JobCollectorOptions) *JobCollector {
 	return &JobCollector{
-		rootPath:   rootPath,
 		job:        job,
 		jobClient:  jobClient,
 		collecting: false,
 		wg:         sync.WaitGroup{},
+		opts:       opts,
 	}
 }
 
 func (collector *JobCollector) dumpCurrentJob() error {
-	yamlPath := jobYamlPath(collector.rootPath, collector.job)
+	yamlPath := jobYamlPath(collector.opts.ParentPath, collector.job)
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -102,23 +106,15 @@ func (collector *JobCollector) collectDescription(jobRefreshDuration time.Durati
 }
 
 func (collector *JobCollector) Start() error {
-	jobDirPath := jobDirPath(collector.rootPath, collector.job)
+	jobDirPath := jobDirPath(collector.opts.ParentPath, collector.job)
 
 	if err := createPathParents(jobDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)
 	}
 
-	jobRefreshInterval, err := strconv.ParseFloat(os.Getenv(kubedump.PodRefreshIntervalEnv), 64)
-
-	if err != nil {
-		return fmt.Errorf("could not parse env '%s' to float64: %w", kubedump.JobRefreshIntervalEnv, err)
-	}
-
-	jobRefreshDuration := time.Duration(float64(time.Second) * jobRefreshInterval)
-
 	collector.collecting = true
 
-	go collector.collectDescription(jobRefreshDuration)
+	go collector.collectDescription(collector.opts.DescriptionInterval)
 
 	return nil
 }
