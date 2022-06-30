@@ -14,6 +14,12 @@ import (
 	"sync"
 )
 
+type NamespaceCollectorOptions struct {
+	ParentPath          string
+	PodCollectorOptions PodCollectorOptions
+	JobCollectorOptions JobCollectorOptions
+}
+
 type NamespaceCollector struct {
 	rootPath  string
 	namespace string
@@ -27,17 +33,19 @@ type NamespaceCollector struct {
 	watchers []watch.Interface
 
 	wg *sync.WaitGroup
+
+	opts NamespaceCollectorOptions
 }
 
-func NewNamespaceCollector(rootPath string, namespace string, client *kubernetes.Clientset) *NamespaceCollector {
+func NewNamespaceCollector(namespace string, client *kubernetes.Clientset, opts NamespaceCollectorOptions) *NamespaceCollector {
 	return &NamespaceCollector{
-		rootPath:      rootPath,
 		namespace:     namespace,
 		pods:          client.CoreV1().Pods(namespace),
 		jobs:          client.BatchV1().Jobs(namespace),
 		podCollectors: make(map[string]*PodCollector),
 		jobCollectors: make(map[string]*JobCollector),
 		wg:            &sync.WaitGroup{},
+		opts:          opts,
 	}
 }
 
@@ -51,7 +59,7 @@ func (collector *NamespaceCollector) collectExistingPods() {
 	}
 
 	for _, pod := range podList.Items {
-		collector.podCollectors[pod.Name] = NewPodCollector(collector.rootPath, collector.pods, &pod)
+		collector.podCollectors[pod.Name] = NewPodCollector(collector.pods, &pod, collector.opts.PodCollectorOptions)
 	}
 }
 
@@ -79,7 +87,7 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 
 		switch event.Type {
 		case watch.Added:
-			podCollector := NewPodCollector(collector.rootPath, collector.pods, pod)
+			podCollector := NewPodCollector(collector.pods, pod, collector.opts.PodCollectorOptions)
 
 			if err := podCollector.Start(); err != nil {
 				logrus.WithFields(resourceFields(pod)).Errorf("could not start collector for pod: '%s'", err)
@@ -106,7 +114,7 @@ func (collector *NamespaceCollector) collectExistingJobs() {
 	}
 
 	for _, job := range jobList.Items {
-		collector.jobCollectors[job.Name] = NewJobCollector(collector.rootPath, collector.jobs, &job)
+		collector.jobCollectors[job.Name] = NewJobCollector(collector.jobs, &job, collector.opts.JobCollectorOptions)
 	}
 }
 
@@ -134,7 +142,7 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 
 		switch event.Type {
 		case watch.Added:
-			jobCollector := NewJobCollector(collector.rootPath, collector.jobs, job)
+			jobCollector := NewJobCollector(collector.jobs, job, collector.opts.JobCollectorOptions)
 
 			if err := jobCollector.Start(); err != nil {
 				logrus.WithFields(resourceFields(job)).Errorf("could not start collector for job: '%s'", err)

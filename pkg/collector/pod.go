@@ -8,36 +8,42 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
-	"strconv"
 	"sync"
 	"time"
 )
 
+type PodCollectorOptions struct {
+	ParentPath          string
+	LogInterval         time.Duration
+	DescriptionInterval time.Duration
+}
+
 type PodCollector struct {
-	rootPath                 string
 	pod                      *apicorev1.Pod
 	podClient                corev1.PodInterface
 	lastSyncedTransitionTime time.Time
 
 	collecting bool
 	wg         *sync.WaitGroup
+
+	opts PodCollectorOptions
 }
 
-func NewPodCollector(rootPath string, podClient corev1.PodInterface, pod *apicorev1.Pod) *PodCollector {
+func NewPodCollector(podClient corev1.PodInterface, pod *apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
 	return &PodCollector{
-		rootPath:   rootPath,
 		pod:        pod,
 		podClient:  podClient,
 		collecting: false,
 		wg:         &sync.WaitGroup{},
+
+		opts: opts,
 	}
 }
 
 func (collector *PodCollector) dumpCurrentPod() error {
-	yamlPath := podYamlPath(collector.rootPath, collector.pod)
+	yamlPath := podYamlPath(collector.opts.ParentPath, collector.pod)
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -70,7 +76,7 @@ func (collector *PodCollector) dumpCurrentPod() error {
 	return nil
 }
 
-func (collector *PodCollector) collectDescription(podRefreshDuration time.Duration) {
+func (collector *PodCollector) collectDescription() {
 	collector.wg.Add(1)
 
 	// todo: all similar logs should have descriptive fields (namespace, name, etc)
@@ -95,7 +101,7 @@ func (collector *PodCollector) collectDescription(podRefreshDuration time.Durati
 			}
 		}
 
-		time.Sleep(podRefreshDuration)
+		time.Sleep(collector.opts.DescriptionInterval)
 	}
 
 	logrus.WithFields(resourceFields(collector.pod)).Infof("stopping description for pod")
@@ -103,8 +109,8 @@ func (collector *PodCollector) collectDescription(podRefreshDuration time.Durati
 	collector.wg.Done()
 }
 
-func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, container apicorev1.Container) {
-	logFilePath := podLogsPath(collector.rootPath, collector.pod, container.Name)
+func (collector *PodCollector) collectLogs(container apicorev1.Container) {
+	logFilePath := podLogsPath(collector.opts.ParentPath, collector.pod, container.Name)
 
 	if err := createPathParents(logFilePath); err != nil {
 		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not create log file '%s': %s", logFilePath, err)
@@ -153,7 +159,7 @@ func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, con
 			break
 		}
 
-		time.Sleep(logRefreshDuration)
+		time.Sleep(collector.opts.LogInterval)
 	}
 
 	logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("stopping logs for container")
@@ -162,34 +168,18 @@ func (collector *PodCollector) collectLogs(logRefreshDuration time.Duration, con
 }
 
 func (collector *PodCollector) Start() error {
-	podDirPath := podDirPath(collector.rootPath, collector.pod)
+	podDirPath := podDirPath(collector.opts.ParentPath, collector.pod)
 
 	if err := createPathParents(podDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)
 	}
 
-	podRefreshInterval, err := strconv.ParseFloat(os.Getenv(kubedump.PodRefreshIntervalEnv), 64)
-
-	if err != nil {
-		return fmt.Errorf("could not parse env '%s' to float64: %w", kubedump.PodRefreshIntervalEnv, err)
-	}
-
-	podRefreshDuration := time.Duration(float64(time.Second) * podRefreshInterval)
-
-	podLogRefreshInterval, err := strconv.ParseFloat(os.Getenv(kubedump.PodLogRefreshIntervalEnv), 64)
-
-	if err != nil {
-		return fmt.Errorf("could not parse env '%s' to float64: %w", kubedump.PodRefreshIntervalEnv, err)
-	}
-
-	podLogRefreshDuration := time.Duration(float64(time.Second) * podLogRefreshInterval)
-
 	collector.collecting = true
 
-	go collector.collectDescription(podRefreshDuration)
+	go collector.collectDescription()
 
 	for _, cnt := range collector.pod.Spec.Containers {
-		go collector.collectLogs(podLogRefreshDuration, cnt)
+		go collector.collectLogs(cnt)
 	}
 
 	return nil
