@@ -39,7 +39,7 @@ func (collector *ClusterCollector) collectExistingNamespaces() {
 	}
 
 	for _, namespace := range namespaces.Items {
-		collector.namespaceCollectors[namespace.Name] = NewNamespaceCollector(namespace.Name, collector.client, collector.opts.NamespaceCollectorOptions)
+		collector.namespaceCollectors[namespace.Name] = NewNamespaceCollector(&namespace, collector.client, collector.opts.NamespaceCollectorOptions)
 	}
 }
 
@@ -71,12 +71,14 @@ func (collector *ClusterCollector) watchNamespaces(watcher watch.Interface) {
 
 		switch event.Type {
 		case watch.Added:
-			namespaceCollector := NewNamespaceCollector(namespace.Name, collector.client, collector.opts.NamespaceCollectorOptions)
+			if _, ok := collector.namespaceCollectors[namespace.Name]; !ok {
+				namespaceCollector := NewNamespaceCollector(namespace, collector.client, collector.opts.NamespaceCollectorOptions)
 
-			if err := namespaceCollector.Start(); err != nil {
-				logrus.WithFields(resourceFields(namespace)).Errorf("could not start collector for namespace: '%s'", err)
-			} else {
-				collector.namespaceCollectors[namespace.Name] = namespaceCollector
+				if err := namespaceCollector.Start(); err != nil {
+					logrus.WithFields(resourceFields(namespace)).Errorf("could not start collector for namespace: '%s'", err)
+				} else {
+					collector.namespaceCollectors[namespace.Name] = namespaceCollector
+				}
 			}
 		case watch.Deleted:
 			if err := collector.namespaceCollectors[namespace.Name].Stop(); err != nil {
