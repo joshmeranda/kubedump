@@ -113,14 +113,14 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 	logFilePath := podLogsPath(collector.opts.ParentPath, collector.pod, container.Name)
 
 	if err := createPathParents(logFilePath); err != nil {
-		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not create log file '%s': %s", logFilePath, err)
+		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not create log file '%s': %s", logFilePath, err)
 		return
 	}
 
 	logFile, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
-		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not create log file '%s': %s", logFilePath, err)
+		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not create log file '%s': %s", logFilePath, err)
 		return
 	}
 
@@ -133,7 +133,7 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 
 	if err != nil {
 		// todo: fails when container is still in "ContainerCreating"
-		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not start log stream for container: %s", err)
+		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not start log stream for container: %s", err)
 		return
 	}
 
@@ -141,28 +141,28 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 
 	collector.wg.Add(1)
 
-	logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("collecting logs for container")
+	logrus.WithFields(resourceFields(collector.pod, container)).Infof("collecting logs for container")
 
 	for collector.collecting {
 		n, err := stream.Read(buffer)
 
 		if err == io.EOF {
-			logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("encountered EOF on log stream for container")
+			logrus.WithFields(resourceFields(collector.pod, container)).Infof("encountered EOF on log stream for container")
 			break
 		} else if err != nil {
-			logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not read from log stream for container: %s", err)
+			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not read from log stream for container: %s", err)
 			break
 		}
 
 		if _, err := logFile.Write(buffer[:n]); err != nil {
-			logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not write to container log file '%s': %s", logFilePath, err)
+			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not write to container log file '%s': %s", logFilePath, err)
 			break
 		}
 
 		time.Sleep(collector.opts.LogInterval)
 	}
 
-	logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("stopping logs for container")
+	logrus.WithFields(resourceFields(collector.pod, container)).Infof("stopping logs for container")
 
 	collector.wg.Done()
 }
