@@ -55,7 +55,7 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not start collector for cluster: %s", err)
 	}
 
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Second * 15)
 
 	if err := clusterCollector.Stop(); err != nil {
 		return fmt.Errorf("could not stop collector for cluster: %s", err)

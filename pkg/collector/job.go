@@ -29,9 +29,9 @@ type JobCollector struct {
 	opts JobCollectorOptions
 }
 
-func NewJobCollector(jobClient batchv1.JobInterface, job *apibatchv1.Job, opts JobCollectorOptions) *JobCollector {
+func NewJobCollector(jobClient batchv1.JobInterface, job apibatchv1.Job, opts JobCollectorOptions) *JobCollector {
 	return &JobCollector{
-		job:        job,
+		job:        &job,
 		jobClient:  jobClient,
 		collecting: false,
 		wg:         sync.WaitGroup{},
@@ -75,6 +75,7 @@ func (collector *JobCollector) dumpCurrentJob() error {
 
 func (collector *JobCollector) collectDescription(jobRefreshDuration time.Duration) {
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
 	logrus.WithFields(resourceFields(collector.job)).Info("collecting description for job")
 
@@ -101,8 +102,6 @@ func (collector *JobCollector) collectDescription(jobRefreshDuration time.Durati
 	}
 
 	logrus.WithFields(resourceFields(collector.job)).Infof("stopping description for job")
-
-	collector.wg.Done()
 }
 
 func (collector *JobCollector) Start() error {

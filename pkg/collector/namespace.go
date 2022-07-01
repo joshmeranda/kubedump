@@ -37,9 +37,9 @@ type NamespaceCollector struct {
 	opts NamespaceCollectorOptions
 }
 
-func NewNamespaceCollector(namespace *apicorev1.Namespace, client *kubernetes.Clientset, opts NamespaceCollectorOptions) *NamespaceCollector {
+func NewNamespaceCollector(namespace apicorev1.Namespace, client *kubernetes.Clientset, opts NamespaceCollectorOptions) *NamespaceCollector {
 	return &NamespaceCollector{
-		namespace:     namespace,
+		namespace:     &namespace,
 		pods:          client.CoreV1().Pods(namespace.Name),
 		jobs:          client.BatchV1().Jobs(namespace.Name),
 		podCollectors: make(map[string]*PodCollector),
@@ -57,7 +57,7 @@ func (collector *NamespaceCollector) collectExistingPods() {
 	}
 
 	for _, pod := range podList.Items {
-		collector.podCollectors[pod.Name] = NewPodCollector(collector.pods, &pod, collector.opts.PodCollectorOptions)
+		collector.podCollectors[pod.Name] = NewPodCollector(collector.pods, pod, collector.opts.PodCollectorOptions)
 	}
 }
 
@@ -65,6 +65,7 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 	logrus.WithFields(resourceFields(collector.namespace)).Infof("starting collectors for pods in namespace")
 
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
 	for _, podCollector := range collector.podCollectors {
 		if err := podCollector.Start(); err != nil {
@@ -90,7 +91,7 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 		switch event.Type {
 		case watch.Added:
 			if _, ok := collector.podCollectors[pod.Name]; !ok {
-				podCollector := NewPodCollector(collector.pods, pod, collector.opts.PodCollectorOptions)
+				podCollector := NewPodCollector(collector.pods, *pod, collector.opts.PodCollectorOptions)
 
 				if err := podCollector.Start(); err != nil {
 					logrus.WithFields(resourceFields(pod)).Errorf("could not start collector for pod: '%s'", err)
@@ -104,8 +105,6 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 			}
 		}
 	}
-
-	collector.wg.Done()
 }
 
 func (collector *NamespaceCollector) collectExistingJobs() {
@@ -116,7 +115,7 @@ func (collector *NamespaceCollector) collectExistingJobs() {
 	}
 
 	for _, job := range jobList.Items {
-		collector.jobCollectors[job.Name] = NewJobCollector(collector.jobs, &job, collector.opts.JobCollectorOptions)
+		collector.jobCollectors[job.Name] = NewJobCollector(collector.jobs, job, collector.opts.JobCollectorOptions)
 	}
 }
 
@@ -124,6 +123,7 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 	logrus.WithFields(resourceFields(collector.namespace)).Infof("starting collectors for jobs in namespace")
 
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
 	for _, jobCollector := range collector.jobCollectors {
 		if err := jobCollector.Start(); err != nil {
@@ -149,7 +149,7 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 		switch event.Type {
 		case watch.Added:
 			if _, ok := collector.jobCollectors[job.Name]; !ok {
-				jobCollector := NewJobCollector(collector.jobs, job, collector.opts.JobCollectorOptions)
+				jobCollector := NewJobCollector(collector.jobs, *job, collector.opts.JobCollectorOptions)
 
 				if err := jobCollector.Start(); err != nil {
 					logrus.WithFields(resourceFields(job)).Errorf("could not start collector for job: '%s'", err)
@@ -163,8 +163,6 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 			}
 		}
 	}
-
-	collector.wg.Done()
 }
 
 func (collector *NamespaceCollector) Start() error {

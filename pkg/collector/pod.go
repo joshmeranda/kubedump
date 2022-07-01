@@ -29,11 +29,13 @@ type PodCollector struct {
 	wg         *sync.WaitGroup
 
 	opts PodCollectorOptions
+
+	stream io.ReadCloser
 }
 
-func NewPodCollector(podClient corev1.PodInterface, pod *apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
+func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
 	return &PodCollector{
-		pod:        pod,
+		pod:        &pod,
 		podClient:  podClient,
 		collecting: false,
 		wg:         &sync.WaitGroup{},
@@ -78,6 +80,7 @@ func (collector *PodCollector) dumpCurrentPod() error {
 
 func (collector *PodCollector) collectDescription() {
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
 	// todo: all similar logs should have descriptive fields (namespace, name, etc)
 	logrus.WithFields(resourceFields(collector.pod)).Infof("collecting description for pod")
@@ -105,8 +108,6 @@ func (collector *PodCollector) collectDescription() {
 	}
 
 	logrus.WithFields(resourceFields(collector.pod)).Infof("stopping description for pod")
-
-	collector.wg.Done()
 }
 
 func (collector *PodCollector) collectLogs(container apicorev1.Container) {
@@ -137,9 +138,12 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 		return
 	}
 
+	collector.stream = stream
+
 	buffer := make([]byte, 4098)
 
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
 	logrus.WithFields(resourceFields(collector.pod, container)).Infof("collecting logs for container")
 
@@ -163,8 +167,6 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 	}
 
 	logrus.WithFields(resourceFields(collector.pod, container)).Infof("stopping logs for container")
-
-	collector.wg.Done()
 }
 
 func (collector *PodCollector) Start() error {
@@ -187,6 +189,12 @@ func (collector *PodCollector) Start() error {
 
 func (collector *PodCollector) Stop() error {
 	collector.collecting = false
+
+	if collector.stream != nil {
+		if err := collector.stream.Close(); err != nil {
+			logrus.Errorf("error closing log stream: %s", err)
+		}
+	}
 
 	collector.wg.Wait()
 
