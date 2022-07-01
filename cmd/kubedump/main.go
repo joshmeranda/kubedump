@@ -22,16 +22,19 @@ func durationFromSeconds(s float64) time.Duration {
 func dump(ctx *cli.Context) error {
 	parentPath := ctx.String("destination")
 
-	opts := collector.NamespaceCollectorOptions{
+	opts := collector.ClusterCollectorOptions{
 		ParentPath: parentPath,
-		PodCollectorOptions: collector.PodCollectorOptions{
-			ParentPath:          parentPath,
-			LogInterval:         durationFromSeconds(ctx.Float64("pod-log-interval")),
-			DescriptionInterval: durationFromSeconds(ctx.Float64("pod-desc-interval")),
-		},
-		JobCollectorOptions: collector.JobCollectorOptions{
-			ParentPath:          parentPath,
-			DescriptionInterval: durationFromSeconds(ctx.Float64("job-desc-interval")),
+		NamespaceCollectorOptions: collector.NamespaceCollectorOptions{
+			ParentPath: parentPath,
+			PodCollectorOptions: collector.PodCollectorOptions{
+				ParentPath:          parentPath,
+				LogInterval:         durationFromSeconds(ctx.Float64("pod-log-interval")),
+				DescriptionInterval: durationFromSeconds(ctx.Float64("pod-desc-interval")),
+			},
+			JobCollectorOptions: collector.JobCollectorOptions{
+				ParentPath:          parentPath,
+				DescriptionInterval: durationFromSeconds(ctx.Float64("job-desc-interval")),
+			},
 		},
 	}
 
@@ -46,16 +49,16 @@ func dump(ctx *cli.Context) error {
 		panic(err.Error())
 	}
 
-	namespaceCollector := collector.NewNamespaceCollector(kubedump.Namespace, client, opts)
+	clusterCollector := collector.NewClusterCollector(client, opts)
 
-	if err := namespaceCollector.Start(); err != nil {
-		return fmt.Errorf("could not start collector for namespace '%s' : %s", kubedump.Namespace, err)
+	if err := clusterCollector.Start(); err != nil {
+		return fmt.Errorf("could not start collector for cluster: %s", err)
 	}
 
-	time.Sleep(time.Second * 60)
+	time.Sleep(time.Second * 15)
 
-	if err := namespaceCollector.Stop(); err != nil {
-		return fmt.Errorf("could stop start collector for namespace '%s' : %s", kubedump.Namespace, err)
+	if err := clusterCollector.Stop(); err != nil {
+		return fmt.Errorf("could not stop collector for cluster: %s", err)
 	}
 
 	return nil

@@ -29,11 +29,13 @@ type PodCollector struct {
 	wg         *sync.WaitGroup
 
 	opts PodCollectorOptions
+
+	stream io.ReadCloser
 }
 
-func NewPodCollector(podClient corev1.PodInterface, pod *apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
+func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
 	return &PodCollector{
-		pod:        pod,
+		pod:        &pod,
 		podClient:  podClient,
 		collecting: false,
 		wg:         &sync.WaitGroup{},
@@ -78,6 +80,7 @@ func (collector *PodCollector) dumpCurrentPod() error {
 
 func (collector *PodCollector) collectDescription() {
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
 	// todo: all similar logs should have descriptive fields (namespace, name, etc)
 	logrus.WithFields(resourceFields(collector.pod)).Infof("collecting description for pod")
@@ -105,22 +108,20 @@ func (collector *PodCollector) collectDescription() {
 	}
 
 	logrus.WithFields(resourceFields(collector.pod)).Infof("stopping description for pod")
-
-	collector.wg.Done()
 }
 
 func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 	logFilePath := podLogsPath(collector.opts.ParentPath, collector.pod, container.Name)
 
 	if err := createPathParents(logFilePath); err != nil {
-		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not create log file '%s': %s", logFilePath, err)
+		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not create log file '%s': %s", logFilePath, err)
 		return
 	}
 
 	logFile, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
-		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not create log file '%s': %s", logFilePath, err)
+		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not create log file '%s': %s", logFilePath, err)
 		return
 	}
 
@@ -133,38 +134,39 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 
 	if err != nil {
 		// todo: fails when container is still in "ContainerCreating"
-		logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not start log stream for container: %s", err)
+		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not start log stream for container: %s", err)
 		return
 	}
+
+	collector.stream = stream
 
 	buffer := make([]byte, 4098)
 
 	collector.wg.Add(1)
+	defer collector.wg.Done()
 
-	logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("collecting logs for container")
+	logrus.WithFields(resourceFields(collector.pod, container)).Infof("collecting logs for container")
 
 	for collector.collecting {
 		n, err := stream.Read(buffer)
 
 		if err == io.EOF {
-			logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("encountered EOF on log stream for container")
+			logrus.WithFields(resourceFields(collector.pod, container)).Infof("encountered EOF on log stream for container")
 			break
 		} else if err != nil {
-			logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not read from log stream for container: %s", err)
+			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not read from log stream for container: %s", err)
 			break
 		}
 
 		if _, err := logFile.Write(buffer[:n]); err != nil {
-			logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Errorf("could not write to container log file '%s': %s", logFilePath, err)
+			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not write to container log file '%s': %s", logFilePath, err)
 			break
 		}
 
 		time.Sleep(collector.opts.LogInterval)
 	}
 
-	logrus.WithFields(resourceFields(collector.pod)).WithFields(resourceFields(container)).Infof("stopping logs for container")
-
-	collector.wg.Done()
+	logrus.WithFields(resourceFields(collector.pod, container)).Infof("stopping logs for container")
 }
 
 func (collector *PodCollector) Start() error {
@@ -187,6 +189,12 @@ func (collector *PodCollector) Start() error {
 
 func (collector *PodCollector) Stop() error {
 	collector.collecting = false
+
+	if collector.stream != nil {
+		if err := collector.stream.Close(); err != nil {
+			logrus.Errorf("error closing log stream: %s", err)
+		}
+	}
 
 	collector.wg.Wait()
 

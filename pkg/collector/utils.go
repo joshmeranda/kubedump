@@ -82,32 +82,38 @@ func mostRecentJobTransitionTime(conditions []apibatchv1.JobCondition) time.Time
 	return mostRecent
 }
 
-func resourceFields(obj interface{}) logrus.Fields {
-	switch obj.(type) {
-	case *apicorev1.Pod:
-		pod, _ := obj.(*apicorev1.Pod)
+func resourceFields(objs ...interface{}) logrus.Fields {
+	fields := logrus.Fields{}
 
-		return logrus.Fields{
-			"namespace": pod.Namespace,
-			"name":      pod.Name,
-		}
-	case *apibatchv1.Job:
-		job, _ := obj.(*apibatchv1.Job)
+	for _, obj := range objs {
+		switch obj.(type) {
+		case *apicorev1.Pod:
+			pod, _ := obj.(*apicorev1.Pod)
 
-		return logrus.Fields{
-			"namespace": job.Namespace,
-			"name":      job.Name,
-		}
-	case *apicorev1.Container:
-		cnt, _ := obj.(*apicorev1.Container)
+			fields["namespace"] = pod.Namespace
+			fields["pod"] = pod.Name
 
-		return logrus.Fields{
-			"container": cnt.Name,
-		}
-	default:
-		return logrus.Fields{
+		case *apibatchv1.Job:
+			job, _ := obj.(*apibatchv1.Job)
+
+			fields["namespace"] = job.Namespace
+			fields["job"] = job.Name
+
+		case apicorev1.Container:
+			cnt, _ := obj.(apicorev1.Container)
+
+			fields["container"] = cnt.Name
+
+		case *apicorev1.Namespace:
+			namespace, _ := obj.(*apicorev1.Namespace)
+
+			fields["namespace"] = namespace.Name
+
+		default:
 			// uncomment when checking types
-			//"type": reflect.TypeOf(obj),
+			//fields["type"] = reflect.TypeOf(obj)
 		}
 	}
+
+	return fields
 }
