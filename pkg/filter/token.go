@@ -14,7 +14,6 @@ const (
 	Not
 
 	Pod
-	Namespace
 
 	OpenParenthesis
 	CloseParenthesis
@@ -94,11 +93,6 @@ func (tokenizer *Tokenizer) Next() (Token, error) {
 		token = Token{
 			Kind: Pod,
 			Body: "pod",
-		}
-	case "namespace":
-		token = Token{
-			Kind: Namespace,
-			Body: "namespace",
 		}
 	case "and", "or":
 		token = Token{
