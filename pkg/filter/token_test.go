@@ -2,58 +2,59 @@ package filter
 
 import (
 	"github.com/stretchr/testify/assert"
+	"kubedump/pkg/collector"
 	"testing"
 )
 
 func TestTokenizeNext(t *testing.T) {
-	tokenizer := NewTokenizer("pod")
+	tokenizer := newTokenizer("pod")
 
-	token, err := tokenizer.Next()
-	assert.Equal(t, Token{
-		Kind: Pod,
+	nextToken, err := tokenizer.Next()
+	assert.Equal(t, token{
+		Kind: Resource,
 		Body: "pod",
-	}, token)
+	}, nextToken)
 	assert.NoError(t, err)
 }
 
 func TestTokenizeNextWhitespace(t *testing.T) {
-	tokenizer := NewTokenizer("  pod    ")
+	tokenizer := newTokenizer("  pod    ")
 
-	token, err := tokenizer.Next()
+	nextToken, err := tokenizer.Next()
 	assert.NoError(t, err)
-	assert.Equal(t, Token{
-		Kind: Pod,
+	assert.Equal(t, token{
+		Kind: Resource,
 		Body: "pod",
-	}, token)
+	}, nextToken)
 }
 
 func TestTokenizerNextExpectingPattern(t *testing.T) {
 	t.Skipf("low frequency and low impact bug")
 
-	tokenizer := NewTokenizer("pod pod")
+	tokenizer := newTokenizer("pod pod")
 
-	token, err := tokenizer.Next()
+	nextToken, err := tokenizer.Next()
 	assert.NoError(t, err)
-	assert.Equal(t, Token{
-		Kind: Pod,
+	assert.Equal(t, token{
+		Kind: Resource,
 		Body: "pod",
-	}, token)
+	}, nextToken)
 
-	token, err = tokenizer.Next()
+	nextToken, err = tokenizer.Next()
 	assert.NoError(t, err)
-	assert.Equal(t, Token{
+	assert.Equal(t, token{
 		Kind: Pattern,
 		Body: "pod",
-	}, token)
+	}, nextToken)
 }
 
 func TestTokenization(t *testing.T) {
 	s := "pod and or (not namespace/pod)"
-	tokenizer := NewTokenizer(s)
+	tokenizer := newTokenizer(s)
 
-	expected := []Token{
+	expected := []token{
 		{
-			Kind: Pod,
+			Kind: Resource,
 			Body: "pod",
 		},
 		{
@@ -69,7 +70,7 @@ func TestTokenization(t *testing.T) {
 			Body: "(",
 		},
 		{
-			Kind: Not,
+			Kind: Operator,
 			Body: "not",
 		},
 		{
@@ -87,5 +88,107 @@ func TestTokenization(t *testing.T) {
 	actual, err := tokenizer.Tokenize()
 
 	assert.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestPostfix(t *testing.T) {
+	// not pod */some-pod or (pod */another-pod or pod default/*)
+	// default/* pod */another-pod pod or */some-pod pod not or
+	// or not pod */some-pod or pod */another-pod pod default/*
+	tokens := []token{
+		{
+			Kind: Operator,
+			Body: "not",
+		},
+		{
+			Kind: Resource,
+			Body: string(collector.ResourcePod),
+		},
+		{
+			Kind: Pattern,
+			Body: "*/some-pod",
+		},
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: OpenParenthesis,
+			Body: "(",
+		},
+		{
+			Kind: Resource,
+			Body: string(collector.ResourcePod),
+		},
+		{
+			Kind: Pattern,
+			Body: "*/another-pod",
+		},
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: Resource,
+			Body: string(collector.ResourcePod),
+		},
+		{
+			Kind: Pattern,
+			Body: "default/*",
+		},
+		{
+			Kind: CloseParenthesis,
+			Body: ")",
+		},
+		{
+			Kind: EOE,
+			Body: "EOE",
+		},
+	}
+
+	expected := []token{
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: Operator,
+			Body: "not",
+		},
+		{
+			Kind: Resource,
+			Body: string(collector.ResourcePod),
+		},
+		{
+			Kind: Pattern,
+			Body: "*/some-pod",
+		},
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: Resource,
+			Body: string(collector.ResourcePod),
+		},
+		{
+			Kind: Pattern,
+			Body: "*/another-pod",
+		},
+		{
+			Kind: Resource,
+			Body: string(collector.ResourcePod),
+		},
+		{
+			Kind: Pattern,
+			Body: "default/*",
+		},
+		{
+			Kind: EOE,
+			Body: "EOE",
+		},
+	}
+	actual := prefixTokens(tokens)
+
 	assert.Equal(t, expected, actual)
 }
