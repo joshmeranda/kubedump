@@ -10,38 +10,38 @@ type Expression interface {
 	Evaluate(v interface{}) bool
 }
 
-type NotExpression struct {
+type notExpression struct {
 	Inner Expression
 }
 
-func (expr NotExpression) Evaluate(v interface{}) bool {
+func (expr notExpression) Evaluate(v interface{}) bool {
 	return !expr.Inner.Evaluate(v)
 }
 
-type AndExpression struct {
+type andExpression struct {
 	Left  Expression
 	Right Expression
 }
 
-func (expr AndExpression) Evaluate(v interface{}) bool {
+func (expr andExpression) Evaluate(v interface{}) bool {
 	return expr.Left.Evaluate(v) && expr.Right.Evaluate(v)
 }
 
-type OrExpression struct {
+type orExpression struct {
 	Left  Expression
 	Right Expression
 }
 
-func (expr OrExpression) Evaluate(v interface{}) bool {
+func (expr orExpression) Evaluate(v interface{}) bool {
 	return expr.Left.Evaluate(v) || expr.Right.Evaluate(v)
 }
 
-type PodExpression struct {
+type podExpression struct {
 	NamePattern      string
 	NamespacePattern string
 }
 
-func (expr PodExpression) Evaluate(v interface{}) bool {
+func (expr podExpression) Evaluate(v interface{}) bool {
 	if pod, ok := v.(*apicorev1.Pod); ok {
 		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
 	} else {

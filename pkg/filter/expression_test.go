@@ -20,61 +20,61 @@ func (_ TruthyExpression) Evaluate(_ interface{}) bool {
 }
 
 func TestNot(t *testing.T) {
-	assert.True(t, NotExpression{
+	assert.True(t, notExpression{
 		Inner: FalsyExpression{},
 	}.Evaluate(0))
 
-	assert.False(t, NotExpression{
+	assert.False(t, notExpression{
 		Inner: TruthyExpression{},
 	}.Evaluate(0))
 }
 
 func TestAnd(t *testing.T) {
-	assert.True(t, AndExpression{
+	assert.True(t, andExpression{
 		Left:  TruthyExpression{},
 		Right: TruthyExpression{},
 	}.Evaluate(0))
 
-	assert.False(t, AndExpression{
+	assert.False(t, andExpression{
 		Left:  FalsyExpression{},
 		Right: TruthyExpression{},
 	}.Evaluate(0))
 
-	assert.False(t, AndExpression{
+	assert.False(t, andExpression{
 		Left:  TruthyExpression{},
 		Right: FalsyExpression{},
 	}.Evaluate(0))
 
-	assert.False(t, AndExpression{
+	assert.False(t, andExpression{
 		Left:  FalsyExpression{},
 		Right: FalsyExpression{},
 	}.Evaluate(0))
 }
 
 func TestOr(t *testing.T) {
-	assert.True(t, OrExpression{
+	assert.True(t, orExpression{
 		Left:  TruthyExpression{},
 		Right: TruthyExpression{},
 	}.Evaluate(0))
 
-	assert.True(t, OrExpression{
+	assert.True(t, orExpression{
 		Left:  FalsyExpression{},
 		Right: TruthyExpression{},
 	}.Evaluate(0))
 
-	assert.True(t, OrExpression{
+	assert.True(t, orExpression{
 		Left:  TruthyExpression{},
 		Right: FalsyExpression{},
 	}.Evaluate(0))
 
-	assert.False(t, OrExpression{
+	assert.False(t, orExpression{
 		Left:  FalsyExpression{},
 		Right: FalsyExpression{},
 	}.Evaluate(0))
 }
 
 func TestPod(t *testing.T) {
-	expr := PodExpression{
+	expr := podExpression{
 		NamePattern:      "*-pod",
 		NamespacePattern: "default",
 	}
