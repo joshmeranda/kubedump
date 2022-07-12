@@ -110,6 +110,11 @@ func main() {
 						Value:   "kubedump",
 						EnvVars: []string{"KUBEDUMP_DESTINATION"},
 					},
+					&cli.StringFlag{
+						Name:  "filter",
+						Usage: "the filter to use when collecting cluster resources",
+						Value: "",
+					},
 				},
 			},
 		},
