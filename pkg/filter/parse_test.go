@@ -126,6 +126,13 @@ func TestSplitPattern(t *testing.T) {
 	assert.Zero(t, name)
 }
 
+func TestParseEmpty(t *testing.T) {
+	expr, err := Parse("")
+
+	assert.NoError(t, err)
+	assert.Equal(t, truthyExpression{}, expr)
+}
+
 func TestParseSimple(t *testing.T) {
 	expr, err := Parse("pod default/*")
 
@@ -134,8 +141,6 @@ func TestParseSimple(t *testing.T) {
 		NamePattern:      "*",
 		NamespacePattern: "default",
 	}, expr)
-
-	_ = expr
 }
 
 func TestComplex(t *testing.T) {

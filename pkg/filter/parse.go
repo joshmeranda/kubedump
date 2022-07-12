@@ -160,6 +160,10 @@ func (p *parser) parseNotExpression() (Expression, error) {
 }
 
 func Parse(s string) (Expression, error) {
+	if s == "" {
+		return truthyExpression{}, nil
+	}
+
 	tokenizer := newTokenizer(s)
 	tokens, err := tokenizer.Tokenize()
 

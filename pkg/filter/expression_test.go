@@ -7,69 +7,57 @@ import (
 	"testing"
 )
 
-type FalsyExpression struct{}
-
-func (_ FalsyExpression) Evaluate(_ interface{}) bool {
-	return false
-}
-
-type TruthyExpression struct{}
-
-func (_ TruthyExpression) Evaluate(_ interface{}) bool {
-	return true
-}
-
 func TestNot(t *testing.T) {
 	assert.True(t, notExpression{
-		Inner: FalsyExpression{},
+		Inner: falsyExpression{},
 	}.Evaluate(0))
 
 	assert.False(t, notExpression{
-		Inner: TruthyExpression{},
+		Inner: truthyExpression{},
 	}.Evaluate(0))
 }
 
 func TestAnd(t *testing.T) {
 	assert.True(t, andExpression{
-		Left:  TruthyExpression{},
-		Right: TruthyExpression{},
+		Left:  truthyExpression{},
+		Right: truthyExpression{},
 	}.Evaluate(0))
 
 	assert.False(t, andExpression{
-		Left:  FalsyExpression{},
-		Right: TruthyExpression{},
+		Left:  falsyExpression{},
+		Right: truthyExpression{},
 	}.Evaluate(0))
 
 	assert.False(t, andExpression{
-		Left:  TruthyExpression{},
-		Right: FalsyExpression{},
+		Left:  truthyExpression{},
+		Right: falsyExpression{},
 	}.Evaluate(0))
 
 	assert.False(t, andExpression{
-		Left:  FalsyExpression{},
-		Right: FalsyExpression{},
+		Left:  falsyExpression{},
+		Right: falsyExpression{},
 	}.Evaluate(0))
 }
 
 func TestOr(t *testing.T) {
 	assert.True(t, orExpression{
-		Left:  TruthyExpression{},
-		Right: TruthyExpression{},
+		Left:  truthyExpression{},
+		Right: truthyExpression{},
 	}.Evaluate(0))
 
 	assert.True(t, orExpression{
-		Left:  FalsyExpression{},
-		Right: TruthyExpression{},
+		Left:  falsyExpression{},
+		Right: truthyExpression{},
 	}.Evaluate(0))
 
 	assert.True(t, orExpression{
-		Left:  TruthyExpression{},
-		Right: FalsyExpression{},
+		Left:  truthyExpression{},
+		Right: falsyExpression{},
 	}.Evaluate(0))
 
 	assert.False(t, orExpression{
-		Left:  FalsyExpression{},
-		Right: FalsyExpression{},
+		Left:  falsyExpression{},
+		Right: falsyExpression{},
 	}.Evaluate(0))
 }
 

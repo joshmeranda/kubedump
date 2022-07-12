@@ -10,6 +10,18 @@ type Expression interface {
 	Evaluate(v interface{}) bool
 }
 
+type falsyExpression struct{}
+
+func (_ falsyExpression) Evaluate(_ interface{}) bool {
+	return false
+}
+
+type truthyExpression struct{}
+
+func (_ truthyExpression) Evaluate(_ interface{}) bool {
+	return true
+}
+
 type notExpression struct {
 	Inner Expression
 }
