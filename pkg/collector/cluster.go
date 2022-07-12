@@ -8,10 +8,12 @@ import (
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"kubedump/pkg/filter"
 )
 
 type ClusterCollectorOptions struct {
 	ParentPath                string
+	Filter                    filter.Expression
 	NamespaceCollectorOptions NamespaceCollectorOptions
 }
 

@@ -7,6 +7,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
 	"kubedump/pkg/collector"
+	"kubedump/pkg/filter"
 	"os"
 	"time"
 )
@@ -21,11 +22,18 @@ func durationFromSeconds(s float64) time.Duration {
 
 func dump(ctx *cli.Context) error {
 	parentPath := ctx.String("destination")
+	f, err := filter.Parse("pod kubedump/*")
+
+	if err != nil {
+		return fmt.Errorf("could not parse f: %w", err)
+	}
 
 	opts := collector.ClusterCollectorOptions{
 		ParentPath: parentPath,
+		Filter:     f,
 		NamespaceCollectorOptions: collector.NamespaceCollectorOptions{
 			ParentPath: parentPath,
+			Filter:     f,
 			PodCollectorOptions: collector.PodCollectorOptions{
 				ParentPath:          parentPath,
 				LogInterval:         durationFromSeconds(ctx.Float64("pod-log-interval")),
@@ -101,6 +109,11 @@ func main() {
 						Usage:   "the directory path where the collected data will be stored",
 						Value:   "kubedump",
 						EnvVars: []string{"KUBEDUMP_DESTINATION"},
+					},
+					&cli.StringFlag{
+						Name:  "filter",
+						Usage: "the filter to use when collecting cluster resources",
+						Value: "",
 					},
 				},
 			},

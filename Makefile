@@ -1,5 +1,5 @@
 SOURCES=./pkg/*.go ./pkg/collector/*.go
-TEST_PATHS=./pkg
+TEST_PATHS=./pkg ./pkg/filter/
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
 IMAGE_TAG=joshmeranda/kubedump:${KUBEDUMP_VERSION}

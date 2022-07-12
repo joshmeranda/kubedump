@@ -4,16 +4,10 @@ import (
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
+	kubedump "kubedump/pkg"
 	"os"
 	"path"
 	"time"
-)
-
-type ResourceType string
-
-const (
-	ResourcePod ResourceType = "pod"
-	ResourceJob              = "job"
 )
 
 // createPathParents ensures that the parent directory for filePath exists.
@@ -34,12 +28,12 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func resourcePath(resourceType ResourceType, parent, namespace, name string) string {
+func resourcePath(resourceType kubedump.ResourceType, parent, namespace, name string) string {
 	return path.Join(parent, namespace, string(resourceType), name)
 }
 
 func podDirPath(parent string, pod *apicorev1.Pod) string {
-	return resourcePath(ResourcePod, parent, pod.Namespace, pod.Name)
+	return resourcePath(kubedump.ResourcePod, parent, pod.Namespace, pod.Name)
 }
 
 func podLogsPath(parent string, pod *apicorev1.Pod, container string) string {
@@ -51,7 +45,7 @@ func podYamlPath(parent string, pod *apicorev1.Pod) string {
 }
 
 func jobDirPath(parent string, job *apibatchv1.Job) string {
-	return resourcePath(ResourceJob, parent, job.Namespace, job.Name)
+	return resourcePath(kubedump.ResourceJob, parent, job.Namespace, job.Name)
 }
 
 func jobYamlPath(parent string, job *apibatchv1.Job) string {

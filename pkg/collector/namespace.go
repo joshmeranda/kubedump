@@ -11,11 +11,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	batchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"kubedump/pkg/filter"
 	"sync"
 )
 
 type NamespaceCollectorOptions struct {
 	ParentPath          string
+	Filter              filter.Expression
 	PodCollectorOptions PodCollectorOptions
 	JobCollectorOptions JobCollectorOptions
 }
@@ -57,7 +59,9 @@ func (collector *NamespaceCollector) collectExistingPods() {
 	}
 
 	for _, pod := range podList.Items {
-		collector.podCollectors[pod.Name] = NewPodCollector(collector.pods, pod, collector.opts.PodCollectorOptions)
+		if collector.opts.Filter.Evaluate(pod) {
+			collector.podCollectors[pod.Name] = NewPodCollector(collector.pods, pod, collector.opts.PodCollectorOptions)
+		}
 	}
 }
 
@@ -86,6 +90,9 @@ func (collector *NamespaceCollector) watchPods(watcher watch.Interface) {
 
 		if !ok {
 			logrus.Errorf("could not coerce event object to pod")
+			continue
+		} else if !collector.opts.Filter.Evaluate(*pod) {
+			continue
 		}
 
 		switch event.Type {
@@ -115,7 +122,9 @@ func (collector *NamespaceCollector) collectExistingJobs() {
 	}
 
 	for _, job := range jobList.Items {
-		collector.jobCollectors[job.Name] = NewJobCollector(collector.jobs, job, collector.opts.JobCollectorOptions)
+		if collector.opts.Filter.Evaluate(job) {
+			collector.jobCollectors[job.Name] = NewJobCollector(collector.jobs, job, collector.opts.JobCollectorOptions)
+		}
 	}
 }
 
@@ -144,6 +153,8 @@ func (collector *NamespaceCollector) watchJobs(watcher watch.Interface) {
 
 		if !ok {
 			logrus.Errorf("could not coerce event object to job")
+		} else if !collector.opts.Filter.Evaluate(*job) {
+			continue
 		}
 
 		switch event.Type {
