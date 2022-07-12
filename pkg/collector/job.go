@@ -7,6 +7,7 @@ import (
 	apibatchv1 "k8s.io/api/batch/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	batchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
+	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
 	"sync"
@@ -40,7 +41,7 @@ func NewJobCollector(jobClient batchv1.JobInterface, job apibatchv1.Job, opts Jo
 }
 
 func (collector *JobCollector) dumpCurrentJob() error {
-	yamlPath := jobYamlPath(collector.opts.ParentPath, collector.job)
+	yamlPath := resourceYaml(kubedump.ResourceJob, collector.opts.ParentPath, collector.job)
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -105,7 +106,7 @@ func (collector *JobCollector) collectDescription(jobRefreshDuration time.Durati
 }
 
 func (collector *JobCollector) Start() error {
-	jobDirPath := jobDirPath(collector.opts.ParentPath, collector.job)
+	jobDirPath := resourceDir(kubedump.ResourceJob, collector.opts.ParentPath, collector.job)
 
 	if err := createPathParents(jobDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)

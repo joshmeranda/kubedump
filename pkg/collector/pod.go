@@ -8,6 +8,7 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
 	"sync"
@@ -45,7 +46,7 @@ func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodC
 }
 
 func (collector *PodCollector) dumpCurrentPod() error {
-	yamlPath := podYamlPath(collector.opts.ParentPath, collector.pod)
+	yamlPath := resourceYaml(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -111,7 +112,7 @@ func (collector *PodCollector) collectDescription() {
 }
 
 func (collector *PodCollector) collectLogs(container apicorev1.Container) {
-	logFilePath := podLogsPath(collector.opts.ParentPath, collector.pod, container.Name)
+	logFilePath := resourceYaml(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
 
 	if err := createPathParents(logFilePath); err != nil {
 		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not create log file '%s': %s", logFilePath, err)
@@ -170,7 +171,7 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 }
 
 func (collector *PodCollector) Start() error {
-	podDirPath := podDirPath(collector.opts.ParentPath, collector.pod)
+	podDirPath := resourceDir(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
 
 	if err := createPathParents(podDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)
