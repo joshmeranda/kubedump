@@ -42,7 +42,7 @@ type podExpression struct {
 }
 
 func (expr podExpression) Evaluate(v interface{}) bool {
-	if pod, ok := v.(*apicorev1.Pod); ok {
+	if pod, ok := v.(apicorev1.Pod); ok {
 		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
 	} else {
 		return false

@@ -2,7 +2,7 @@ package filter
 
 import (
 	"fmt"
-	"kubedump/pkg/collector"
+	kubedump "kubedump/pkg"
 	"strings"
 	"unicode"
 )
@@ -92,7 +92,7 @@ func (tokenizer *tokenizer) Next() (token, error) {
 	case "pod":
 		t = token{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		}
 	case "not", "and", "or":
 		t = token{

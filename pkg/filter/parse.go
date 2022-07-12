@@ -2,7 +2,7 @@ package filter
 
 import (
 	"fmt"
-	"kubedump/pkg/collector"
+	kubedump "kubedump/pkg"
 	"strings"
 )
 
@@ -89,7 +89,7 @@ func (p *parser) parseExpression() (Expression, error) {
 		return p.parseOperatorExpression()
 	case "not":
 		return p.parseNotExpression()
-	case string(collector.ResourcePod):
+	case string(kubedump.ResourcePod):
 		return p.parseResourceExpression()
 	}
 
@@ -103,8 +103,8 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 
 	namespace, name := splitPattern(pattern)
 
-	switch collector.ResourceType(kind) {
-	case collector.ResourcePod:
+	switch kubedump.ResourceType(kind) {
+	case kubedump.ResourcePod:
 		return podExpression{
 			NamePattern:      name,
 			NamespacePattern: namespace,

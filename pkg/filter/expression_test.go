@@ -79,7 +79,7 @@ func TestPod(t *testing.T) {
 		NamespacePattern: "default",
 	}
 
-	assert.True(t, expr.Evaluate(&apicorev1.Pod{
+	assert.True(t, expr.Evaluate(apicorev1.Pod{
 		ObjectMeta: apismeta.ObjectMeta{
 			Name:      "some-pod",
 			Namespace: "default",

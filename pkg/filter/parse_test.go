@@ -2,7 +2,7 @@ package filter
 
 import (
 	"github.com/stretchr/testify/assert"
-	"kubedump/pkg/collector"
+	kubedump "kubedump/pkg"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		},
 		{
 			Kind: Pattern,
@@ -33,7 +33,7 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		},
 		{
 			Kind: Pattern,
@@ -45,7 +45,7 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		},
 		{
 			Kind: Pattern,
@@ -72,7 +72,7 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		},
 		{
 			Kind: Pattern,
@@ -84,7 +84,7 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		},
 		{
 			Kind: Pattern,
@@ -92,7 +92,7 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: string(collector.ResourcePod),
+			Body: string(kubedump.ResourcePod),
 		},
 		{
 			Kind: Pattern,

@@ -11,3 +11,10 @@ var PodLogRefreshIntervalEnv = "POD_LOG_INTERVAL"
 
 // JobRefreshIntervalEnv is the environment variable describing how many seconds kubedump waits between job updates.
 var JobRefreshIntervalEnv = "JOB_DESCRIPTION_INTERVAL"
+
+type ResourceType string
+
+const (
+	ResourcePod ResourceType = "pod"
+	ResourceJob              = "job"
+)
