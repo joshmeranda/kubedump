@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	kubedump "kubedump/pkg"
 	"os"
+	"path"
 	"sigs.k8s.io/yaml"
 	"sync"
 	"time"
@@ -45,8 +46,29 @@ func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodC
 	}
 }
 
+func (collector *PodCollector) podDir() string {
+	jobName, ok := collector.pod.Labels["job-name"]
+
+	if !ok {
+		return resourceDirPath(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
+	}
+
+	return path.Join(resourceDirPath(kubedump.ResourceJob, collector.opts.ParentPath, &apismeta.ObjectMeta{
+		Name:      jobName,
+		Namespace: collector.pod.Namespace,
+	}), "pod", collector.pod.Name)
+}
+
+func (collector *PodCollector) podYaml() string {
+	return path.Join(collector.podDir(), collector.pod.Name+".yaml")
+}
+
+func (collector *PodCollector) podLog() string {
+	return path.Join(collector.podDir(), collector.pod.Name+".log")
+}
+
 func (collector *PodCollector) dumpCurrentPod() error {
-	yamlPath := resourceYaml(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
+	yamlPath := collector.podYaml()
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -112,7 +134,7 @@ func (collector *PodCollector) collectDescription() {
 }
 
 func (collector *PodCollector) collectLogs(container apicorev1.Container) {
-	logFilePath := resourceYaml(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
+	logFilePath := collector.podLog()
 
 	if err := createPathParents(logFilePath); err != nil {
 		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not create log file '%s': %s", logFilePath, err)
@@ -171,7 +193,7 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 }
 
 func (collector *PodCollector) Start() error {
-	podDirPath := resourceDir(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
+	podDirPath := resourceDirPath(kubedump.ResourcePod, collector.opts.ParentPath, collector.pod)
 
 	if err := createPathParents(podDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)

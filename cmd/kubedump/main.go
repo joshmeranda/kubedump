@@ -22,7 +22,7 @@ func durationFromSeconds(s float64) time.Duration {
 
 func dump(ctx *cli.Context) error {
 	parentPath := ctx.String("destination")
-	f, err := filter.Parse("pod kubedump/*")
+	f, err := filter.Parse("")
 
 	if err != nil {
 		return fmt.Errorf("could not parse f: %w", err)
@@ -63,7 +63,7 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not start collector for cluster: %s", err)
 	}
 
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 30)
 
 	if err := clusterCollector.Stop(); err != nil {
 		return fmt.Errorf("could not stop collector for cluster: %s", err)

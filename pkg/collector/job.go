@@ -41,7 +41,7 @@ func NewJobCollector(jobClient batchv1.JobInterface, job apibatchv1.Job, opts Jo
 }
 
 func (collector *JobCollector) dumpCurrentJob() error {
-	yamlPath := resourceYaml(kubedump.ResourceJob, collector.opts.ParentPath, collector.job)
+	yamlPath := resourceYamlPath(kubedump.ResourceJob, collector.opts.ParentPath, collector.job)
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -106,7 +106,7 @@ func (collector *JobCollector) collectDescription(jobRefreshDuration time.Durati
 }
 
 func (collector *JobCollector) Start() error {
-	jobDirPath := resourceDir(kubedump.ResourceJob, collector.opts.ParentPath, collector.job)
+	jobDirPath := resourceDirPath(kubedump.ResourceJob, collector.opts.ParentPath, collector.job)
 
 	if err := createPathParents(jobDirPath); err != nil {
 		return fmt.Errorf("could not create collector: %w", err)
