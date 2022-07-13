@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
+	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
@@ -28,28 +29,12 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func resourcePath(resourceType kubedump.ResourceType, parent, namespace, name string) string {
-	return path.Join(parent, namespace, string(resourceType), name)
+func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismeta.Object) string {
+	return path.Join(parent, obj.GetNamespace(), string(resourceKind), obj.GetName())
 }
 
-func podDirPath(parent string, pod *apicorev1.Pod) string {
-	return resourcePath(kubedump.ResourcePod, parent, pod.Namespace, pod.Name)
-}
-
-func podLogsPath(parent string, pod *apicorev1.Pod, container string) string {
-	return path.Join(podDirPath(parent, pod), "logs", container+".log")
-}
-
-func podYamlPath(parent string, pod *apicorev1.Pod) string {
-	return path.Join(podDirPath(parent, pod), pod.Name+".yaml")
-}
-
-func jobDirPath(parent string, job *apibatchv1.Job) string {
-	return resourcePath(kubedump.ResourceJob, parent, job.Namespace, job.Name)
-}
-
-func jobYamlPath(parent string, job *apibatchv1.Job) string {
-	return path.Join(jobDirPath(parent, job), job.Name+".yaml")
+func resourceYamlPath(resourceKind kubedump.ResourceKind, parent string, obj apismeta.Object) string {
+	return path.Join(resourceDirPath(resourceKind, parent, obj), obj.GetName()+".yaml")
 }
 
 func mostRecentPodTransitionTime(conditions []apicorev1.PodCondition) time.Time {
