@@ -2,6 +2,7 @@ package filter
 
 import (
 	"github.com/IGLOU-EU/go-wildcard"
+	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 )
 
@@ -48,6 +49,7 @@ func (expr orExpression) Evaluate(v interface{}) bool {
 	return expr.Left.Evaluate(v) || expr.Right.Evaluate(v)
 }
 
+// podExpression evaluates to true if the pod Name and Namespace match the specified patterns.
 type podExpression struct {
 	NamePattern      string
 	NamespacePattern string
@@ -57,6 +59,31 @@ func (expr podExpression) Evaluate(v interface{}) bool {
 	if pod, ok := v.(apicorev1.Pod); ok {
 		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
 	} else {
+		return false
+	}
+}
+
+// jobExpression evaluates to true if the pod is associated with a job whose Name and Namespace match the specified patterns.
+type jobExpression struct {
+	NamePattern      string
+	NamespacePattern string
+}
+
+func (expr jobExpression) Evaluate(v interface{}) bool {
+	switch v.(type) {
+	case apicorev1.Pod:
+		pod := v.(apicorev1.Pod)
+
+		if jobName, ok := pod.Labels["job-name"]; ok {
+			return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, jobName)
+		} else {
+			return false
+		}
+	case apibatchv1.Job:
+		job := v.(apibatchv1.Job)
+
+		return wildcard.MatchSimple(expr.NamespacePattern, job.Namespace) && wildcard.MatchSimple(expr.NamePattern, job.Name)
+	default:
 		return false
 	}
 }

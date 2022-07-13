@@ -89,10 +89,10 @@ func (tokenizer *tokenizer) Next() (token, error) {
 
 	var t token
 	switch body {
-	case "pod":
+	case string(kubedump.ResourcePod), kubedump.ResourceJob:
 		t = token{
 			Kind: Resource,
-			Body: string(kubedump.ResourcePod),
+			Body: body,
 		}
 	case "not", "and", "or":
 		t = token{

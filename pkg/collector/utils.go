@@ -29,16 +29,12 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func resourceDirPath(resourceType kubedump.ResourceType, parent string, obj apismeta.Object) string {
-	return path.Join(parent, obj.GetNamespace(), string(resourceType), obj.GetName())
+func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismeta.Object) string {
+	return path.Join(parent, obj.GetNamespace(), string(resourceKind), obj.GetName())
 }
 
-func resourceYamlPath(resourceType kubedump.ResourceType, parent string, obj apismeta.Object) string {
-	return path.Join(resourceDirPath(resourceType, parent, obj), obj.GetName()+".yaml")
-}
-
-func resourceLogPath(resourceType kubedump.ResourceType, parent string, obj apismeta.Object) string {
-	return path.Join(resourceDirPath(resourceType, parent, obj), obj.GetName()+".log")
+func resourceYamlPath(resourceKind kubedump.ResourceKind, parent string, obj apismeta.Object) string {
+	return path.Join(resourceDirPath(resourceKind, parent, obj), obj.GetName()+".yaml")
 }
 
 func mostRecentPodTransitionTime(conditions []apicorev1.PodCondition) time.Time {

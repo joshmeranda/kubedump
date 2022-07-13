@@ -48,13 +48,17 @@ func TestTokenizerNextExpectingPattern(t *testing.T) {
 }
 
 func TestTokenization(t *testing.T) {
-	s := "pod and or (not namespace/pod)"
+	s := "pod job and or (not namespace/pod)"
 	tokenizer := newTokenizer(s)
 
 	expected := []token{
 		{
 			Kind: Resource,
 			Body: "pod",
+		},
+		{
+			Kind: Resource,
+			Body: "job",
 		},
 		{
 			Kind: Operator,

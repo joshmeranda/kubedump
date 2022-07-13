@@ -22,7 +22,7 @@ func durationFromSeconds(s float64) time.Duration {
 
 func dump(ctx *cli.Context) error {
 	parentPath := ctx.String("destination")
-	f, err := filter.Parse("")
+	f, err := filter.Parse(ctx.String("filter"))
 
 	if err != nil {
 		return fmt.Errorf("could not parse f: %w", err)

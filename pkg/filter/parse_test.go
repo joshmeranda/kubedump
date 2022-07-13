@@ -144,7 +144,7 @@ func TestParseSimple(t *testing.T) {
 }
 
 func TestComplex(t *testing.T) {
-	expr, err := Parse("not pod */pod-name and (pod another-pod or pod namespace/another-pod)")
+	expr, err := Parse("not pod */pod-name and (pod another-pod or job namespace/some-job)")
 
 	assert.NoError(t, err)
 	assert.Equal(t, andExpression{
@@ -159,8 +159,8 @@ func TestComplex(t *testing.T) {
 				NamePattern:      "another-pod",
 				NamespacePattern: "default",
 			},
-			Right: podExpression{
-				NamePattern:      "another-pod",
+			Right: jobExpression{
+				NamePattern:      "some-job",
 				NamespacePattern: "namespace",
 			},
 		},
