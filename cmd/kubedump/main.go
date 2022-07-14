@@ -5,7 +5,6 @@ import (
 	"github.com/urfave/cli/v2"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	kubedump "kubedump/pkg"
 	"kubedump/pkg/collector"
 	"kubedump/pkg/filter"
 	"os"
@@ -88,32 +87,35 @@ func main() {
 						Category: CategoryIntervals,
 						Usage:    "the interval at which pod descriptions are updated",
 						Value:    1.0,
-						EnvVars:  []string{kubedump.PodRefreshIntervalEnv},
+						EnvVars:  []string{"POD_DESCRIPTION_INTERVAL"},
 					},
 					&cli.Float64Flag{
 						Name:     "pod-log-interval",
 						Category: CategoryIntervals,
 						Usage:    "the interval at which pod container logs are updated",
 						Value:    1.0,
-						EnvVars:  []string{kubedump.PodLogRefreshIntervalEnv},
+						EnvVars:  []string{"POD_LOG_INTERVAL"},
 					},
 					&cli.Float64Flag{
 						Name:     "job-desc-interval",
 						Category: CategoryIntervals,
 						Usage:    "the interval at which job descriptions are updated",
 						Value:    1.0,
-						EnvVars:  []string{kubedump.JobRefreshIntervalEnv},
+						EnvVars:  []string{"JOB_DESCRIPTION_INTERVAL"},
 					},
 					&cli.PathFlag{
 						Name:    "destination",
 						Usage:   "the directory path where the collected data will be stored",
 						Value:   "kubedump",
+						Aliases: []string{"d"},
 						EnvVars: []string{"KUBEDUMP_DESTINATION"},
 					},
 					&cli.StringFlag{
-						Name:  "filter",
-						Usage: "the filter to use when collecting cluster resources",
-						Value: "",
+						Name:    "filter",
+						Usage:   "the filter to use when collecting cluster resources",
+						Value:   "",
+						Aliases: []string{"f"},
+						EnvVars: []string{"KUBEDUMP_FILTER"},
 					},
 				},
 			},
