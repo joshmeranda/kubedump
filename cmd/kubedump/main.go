@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"kubedump/pkg/collector"
 	"kubedump/pkg/filter"
@@ -45,7 +46,13 @@ func dump(ctx *cli.Context) error {
 		},
 	}
 
-	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	var config *rest.Config
+	if ctx.Bool("internal") {
+		config, err = rest.InClusterConfig()
+	} else {
+		config, err = clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	}
+
 	if err != nil {
 		panic(err.Error())
 	}
@@ -116,6 +123,11 @@ func main() {
 						Value:   "",
 						Aliases: []string{"f"},
 						EnvVars: []string{"KUBEDUMP_FILTER"},
+					},
+					&cli.BoolFlag{
+						Name:    "internal",
+						Usage:   "use an internal cluster config",
+						EnvVars: []string{"KUBEDUMP_INTERNAL"},
 					},
 				},
 			},
