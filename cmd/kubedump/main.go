@@ -54,13 +54,13 @@ func dump(ctx *cli.Context) error {
 	}
 
 	if err != nil {
-		panic(err.Error())
+		return fmt.Errorf("could not load config: %w", err)
 	}
 
 	client, err := kubernetes.NewForConfig(config)
 
 	if err != nil {
-		panic(err.Error())
+		return fmt.Errorf("could not load kubeconfig: %w", err)
 	}
 
 	clusterCollector := collector.NewClusterCollector(client, opts)
@@ -76,6 +76,26 @@ func dump(ctx *cli.Context) error {
 	}
 
 	return nil
+}
+
+func create(ctx *cli.Context) error {
+	return fmt.Errorf("not yet implemented")
+}
+
+func start(ctx *cli.Context) error {
+	return fmt.Errorf("not yet implemented")
+}
+
+func stop(ctx *cli.Context) error {
+	return fmt.Errorf("not yet implemented")
+}
+
+func pull(ctx *cli.Context) error {
+	return fmt.Errorf("not yet implemented")
+}
+
+func remove(ctx *cli.Context) error {
+	return fmt.Errorf("not yet implemented")
 }
 
 func main() {
@@ -151,7 +171,7 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		fmt.Println(err)
+		fmt.Printf("Error: %s", err)
 		return
 	}
 }
