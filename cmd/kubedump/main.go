@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/urfave/cli/v2"
+	"io"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +14,8 @@ import (
 	kubedump "kubedump/pkg"
 	"kubedump/pkg/collector"
 	"kubedump/pkg/filter"
+	"net/http"
+	"net/url"
 	"os"
 	"time"
 )
@@ -116,11 +119,11 @@ func create(ctx *cli.Context) error {
 					Containers: []corev1.Container{
 						{
 							Name:  "kubedump",
-							Image: "joshmeranda/kubdedump-server:0.0.0",
+							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-3",
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "http",
-									ContainerPort: 80,
+									ContainerPort: kubedump.Port,
 									Protocol:      "TCP",
 								},
 							},
@@ -130,7 +133,6 @@ func create(ctx *cli.Context) error {
 							StartupProbe:   nil,
 						},
 					},
-					//RestartPolicy: "OnFailure",
 				},
 			},
 		},
@@ -178,7 +180,47 @@ func stop(ctx *cli.Context) error {
 }
 
 func pull(ctx *cli.Context) error {
-	return fmt.Errorf("not yet implemented")
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+
+	if err != nil {
+		return fmt.Errorf("could not load kubeconfig: %w", err)
+	}
+
+	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
+	serviceUrl := url.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
+		Path:   "/tar",
+	}
+
+	httpClient := &http.Client{}
+	response, err := httpClient.Get(serviceUrl.String())
+
+	if err != nil {
+		return fmt.Errorf("could not request tar from kubedump: %w", err)
+	}
+	defer response.Body.Close()
+
+	f, err := os.Create(fmt.Sprintf("kubedump-%s.tar", time.Now().Format(time.RFC3339)))
+
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, response.Body)
+
+	if err != nil {
+		return fmt.Errorf("could not copy response body to file: %w", err)
+	}
+
+	return nil
 }
 
 func remove(ctx *cli.Context) error {

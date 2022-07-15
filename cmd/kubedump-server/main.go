@@ -30,6 +30,8 @@ func HandleStop(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/health", HandleHealth)
 	http.HandleFunc("/tar", HandleTar)
+	http.HandleFunc("/start", HandleStart)
+	http.HandleFunc("/stop", HandleStop)
 
 	err := http.ListenAndServe(fmt.Sprintf(":%d", kubedump.Port), nil)
 
