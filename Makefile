@@ -2,7 +2,7 @@ SOURCES=./pkg/*.go ./pkg/collector/*.go
 TEST_PATHS=./pkg ./pkg/filter/
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
-IMAGE_TAG=joshmeranda/kubedump:${KUBEDUMP_VERSION}
+IMAGE_TAG=joshmeranda/kubedump-server:${KUBEDUMP_VERSION}
 
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #

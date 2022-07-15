@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/urfave/cli/v2"
+	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/utils/pointer"
+	kubedump "kubedump/pkg"
 	"kubedump/pkg/collector"
 	"kubedump/pkg/filter"
 	"os"
@@ -46,12 +51,7 @@ func dump(ctx *cli.Context) error {
 		},
 	}
 
-	var config *rest.Config
-	if ctx.Bool("internal") {
-		config, err = rest.InClusterConfig()
-	} else {
-		config, err = clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
-	}
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 
 	if err != nil {
 		return fmt.Errorf("could not load config: %w", err)
@@ -79,7 +79,94 @@ func dump(ctx *cli.Context) error {
 }
 
 func create(ctx *cli.Context) error {
-	return fmt.Errorf("not yet implemented")
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+
+	if err != nil {
+		return fmt.Errorf("could not load kubeconfig: %w", err)
+	}
+
+	deployments := client.AppsV1().Deployments(kubedump.Namespace)
+	_, err = deployments.Create(context.TODO(), &v1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "kubedump-server",
+			Namespace: kubedump.Namespace,
+		},
+		Spec: v1.DeploymentSpec{
+			Replicas: pointer.Int32Ptr(1),
+			Selector: &apismeta.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": kubedump.AppName,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "kubedump-server",
+					Namespace: kubedump.Namespace,
+					Labels: map[string]string{
+						"app": kubedump.AppName,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "kubedump",
+							Image: "joshmeranda/kubdedump-server:0.0.0",
+							Ports: []corev1.ContainerPort{
+								{
+									Name:          "http",
+									ContainerPort: 80,
+									Protocol:      "TCP",
+								},
+							},
+							Env:            nil,
+							LivenessProbe:  nil,
+							ReadinessProbe: nil,
+							StartupProbe:   nil,
+						},
+					},
+					//RestartPolicy: "OnFailure",
+				},
+			},
+		},
+	}, apismeta.CreateOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not deploy deployment: %w", err)
+	}
+
+	services := client.CoreV1().Services(kubedump.Namespace)
+	_, err = services.Create(context.TODO(), &corev1.Service{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      kubedump.ServiceName,
+			Namespace: kubedump.Namespace,
+			Labels:    nil,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:     "",
+					Protocol: "TCP",
+					Port:     kubedump.Port,
+				},
+			},
+			Type: "NodePort",
+			Selector: map[string]string{
+				"app": kubedump.AppName,
+			},
+		},
+	}, apismeta.CreateOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not deploy service: %w", err)
+	}
+
+	return nil
 }
 
 func start(ctx *cli.Context) error {
@@ -95,10 +182,38 @@ func pull(ctx *cli.Context) error {
 }
 
 func remove(ctx *cli.Context) error {
-	return fmt.Errorf("not yet implemented")
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+
+	if err != nil {
+		return fmt.Errorf("could not load kubeconfig: %w", err)
+	}
+
+	deployments := client.AppsV1().Deployments(kubedump.Namespace)
+	err = deployments.Delete(context.TODO(), "kubedump-server", apismeta.DeleteOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not delete server deployment: %w", err)
+	}
+
+	services := client.CoreV1().Services(kubedump.Namespace)
+	err = services.Delete(context.TODO(), kubedump.ServiceName, apismeta.DeleteOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not delete server service: %w", err)
+	}
+
+	return nil
 }
 
 func main() {
+	// go:generate cat Dockerfile
+
 	app := &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
@@ -150,6 +265,31 @@ func main() {
 						EnvVars: []string{"KUBEDUMP_INTERNAL"},
 					},
 				},
+			},
+			{
+				Name:   "create",
+				Usage:  "create and expose a service for teh kubedump-server",
+				Action: create,
+			},
+			{
+				Name:   "start",
+				Usage:  "start capturing",
+				Action: start,
+			},
+			{
+				Name:   "start",
+				Usage:  "stop capturing ",
+				Action: stop,
+			},
+			{
+				Name:   "pull",
+				Usage:  "pull the captured resources as a tar archive",
+				Action: pull,
+			},
+			{
+				Name:   "remove",
+				Usage:  "remove the kubedump-serve service from the cluster",
+				Action: remove,
 			},
 		},
 		Flags: []cli.Flag{
