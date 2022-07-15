@@ -24,6 +24,29 @@ const (
 	CategoryIntervals = "Intervals"
 )
 
+func serviceUrl(ctx *cli.Context) (url.URL, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+
+	if err != nil {
+		return url.URL{}, fmt.Errorf("could not load config: %w", err)
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+
+	if err != nil {
+		return url.URL{}, fmt.Errorf("could not load kubeconfig: %w", err)
+	}
+
+	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
+	serviceUrl := url.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
+		Path:   "/tar",
+	}
+
+	return serviceUrl, nil
+}
+
 func durationFromSeconds(s float64) time.Duration {
 	return time.Duration(s * float64(time.Second) * float64(time.Millisecond))
 }
@@ -172,35 +195,55 @@ func create(ctx *cli.Context) error {
 }
 
 func start(ctx *cli.Context) error {
-	return fmt.Errorf("not yet implemented")
+	u, err := serviceUrl(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	u.Path = "/start"
+
+	httpClient := &http.Client{}
+	_, err = httpClient.Get(u.String())
+
+	if err != nil {
+		return fmt.Errorf("could not start kubedump: %w", err)
+	}
+
+	return nil
 }
 
 func stop(ctx *cli.Context) error {
-	return fmt.Errorf("not yet implemented")
+	u, err := serviceUrl(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	u.Path = "/stop"
+
+	httpClient := &http.Client{}
+	_, err = httpClient.Get(u.String())
+
+	if err != nil {
+		return fmt.Errorf("could not stop kubedump: %w", err)
+	}
+
+	return nil
+
 }
 
 func pull(ctx *cli.Context) error {
-	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	u, err := serviceUrl(ctx)
 
 	if err != nil {
-		return fmt.Errorf("could not load config: %w", err)
+		return err
 	}
 
-	client, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		return fmt.Errorf("could not load kubeconfig: %w", err)
-	}
-
-	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
-	serviceUrl := url.URL{
-		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
-		Path:   "/tar",
-	}
+	u.Path = "/tar"
 
 	httpClient := &http.Client{}
-	response, err := httpClient.Get(serviceUrl.String())
+	response, err := httpClient.Get(u.String())
 
 	if err != nil {
 		return fmt.Errorf("could not request tar from kubedump: %w", err)
