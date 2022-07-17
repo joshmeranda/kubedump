@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/pointer"
@@ -24,7 +25,7 @@ const (
 	CategoryIntervals = "Intervals"
 )
 
-func serviceUrl(ctx *cli.Context) (url.URL, error) {
+func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.URL, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 
 	if err != nil {
@@ -38,10 +39,21 @@ func serviceUrl(ctx *cli.Context) (url.URL, error) {
 	}
 
 	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
+
+	if err != nil {
+		return url.URL{}, fmt.Errorf("could not access kubedump-server service: %w", err)
+	}
+
+	q := url.Values{}
+	for k, v := range queries {
+		q.Set(k, v)
+	}
+
 	serviceUrl := url.URL{
-		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
-		Path:   "/tar",
+		Scheme:   "http",
+		Host:     fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
+		Path:     path,
+		RawQuery: q.Encode(),
 	}
 
 	return serviceUrl, nil
@@ -49,6 +61,28 @@ func serviceUrl(ctx *cli.Context) (url.URL, error) {
 
 func durationFromSeconds(s float64) time.Duration {
 	return time.Duration(s * float64(time.Second) * float64(time.Millisecond))
+}
+
+func responseErrorMessage(response *http.Response) string {
+	if response.Header.Get("Content-Type") != "application/json" {
+		return "could not read response from server"
+	}
+
+	body := make([]byte, 0, response.ContentLength)
+	_, err := response.Body.Read(body)
+	if err != nil {
+		return "could not read response body"
+	}
+	defer response.Body.Close()
+
+	var data map[string]string
+	err = json.Unmarshal(body, &data)
+
+	if err != nil {
+		return fmt.Sprintf("could not parse response from server: %s", err)
+	}
+
+	return data["error"]
 }
 
 func dump(ctx *cli.Context) error {
@@ -142,7 +176,7 @@ func create(ctx *cli.Context) error {
 					Containers: []corev1.Container{
 						{
 							Name:  "kubedump",
-							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-3",
+							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-5",
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "http",
@@ -150,10 +184,12 @@ func create(ctx *cli.Context) error {
 									Protocol:      "TCP",
 								},
 							},
-							Env:            nil,
-							LivenessProbe:  nil,
-							ReadinessProbe: nil,
-							StartupProbe:   nil,
+							Env:             nil,
+							LivenessProbe:   nil,
+							ReadinessProbe:  nil,
+							StartupProbe:    nil,
+							Command:         []string{"kubedump-server"},
+							ImagePullPolicy: corev1.PullAlways,
 						},
 					},
 				},
@@ -195,18 +231,20 @@ func create(ctx *cli.Context) error {
 }
 
 func start(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx)
+	u, err := serviceUrl(ctx, "/start", nil)
 
 	if err != nil {
 		return err
 	}
 
-	u.Path = "/start"
-
 	httpClient := &http.Client{}
-	_, err = httpClient.Get(u.String())
+	response, err := httpClient.Get(u.String())
 
 	if err != nil {
+		return fmt.Errorf("could not start kubedump: %w", err)
+	}
+
+	if msg := responseErrorMessage(response); msg != "" {
 		return fmt.Errorf("could not start kubedump: %w", err)
 	}
 
@@ -214,13 +252,11 @@ func start(ctx *cli.Context) error {
 }
 
 func stop(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx)
+	u, err := serviceUrl(ctx, "/stop", nil)
 
 	if err != nil {
 		return err
 	}
-
-	u.Path = "/stop"
 
 	httpClient := &http.Client{}
 	_, err = httpClient.Get(u.String())
@@ -234,13 +270,11 @@ func stop(ctx *cli.Context) error {
 }
 
 func pull(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx)
+	u, err := serviceUrl(ctx, "/tar", nil)
 
 	if err != nil {
 		return err
 	}
-
-	u.Path = "/tar"
 
 	httpClient := &http.Client{}
 	response, err := httpClient.Get(u.String())
@@ -297,8 +331,6 @@ func remove(ctx *cli.Context) error {
 }
 
 func main() {
-	// go:generate cat Dockerfile
-
 	app := &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
@@ -313,21 +345,21 @@ func main() {
 						Name:     "pod-desc-interval",
 						Category: CategoryIntervals,
 						Usage:    "the interval at which pod descriptions are updated",
-						Value:    1.0,
+						Value:    kubedump.DefaultPodDescriptionInterval,
 						EnvVars:  []string{"POD_DESCRIPTION_INTERVAL"},
 					},
 					&cli.Float64Flag{
 						Name:     "pod-log-interval",
 						Category: CategoryIntervals,
 						Usage:    "the interval at which pod container logs are updated",
-						Value:    1.0,
+						Value:    kubedump.DefaultPodLogInterval,
 						EnvVars:  []string{"POD_LOG_INTERVAL"},
 					},
 					&cli.Float64Flag{
 						Name:     "job-desc-interval",
 						Category: CategoryIntervals,
 						Usage:    "the interval at which job descriptions are updated",
-						Value:    1.0,
+						Value:    kubedump.DefaultJobDescriptionInterval,
 						EnvVars:  []string{"JOB_DESCRIPTION_INTERVAL"},
 					},
 					&cli.PathFlag{
@@ -362,7 +394,7 @@ func main() {
 				Action: start,
 			},
 			{
-				Name:   "start",
+				Name:   "stop",
 				Usage:  "stop capturing ",
 				Action: stop,
 			},

@@ -11,3 +11,9 @@ const (
 	ResourcePod ResourceKind = "pod"
 	ResourceJob              = "job"
 )
+
+const (
+	DefaultPodDescriptionInterval = 1.0
+	DefaultPodLogInterval         = 1.0
+	DefaultJobDescriptionInterval = 1.0
+)
