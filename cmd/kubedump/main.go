@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"io"
+	"io/ioutil"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,12 +65,15 @@ func durationFromSeconds(s float64) time.Duration {
 }
 
 func responseErrorMessage(response *http.Response) string {
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return ""
+	}
+
 	if response.Header.Get("Content-Type") != "application/json" {
 		return "could not read response from server"
 	}
 
-	body := make([]byte, 0, response.ContentLength)
-	_, err := response.Body.Read(body)
+	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return "could not read response body"
 	}
@@ -176,7 +180,7 @@ func create(ctx *cli.Context) error {
 					Containers: []corev1.Container{
 						{
 							Name:  "kubedump",
-							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-5",
+							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-6",
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "http",
@@ -245,7 +249,7 @@ func start(ctx *cli.Context) error {
 	}
 
 	if msg := responseErrorMessage(response); msg != "" {
-		return fmt.Errorf("could not start kubedump: %w", err)
+		return fmt.Errorf("could not start kubedump: %s", msg)
 	}
 
 	return nil
