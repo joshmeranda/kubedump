@@ -105,7 +105,6 @@ func (collector *PodCollector) collectDescription() {
 	collector.wg.Add(1)
 	defer collector.wg.Done()
 
-	// todo: all similar logs should have descriptive fields (namespace, name, etc)
 	logrus.WithFields(resourceFields(collector.pod)).Infof("collecting description for pod")
 
 	for collector.collecting {

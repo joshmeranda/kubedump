@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	v1 "k8s.io/api/apps/v1"
+	apicorev1 "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -155,6 +156,16 @@ func create(ctx *cli.Context) error {
 		return fmt.Errorf("could not load kubeconfig: %w", err)
 	}
 
+	_, err = client.CoreV1().Namespaces().Create(context.TODO(), &apicorev1.Namespace{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name: kubedump.Namespace,
+		},
+	}, apismeta.CreateOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not create namespace: %w", err)
+	}
+
 	deployments := client.AppsV1().Deployments(kubedump.Namespace)
 	_, err = deployments.Create(context.TODO(), &v1.Deployment{
 		ObjectMeta: apismeta.ObjectMeta{
@@ -202,7 +213,7 @@ func create(ctx *cli.Context) error {
 	}, apismeta.CreateOptions{})
 
 	if err != nil {
-		return fmt.Errorf("could not deploy deployment: %w", err)
+		return fmt.Errorf("could not create deployment: %w", err)
 	}
 
 	services := client.CoreV1().Services(kubedump.Namespace)
@@ -228,7 +239,7 @@ func create(ctx *cli.Context) error {
 	}, apismeta.CreateOptions{})
 
 	if err != nil {
-		return fmt.Errorf("could not deploy service: %w", err)
+		return fmt.Errorf("could not create service: %w", err)
 	}
 
 	return nil
@@ -317,15 +328,19 @@ func remove(ctx *cli.Context) error {
 		return fmt.Errorf("could not load kubeconfig: %w", err)
 	}
 
-	deployments := client.AppsV1().Deployments(kubedump.Namespace)
-	err = deployments.Delete(context.TODO(), "kubedump-server", apismeta.DeleteOptions{})
+	err = client.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apismeta.DeleteOptions{})
+
+	if err != nil {
+		return fmt.Errorf("could not delete namespace: %w", err)
+	}
+
+	err = client.AppsV1().Deployments(kubedump.Namespace).Delete(context.TODO(), "kubedump-server", apismeta.DeleteOptions{})
 
 	if err != nil {
 		return fmt.Errorf("could not delete server deployment: %w", err)
 	}
 
-	services := client.CoreV1().Services(kubedump.Namespace)
-	err = services.Delete(context.TODO(), kubedump.ServiceName, apismeta.DeleteOptions{})
+	err = client.CoreV1().Services(kubedump.Namespace).Delete(context.TODO(), kubedump.ServiceName, apismeta.DeleteOptions{})
 
 	if err != nil {
 		return fmt.Errorf("could not delete server service: %w", err)
