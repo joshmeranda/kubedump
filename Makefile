@@ -4,6 +4,8 @@ TEST_PATHS=./pkg ./pkg/filter/
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
 IMAGE_TAG=joshmeranda/kubedump-server:${KUBEDUMP_VERSION}
 
+BUILDER=docker
+
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
 # # # # # # # # # # # # # # # # # # # #
@@ -45,7 +47,7 @@ help:
 # # # # # # # # # # # # # # # # # # # #
 .PHONY: kubedump kubedump-server
 
-all: kubedump kubedump-server
+all: kubedump docker
 
 kubedump: bin/kubedump go.mod
 
@@ -63,7 +65,7 @@ bin/kubedump-server: go.mod ${SOURCES} cmd/kubedump-server/main.go
 .PHONY: docker
 
 docker: kubedump-server
-	sudo docker build --tag ${IMAGE_TAG} .
+	${BUILDER} build --tag ${IMAGE_TAG} .
 
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
