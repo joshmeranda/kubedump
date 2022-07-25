@@ -299,7 +299,7 @@ func pull(ctx *cli.Context) error {
 	}
 	defer response.Body.Close()
 
-	f, err := os.Create(fmt.Sprintf("kubedump-%s.tar", time.Now().Format(time.RFC3339)))
+	f, err := os.Create(fmt.Sprintf("kubedump-%s.tar.gz", time.Now().Format(time.RFC3339)))
 
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
