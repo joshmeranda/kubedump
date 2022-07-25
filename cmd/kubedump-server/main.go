@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -53,6 +54,11 @@ func durationFromSeconds(s float64) time.Duration {
 	return time.Duration(s * float64(time.Second) * float64(time.Millisecond))
 }
 
+func getArchivePath(dir string, name string) string {
+	trimmed := strings.TrimPrefix(dir, ParentPath)
+	return path.Join(path.Base(ParentPath), trimmed, name)
+}
+
 func archiveTree(dir string, writer *tar.Writer) error {
 	entries, err := os.ReadDir(dir)
 
@@ -86,6 +92,7 @@ func archiveTree(dir string, writer *tar.Writer) error {
 		}
 
 		hdr, err := tar.FileInfoHeader(info, entry.Name())
+		hdr.Name = getArchivePath(dir, entry.Name())
 
 		if err != nil {
 			return fmt.Errorf("could not construct header for file '%s': %w", entryPath, err)
