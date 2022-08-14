@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -191,7 +193,7 @@ func create(ctx *cli.Context) error {
 					Containers: []corev1.Container{
 						{
 							Name:  "kubedump",
-							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-6",
+							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-12",
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "http",
@@ -246,7 +248,11 @@ func create(ctx *cli.Context) error {
 }
 
 func start(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/start", nil)
+	u, err := serviceUrl(ctx, "/start", map[string]string{
+		"namespaces": strings.Join(ctx.StringSlice("namespaces"), ","),
+	})
+
+	logrus.Infof("sending request to '%s'", u.String())
 
 	if err != nil {
 		return err
@@ -400,6 +406,12 @@ func main() {
 						Usage:   "use an internal cluster config",
 						EnvVars: []string{"KUBEDUMP_INTERNAL"},
 					},
+					&cli.StringSliceFlag{
+						Name:    "namespaces",
+						Usage:   "the list of namespaces to target",
+						Value:   cli.NewStringSlice("default"),
+						Aliases: []string{"ns", "n"},
+					},
 				},
 			},
 			{
@@ -411,6 +423,14 @@ func main() {
 				Name:   "start",
 				Usage:  "start capturing",
 				Action: start,
+				Flags: []cli.Flag{
+					&cli.StringSliceFlag{
+						Name:    "namespaces",
+						Usage:   "the list of namespaces to target",
+						Value:   cli.NewStringSlice("default"),
+						Aliases: []string{"ns", "n"},
+					},
+				},
 			},
 			{
 				Name:   "stop",

@@ -3,9 +3,12 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
+	v1 "k8s.io/api/core/v1"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -48,6 +51,27 @@ func queryFloat64OrDefault(value string, defaultValue float64) (float64, error) 
 	}
 
 	return v, nil
+}
+
+// getNamespaces attempts to construct a list of the named namespaces. Any namespace that does not exist will not be
+//included in the returned slice.
+func getNamespaces(client *kubernetes.Clientset, names []string) []*v1.Namespace {
+	ret := make([]*v1.Namespace, 0, len(names))
+	namespaces := client.CoreV1().Namespaces()
+
+	for _, name := range names {
+		ns, err := namespaces.Get(context.TODO(), name, v12.GetOptions{})
+
+		if err != nil {
+			logrus.Errorf("could not fetch namespace '%s': %s", name, err)
+		} else if ns != nil {
+			ret = append(ret, ns)
+		}
+	}
+
+	logrus.Infof("was able to find %d namespaces", len(ret))
+
+	return ret
 }
 
 func durationFromSeconds(s float64) time.Duration {
@@ -219,6 +243,8 @@ func (handler *KubedumpHandler) handleStart(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
+		namespaces := strings.Split(r.URL.Query().Get("namespaces"), ",")
+
 		f, err := filter.Parse(r.URL.Query().Get("filter"))
 
 		if err != nil {
@@ -257,16 +283,22 @@ func (handler *KubedumpHandler) handleStart(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		clusterCollector := collector.NewClusterCollector(client, opts)
+		//clusterCollector := collector.NewClusterCollector(client, opts)
+		namespaceCollector := collector.NewMultiNamespaceCollector(getNamespaces(client, namespaces), client, opts.NamespaceCollectorOptions)
 
 		handler.lock.Lock()
 
-		handler.clusterCollector = clusterCollector
-
-		logrus.Infof("starting collector for cluster")
-		if err := handler.clusterCollector.Start(); err != nil {
-			errorResponse(w, fmt.Sprintf("could not start collector for cluster: %s", err), http.StatusInternalServerError)
+		logrus.Infof("starting collectors for namerspaces")
+		if err := namespaceCollector.Start(); err != nil {
+			errorResponse(w, fmt.Sprintf("could not start collector for namespaces: %s", err), http.StatusInternalServerError)
 		}
+
+		//handler.clusterCollector = clusterCollector
+		//
+		//logrus.Infof("starting collector for cluster")
+		//if err := handler.clusterCollector.Start(); err != nil {
+		//	errorResponse(w, fmt.Sprintf("could not start collector for cluster: %s", err), http.StatusInternalServerError)
+		//}
 
 		handler.lock.Unlock()
 	default:
