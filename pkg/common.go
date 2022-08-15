@@ -1,7 +1,7 @@
 package kubedump
 
-var ServiceName = "kubedump-server"
-var AppName = "kubedump"
+var HelmReleaseName = "kubecudmp-server"
+var ServiceName = HelmReleaseName
 var Namespace = "kubedump"
 var Port int32 = 9000
 
