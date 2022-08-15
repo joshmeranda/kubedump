@@ -5,23 +5,21 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
 	"io/ioutil"
-	v1 "k8s.io/api/apps/v1"
-	apicorev1 "k8s.io/api/core/v1"
-	corev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/utils/pointer"
 	kubedump "kubedump/pkg"
 	"kubedump/pkg/collector"
 	"kubedump/pkg/filter"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	"path"
 	"time"
 )
 
@@ -45,7 +43,7 @@ func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.U
 	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
 
 	if err != nil {
-		return url.URL{}, fmt.Errorf("could not access kubedump-server service: %w", err)
+		return url.URL{}, fmt.Errorf("could not access service '%s': %w", kubedump.ServiceName, err)
 	}
 
 	q := url.Values{}
@@ -146,111 +144,49 @@ func dump(ctx *cli.Context) error {
 }
 
 func create(ctx *cli.Context) error {
+	chartPath := path.Join("artifacts", "kubedump-server-0.1.0.tgz")
+	chart, err := loader.Load(chartPath)
+
+	if err != nil {
+		return fmt.Errorf("could not load char '%s': %w", chartPath, err)
+	}
+
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 
 	if err != nil {
 		return fmt.Errorf("could not load config: %w", err)
 	}
 
-	client, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		return fmt.Errorf("could not load kubeconfig: %w", err)
+	getter := &RESTClientGetter{
+		namespace:  kubedump.Namespace,
+		restConfig: config,
 	}
 
-	_, err = client.CoreV1().Namespaces().Create(context.TODO(), &apicorev1.Namespace{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name: kubedump.Namespace,
-		},
-	}, apismeta.CreateOptions{})
+	actionConfig := new(action.Configuration)
 
-	if err != nil {
-		return fmt.Errorf("could not create namespace: %w", err)
+	if err := actionConfig.Init(getter, kubedump.Namespace, os.Getenv("HELM_DRIVER"), func(f string, v ...interface{}) {
+	}); err != nil {
+		logrus.Errorf("could not create action config: %s", err)
 	}
 
-	deployments := client.AppsV1().Deployments(kubedump.Namespace)
-	_, err = deployments.Create(context.TODO(), &v1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "kubedump-server",
-			Namespace: kubedump.Namespace,
-		},
-		Spec: v1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(1),
-			Selector: &apismeta.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": kubedump.AppName,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: apismeta.ObjectMeta{
-					Name:      "kubedump-server",
-					Namespace: kubedump.Namespace,
-					Labels: map[string]string{
-						"app": kubedump.AppName,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "kubedump",
-							Image: "joshmeranda/kubedump-server:0.1.0-rc0-dev-12",
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "http",
-									ContainerPort: kubedump.Port,
-									Protocol:      "TCP",
-								},
-							},
-							Env:             nil,
-							LivenessProbe:   nil,
-							ReadinessProbe:  nil,
-							StartupProbe:    nil,
-							Command:         []string{"kubedump-server"},
-							ImagePullPolicy: corev1.PullAlways,
-						},
-					},
-				},
-			},
-		},
-	}, apismeta.CreateOptions{})
+	installAction := action.NewInstall(actionConfig)
+	installAction.Namespace = kubedump.Namespace
+	installAction.ReleaseName = kubedump.ServiceName
+	installAction.CreateNamespace = true // todo: we might want this to be a flag
+
+	release, err := installAction.Run(chart, nil)
 
 	if err != nil {
-		return fmt.Errorf("could not create deployment: %w", err)
-	}
-
-	services := client.CoreV1().Services(kubedump.Namespace)
-	_, err = services.Create(context.TODO(), &corev1.Service{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      kubedump.ServiceName,
-			Namespace: kubedump.Namespace,
-			Labels:    nil,
-		},
-		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{
-				{
-					Name:     "",
-					Protocol: "TCP",
-					Port:     kubedump.Port,
-				},
-			},
-			Type: "NodePort",
-			Selector: map[string]string{
-				"app": kubedump.AppName,
-			},
-		},
-	}, apismeta.CreateOptions{})
-
-	if err != nil {
-		return fmt.Errorf("could not create service: %w", err)
+		return fmt.Errorf("could not install chart: %w", err)
+	} else {
+		logrus.Infof("installed chart '%s'", release.Name)
 	}
 
 	return nil
 }
 
 func start(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/start", map[string]string{
-		"namespaces": strings.Join(ctx.StringSlice("namespaces"), ","),
-	})
+	u, err := serviceUrl(ctx, "/start", nil)
 
 	logrus.Infof("sending request to '%s'", u.String())
 
@@ -328,29 +264,39 @@ func remove(ctx *cli.Context) error {
 		return fmt.Errorf("could not load config: %w", err)
 	}
 
-	client, err := kubernetes.NewForConfig(config)
+	kubeClient, err := kubernetes.NewForConfig(config)
 
 	if err != nil {
-		return fmt.Errorf("could not load kubeconfig: %w", err)
+		return fmt.Errorf("could not create kubernetes client from config: %w", err)
 	}
 
-	err = client.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apismeta.DeleteOptions{})
+	getter := &RESTClientGetter{
+		namespace:  kubedump.Namespace,
+		restConfig: config,
+	}
+
+	actionConfig := new(action.Configuration)
+
+	if err := actionConfig.Init(getter, kubedump.Namespace, os.Getenv("HELM_DRIVER"), func(f string, v ...interface{}) {
+	}); err != nil {
+		logrus.Errorf("could not create uninstallAction config: %s", err)
+	}
+
+	uninstallAction := action.NewUninstall(actionConfig)
+
+	response, err := uninstallAction.Run(kubedump.HelmReleaseName)
 
 	if err != nil {
-		return fmt.Errorf("could not delete namespace: %w", err)
+		return fmt.Errorf("could not uninstall chart '%s': %w", kubedump.HelmReleaseName, err)
 	}
 
-	err = client.AppsV1().Deployments(kubedump.Namespace).Delete(context.TODO(), "kubedump-server", apismeta.DeleteOptions{})
+	logrus.Infof("uninstalled release '%s': %s", kubedump.HelmReleaseName, response.Info)
 
-	if err != nil {
-		return fmt.Errorf("could not delete server deployment: %w", err)
+	if err := kubeClient.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apismeta.DeleteOptions{}); err != nil {
+		return fmt.Errorf("could not delete namespace '%s': %w", kubedump.Namespace, err)
 	}
 
-	err = client.CoreV1().Services(kubedump.Namespace).Delete(context.TODO(), kubedump.ServiceName, apismeta.DeleteOptions{})
-
-	if err != nil {
-		return fmt.Errorf("could not delete server service: %w", err)
-	}
+	logrus.Infof("deleted namespace '%s'", kubedump.Namespace)
 
 	return nil
 }
@@ -406,12 +352,6 @@ func main() {
 						Usage:   "use an internal cluster config",
 						EnvVars: []string{"KUBEDUMP_INTERNAL"},
 					},
-					&cli.StringSliceFlag{
-						Name:    "namespaces",
-						Usage:   "the list of namespaces to target",
-						Value:   cli.NewStringSlice("default"),
-						Aliases: []string{"ns", "n"},
-					},
 				},
 			},
 			{
@@ -423,14 +363,7 @@ func main() {
 				Name:   "start",
 				Usage:  "start capturing",
 				Action: start,
-				Flags: []cli.Flag{
-					&cli.StringSliceFlag{
-						Name:    "namespaces",
-						Usage:   "the list of namespaces to target",
-						Value:   cli.NewStringSlice("default"),
-						Aliases: []string{"ns", "n"},
-					},
-				},
+				Flags:  []cli.Flag{},
 			},
 			{
 				Name:   "stop",

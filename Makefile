@@ -4,7 +4,11 @@ TEST_PATHS=./pkg ./pkg/filter/
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
 IMAGE_TAG=joshmeranda/kubedump-server:${KUBEDUMP_VERSION}
 
+CHARTS_DIR=charts
+
 BUILDER=docker
+
+HELM_PACKAGE=helm package
 
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
@@ -17,6 +21,8 @@ ifdef VERBOSE
 	Go_BUILD += -v
 	GO_FMT += -x
 	GO_TEST += -test.v
+
+	HELM_PACKAGE += --debug
 
 	RM += --verbose
 endif
@@ -47,7 +53,7 @@ help:
 # # # # # # # # # # # # # # # # # # # #
 .PHONY: kubedump kubedump-server
 
-all: kubedump docker
+all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 
@@ -60,12 +66,22 @@ bin/kubedump-server: go.mod ${SOURCES} cmd/kubedump-server/main.go
 	${GO_BUILD} -o $@ ./cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #
-# BUild docker images                 #
+# Build docker images                 #
 # # # # # # # # # # # # # # # # # # # #
 .PHONY: docker
 
 docker: kubedump-server
 	${BUILDER} build --tag ${IMAGE_TAG} .
+
+# # # # # # # # # # # # # # # # # # # #
+# Package kubedump-seve helm chart    #
+# # # # # # # # # # # # # # # # # # # #
+.PHONY: charts
+
+charts:
+	for chart in $$(ls "${CHARTS_DIR}"); do \
+	   ${HELM_PACKAGE} --destination artifacts "${CHARTS_DIR}/$${chart}";						\
+	done
 
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
@@ -82,7 +98,7 @@ test: ${SOURCES}
 mostly-clean:
 
 clean: mostly-clean
-	${RM} --recursive bin
+	${RM} --recursive artifacts bin
 
 fmt:
 	${GO_FMT} ./cmd/kubedump
