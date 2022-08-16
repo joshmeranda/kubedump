@@ -26,6 +26,13 @@ var (
 )
 
 func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.URL, error) {
+	if endpoint := ctx.String("service-url"); endpoint != "" {
+		u, err := url.Parse(endpoint)
+		u.Path = path
+
+		return *u, err
+	}
+
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 
 	if err != nil {

@@ -57,12 +57,12 @@ all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 
-bin/kubedump: go.mod ${SOURCES} cmd/kubedump/main.go
+bin/kubedump: go.mod ${SOURCES} cmd/kubedump/*.go
 	${GO_BUILD} -o $@ ./cmd/kubedump
 
 kubedump-server: bin/kubedump-server
 
-bin/kubedump-server: go.mod ${SOURCES} cmd/kubedump-server/main.go
+bin/kubedump-server: go.mod ${SOURCES} cmd/kubedump-server/*.go
 	${GO_BUILD} -o $@ ./cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #

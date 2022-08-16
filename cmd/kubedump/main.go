@@ -325,17 +325,37 @@ func main() {
 				Name:   "start",
 				Usage:  "start capturing",
 				Action: start,
-				Flags:  []cli.Flag{},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "service-url",
+						Usage:   "the url of the kubedump-server service, if not defined kubedump will attempt to find it by inspecting the service",
+						EnvVars: []string{"KUBEDUMP_SERVICE_URL"},
+					},
+				},
 			},
 			{
 				Name:   "stop",
 				Usage:  "stop capturing ",
 				Action: stop,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "service-url",
+						Usage:   "the url of the kubedump-server service, if not defined kubedump will attempt to find it by inspecting the service",
+						EnvVars: []string{"KUBEDUMP_SERVICE_URL"},
+					},
+				},
 			},
 			{
 				Name:   "pull",
 				Usage:  "pull the captured resources as a tar archive",
 				Action: pull,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "service-url",
+						Usage:   "the url of the kubedump-server service, if not defined kubedump will attempt to find it by inspecting the service",
+						EnvVars: []string{"KUBEDUMP_SERVICE_URL"},
+					},
+				},
 			},
 			{
 				Name:   "remove",

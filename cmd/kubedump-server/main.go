@@ -71,8 +71,6 @@ func archiveTree(dir string, writer *tar.Writer) error {
 	for _, entry := range entries {
 		entryPath := path.Join(dir, entry.Name())
 
-		logrus.Infof("looking at entry '%s'", entryPath)
-
 		if entry.IsDir() {
 			if err = archiveTree(entryPath, writer); err != nil {
 				return err
