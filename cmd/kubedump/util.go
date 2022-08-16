@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
@@ -20,9 +21,10 @@ import (
 )
 
 var (
-	chartVersion    = "0.1.0"
-	chartFile       = path.Join("var", "lib", fmt.Sprintf("kubedump-server-%s.tgz", chartVersion))
-	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/%s/downloads/kubedump-server-%s.tgz", chartVersion, chartVersion)
+	chartVersion = "0.1.0"
+	appVersion   = "0.2.0"
+
+	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", appVersion, chartVersion)
 )
 
 func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.URL, error) {
@@ -95,8 +97,32 @@ func responseErrorMessage(response *http.Response) string {
 	return data["error"]
 }
 
+func getAppDataDir() (string, error) {
+	home, err := os.UserHomeDir()
+
+	if err != nil {
+		return "", fmt.Errorf("could not determine user home directory: %w", err)
+	}
+
+	return path.Join(home, ".local", "share", "kubedump"), nil
+}
+
+func getChartPath() (string, error) {
+	dataDir, err := getAppDataDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine location for chart: %w", err)
+	}
+
+	return path.Join(dataDir, fmt.Sprintf("%s-%s.tgz", kubedump.HelmReleaseName, chartVersion)), nil
+}
+
 func pullChart(rawUrl string) (string, error) {
-	return pullChartInto(rawUrl, path.Join("var", "lib"))
+	dataDir, err := getAppDataDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine location for chart: %w", err)
+	}
+
+	return pullChartInto(rawUrl, dataDir)
 }
 
 func pullChartInto(rawUrl string, dir string) (string, error) {
@@ -105,8 +131,13 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 		return "", fmt.Errorf("could not parse given url '%s': %w", rawUrl, err)
 	}
 
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("could not create parent directory for chart '%s': %w", dir, err)
+	}
+
 	fileName := path.Join(dir, filepath.Base(parsedUrl.Path))
 
+	logrus.Infof("getting chart from: %s", rawUrl)
 	resp, err := http.Get(rawUrl)
 	if err != nil {
 		return "", fmt.Errorf("could not pull chart tat '%s': %w", rawUrl, err)
@@ -119,6 +150,7 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 	}
 	defer f.Close()
 
+	// todo: handle bad response
 	if _, err = io.Copy(f, resp.Body); err != nil {
 		return "", fmt.Errorf("could not copy response to file '%s': %w", fileName, err)
 	}
@@ -127,8 +159,13 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 }
 
 func ensureDefaultChart() (string, error) {
-	if _, err := os.Stat(chartFile); err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("could not access file at '%s': %w", chartFile, err)
+	chartFile, err := getChartPath()
+	if err != nil {
+		return "", fmt.Errorf("could not determine location for default chart: %w", err)
+	}
+
+	if _, err := os.Stat(chartFile); err == nil {
+		return chartFile, nil
 	}
 
 	if _, err := pullChart(chartReleaseUrl); err != nil {

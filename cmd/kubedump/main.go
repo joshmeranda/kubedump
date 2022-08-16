@@ -96,7 +96,7 @@ func create(ctx *cli.Context) error {
 	chart, err := loader.Load(chartPath)
 
 	if err != nil {
-		return fmt.Errorf("could not load char '%s': %w", chartPath, err)
+		return fmt.Errorf("could not load chart '%s': %w", chartPath, err)
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
