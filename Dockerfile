@@ -1,3 +1,7 @@
-FROM golang:1.18 as builder
+FROM alpine:3.16.0
 
-COPY bin/kubedump-server /usr/bin
+RUN apk add libc6-compat
+
+COPY bin/kubedump-server /bin
+
+ENTRYPOINT kubedump-server

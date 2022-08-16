@@ -85,8 +85,7 @@ bump() {
     local bumped="$major.$minor.$patch-$rc"
   fi
 
-#  set_version "$bumped"
-  echo "=== [bump] '$bumped' ==="
+  set_version "$bumped"
 }
 
 case "$1" in

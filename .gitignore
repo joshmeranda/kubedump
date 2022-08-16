@@ -31,4 +31,5 @@ go.work
 
 # Generated files
 bin/
-kubedump
+artifacts/
+./kubedump
