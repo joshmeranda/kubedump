@@ -18,7 +18,7 @@ GO_FMT=go fmt -x
 GO_TEST=go test -test.parallel 1
 
 ifdef VERBOSE
-	Go_BUILD += -v
+	GO_BUILD += -v
 	GO_FMT += -x
 	GO_TEST += -test.v
 
