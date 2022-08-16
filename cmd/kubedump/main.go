@@ -8,87 +8,21 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
-	"io/ioutil"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
 	"kubedump/pkg/collector"
 	"kubedump/pkg/filter"
 	"net/http"
-	"net/url"
 	"os"
-	"path"
 	"time"
 )
 
 const (
-	CategoryIntervals = "Intervals"
+	CategoryIntervals      = "Intervals"
+	CategoryChartReference = "Chart Reference"
 )
-
-func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.URL, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
-
-	if err != nil {
-		return url.URL{}, fmt.Errorf("could not load config: %w", err)
-	}
-
-	client, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		return url.URL{}, fmt.Errorf("could not load kubeconfig: %w", err)
-	}
-
-	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
-
-	if err != nil {
-		return url.URL{}, fmt.Errorf("could not access service '%s': %w", kubedump.ServiceName, err)
-	}
-
-	q := url.Values{}
-	for k, v := range queries {
-		q.Set(k, v)
-	}
-
-	serviceUrl := url.URL{
-		Scheme:   "http",
-		Host:     fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
-		Path:     path,
-		RawQuery: q.Encode(),
-	}
-
-	return serviceUrl, nil
-}
-
-func durationFromSeconds(s float64) time.Duration {
-	return time.Duration(s * float64(time.Second) * float64(time.Millisecond))
-}
-
-func responseErrorMessage(response *http.Response) string {
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		return ""
-	}
-
-	if response.Header.Get("Content-Type") != "application/json" {
-		return "could not read response from server"
-	}
-
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return "could not read response body"
-	}
-	defer response.Body.Close()
-
-	var data map[string]string
-	err = json.Unmarshal(body, &data)
-
-	if err != nil {
-		return fmt.Sprintf("could not parse response from server: %s", err)
-	}
-
-	return data["error"]
-}
 
 func dump(ctx *cli.Context) error {
 	parentPath := ctx.String("destination")
@@ -144,7 +78,21 @@ func dump(ctx *cli.Context) error {
 }
 
 func create(ctx *cli.Context) error {
-	chartPath := path.Join("artifacts", "kubedump-server-0.1.0.tgz")
+	var chartPath string
+	var err error
+
+	if rawUrl := ctx.String("chart-url"); rawUrl != "" {
+		chartPath, err = pullChartInto(rawUrl, os.TempDir())
+	} else if p := ctx.String("chart-path"); p != "" {
+		chartPath = p
+	} else {
+		chartPath, err = ensureDefaultChart()
+	}
+
+	if err != nil {
+		return err
+	}
+
 	chart, err := loader.Load(chartPath)
 
 	if err != nil {
@@ -358,6 +306,20 @@ func main() {
 				Name:   "create",
 				Usage:  "create and expose a service for teh kubedump-server",
 				Action: create,
+				Flags: []cli.Flag{
+					&cli.PathFlag{
+						Name:     "chart-path",
+						Category: CategoryChartReference,
+						Usage:    "the path to the local chart tar or directory",
+						EnvVars:  []string{"KUBEDUMP_SERVER_CHART_PATH"},
+					},
+					&cli.StringFlag{
+						Name:     "chart-url",
+						Category: CategoryChartReference,
+						Usage:    "the url of the remote chart",
+						EnvVars:  []string{"KUBEDUMP_SERVER_CHAR_URL"},
+					},
+				},
 			},
 			{
 				Name:   "start",
