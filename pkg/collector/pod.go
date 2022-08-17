@@ -31,8 +31,6 @@ type PodCollector struct {
 	wg         *sync.WaitGroup
 
 	opts PodCollectorOptions
-
-	stream io.ReadCloser
 }
 
 func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
@@ -160,7 +158,7 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 		return
 	}
 
-	collector.stream = stream
+	defer stream.Close()
 
 	buffer := make([]byte, 4098)
 
@@ -211,12 +209,6 @@ func (collector *PodCollector) Start() error {
 
 func (collector *PodCollector) Stop() error {
 	collector.collecting = false
-
-	if collector.stream != nil {
-		if err := collector.stream.Close(); err != nil {
-			logrus.Errorf("error closing log stream: %s", err)
-		}
-	}
 
 	collector.wg.Wait()
 
