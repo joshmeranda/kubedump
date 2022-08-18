@@ -202,6 +202,16 @@ func (collector *NamespaceCollector) Start() error {
 	return nil
 }
 
+func (collector *NamespaceCollector) Sync() error {
+	for _, pc := range collector.podCollectors {
+		if err := pc.Sync(); err != nil {
+			logrus.Errorf("error syncing logs for pod '%s'", pc.pod.Name)
+		}
+	}
+
+	return nil
+}
+
 func (collector *NamespaceCollector) Stop() error {
 	logrus.WithFields(resourceFields(collector.namespace)).Infof("stopping watchers for namespace")
 	for _, watcher := range collector.watchers {

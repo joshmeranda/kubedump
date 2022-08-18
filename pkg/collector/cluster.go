@@ -103,6 +103,16 @@ func (collector *ClusterCollector) Start() error {
 	return nil
 }
 
+func (collector *ClusterCollector) Sync() error {
+	for _, nsc := range collector.namespaceCollectors {
+		if err := nsc.Sync(); err != nil {
+			logrus.Errorf("error syncing logs for namespace '%s'", nsc.namespace.Name)
+		}
+	}
+
+	return nil
+}
+
 func (collector *ClusterCollector) Stop() error {
 	logrus.Infof("stopping collecting for cluster")
 

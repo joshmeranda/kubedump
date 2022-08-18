@@ -119,6 +119,10 @@ func (collector *JobCollector) Start() error {
 	return nil
 }
 
+func (collector *JobCollector) Sync() error {
+	return nil
+}
+
 func (collector *JobCollector) Stop() error {
 	collector.collecting = false
 

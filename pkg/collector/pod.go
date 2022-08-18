@@ -31,6 +31,8 @@ type PodCollector struct {
 	wg         *sync.WaitGroup
 
 	opts PodCollectorOptions
+
+	files map[string]*os.File
 }
 
 func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
@@ -145,6 +147,9 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 		return
 	}
 
+	collector.files[logFilePath] = logFile
+	defer logFile.Close()
+
 	req := collector.podClient.GetLogs(collector.pod.Name, &apicorev1.PodLogOptions{
 		Container: container.Name,
 		Follow:    true,
@@ -186,6 +191,8 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 		time.Sleep(collector.opts.LogInterval)
 	}
 
+	delete(collector.files, logFilePath)
+
 	logrus.WithFields(resourceFields(collector.pod, container)).Infof("stopping logs for container")
 }
 
@@ -202,6 +209,18 @@ func (collector *PodCollector) Start() error {
 
 	for _, cnt := range collector.pod.Spec.Containers {
 		go collector.collectLogs(cnt)
+	}
+
+	return nil
+}
+
+func (collector *PodCollector) Sync() error {
+	for filePath, file := range collector.files {
+		if err := file.Sync(); err != nil {
+			logrus.Errorf("error syncing logs to '%s': %s", filePath, err)
+		} else {
+			logrus.Debugf("synced logs to '%s'", filePath)
+		}
 	}
 
 	return nil
