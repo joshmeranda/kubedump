@@ -238,39 +238,3 @@ func (collector *NamespaceCollector) Stop() error {
 
 	return nil
 }
-
-type MultiNamespaceCollector struct {
-	collectors []*NamespaceCollector
-}
-
-func NewMultiNamespaceCollector(namespaces []*apicorev1.Namespace, client *kubernetes.Clientset, opts NamespaceCollectorOptions) *MultiNamespaceCollector {
-	collectors := make([]*NamespaceCollector, len(namespaces))
-
-	for _, ns := range namespaces {
-		collectors = append(collectors, NewNamespaceCollector(*ns, client, opts))
-	}
-
-	return &MultiNamespaceCollector{
-		collectors: collectors,
-	}
-}
-
-func (collector *MultiNamespaceCollector) Start() error {
-	for _, collector := range collector.collectors {
-		if err := collector.Start(); err != nil {
-			logrus.Errorf("could not collect for namespace '%s': %s", collector.namespace.Name, err)
-		}
-	}
-
-	return nil
-}
-
-func (collector *MultiNamespaceCollector) Stop() error {
-	for _, collector := range collector.collectors {
-		if err := collector.Stop(); err != nil {
-			logrus.Errorf("could not stop collecting for namespace '%s': %s", collector.namespace.Name, err)
-		}
-	}
-
-	return nil
-}

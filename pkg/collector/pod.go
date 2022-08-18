@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"sigs.k8s.io/yaml"
+	"strings"
 	"sync"
 	"time"
 )
@@ -215,12 +216,18 @@ func (collector *PodCollector) Start() error {
 }
 
 func (collector *PodCollector) Sync() error {
+	failedSyncs := make([]string, 0, len(collector.files))
+
 	for filePath, file := range collector.files {
 		if err := file.Sync(); err != nil {
-			logrus.Errorf("error syncing logs to '%s': %s", filePath, err)
+			failedSyncs = append(failedSyncs, filePath)
 		} else {
 			logrus.Debugf("synced logs to '%s'", filePath)
 		}
+	}
+
+	if len(failedSyncs) == 0 {
+		return fmt.Errorf("failed syncing logs to files: %s", strings.Join(failedSyncs, ","))
 	}
 
 	return nil
