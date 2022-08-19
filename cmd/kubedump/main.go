@@ -253,7 +253,7 @@ func main() {
 	app := &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
-		Version: "0.0.0",
+		Version: "0.2.0",
 		Commands: []*cli.Command{
 			{
 				Name:   "dump",
