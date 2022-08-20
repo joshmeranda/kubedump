@@ -134,7 +134,7 @@ func (collector *PodCollector) collectDescription() {
 }
 
 // waitContainer waits for the given container to be ready in the pod or until collecting is stop, each check is delayed
-// by the log collection interval.
+// by the description collection interval.
 func (collector *PodCollector) waitContainer(container apicorev1.Container) {
 	for collector.collecting {
 		for _, status := range collector.pod.Status.ContainerStatuses {
@@ -143,7 +143,7 @@ func (collector *PodCollector) waitContainer(container apicorev1.Container) {
 			}
 		}
 
-		time.Sleep(collector.opts.LogInterval)
+		time.Sleep(collector.opts.DescriptionInterval)
 	}
 }
 
