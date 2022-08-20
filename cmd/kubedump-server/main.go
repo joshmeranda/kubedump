@@ -22,8 +22,8 @@ import (
 	"time"
 )
 
-const (
-	ParentPath = "/var/lib/kubedump"
+var (
+	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump")
 )
 
 func errorResponse(w http.ResponseWriter, message string, statusCode int) {
@@ -155,6 +155,10 @@ func (handler *KubedumpHandler) handleTar(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			errorResponse(w, fmt.Sprintf("could not open temporary archive file: %s", err), http.StatusInternalServerError)
 			return
+		}
+
+		if err := handler.clusterCollector.Sync(); err != nil {
+			logrus.Errorf("could not sync cluster collector: %s", err)
 		}
 
 		// todo: support better speed / compression

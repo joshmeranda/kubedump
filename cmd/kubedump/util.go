@@ -69,7 +69,7 @@ func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.U
 }
 
 func durationFromSeconds(s float64) time.Duration {
-	return time.Duration(s * float64(time.Second) * float64(time.Millisecond))
+	return time.Duration(s * float64(time.Second))
 }
 
 func responseErrorMessage(response *http.Response) string {
