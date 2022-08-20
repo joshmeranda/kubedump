@@ -32,7 +32,7 @@ type PodCollector struct {
 
 	opts PodCollectorOptions
 
-	stream io.ReadCloser
+	files map[string]*os.File
 }
 
 func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodCollectorOptions) *PodCollector {
@@ -42,7 +42,8 @@ func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodC
 		collecting: false,
 		wg:         &sync.WaitGroup{},
 
-		opts: opts,
+		opts:  opts,
+		files: make(map[string]*os.File),
 	}
 }
 
@@ -132,7 +133,23 @@ func (collector *PodCollector) collectDescription() {
 	logrus.WithFields(resourceFields(collector.pod)).Infof("stopping description for pod")
 }
 
+// waitContainer waits for the given container to be ready in the pod or until collecting is stop, each check is delayed
+// by the description collection interval.
+func (collector *PodCollector) waitContainer(container apicorev1.Container) {
+	for collector.collecting {
+		for _, status := range collector.pod.Status.ContainerStatuses {
+			if status.Name == container.Name && status.Ready {
+				return
+			}
+		}
+
+		time.Sleep(collector.opts.DescriptionInterval)
+	}
+}
+
 func (collector *PodCollector) collectLogs(container apicorev1.Container) {
+	collector.waitContainer(container)
+
 	logFilePath := collector.podLog()
 
 	if err := createPathParents(logFilePath); err != nil {
@@ -147,6 +164,9 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 		return
 	}
 
+	collector.files[logFilePath] = logFile
+	defer logFile.Close()
+
 	req := collector.podClient.GetLogs(collector.pod.Name, &apicorev1.PodLogOptions{
 		Container: container.Name,
 		Follow:    true,
@@ -155,12 +175,11 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 	stream, err := req.Stream(context.TODO())
 
 	if err != nil {
-		// todo: fails when container is still in "ContainerCreating"
 		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not start log stream for container: %s", err)
 		return
 	}
 
-	collector.stream = stream
+	defer stream.Close()
 
 	buffer := make([]byte, 4098)
 
@@ -169,24 +188,26 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 
 	logrus.WithFields(resourceFields(collector.pod, container)).Infof("collecting logs for container")
 
+	time.Sleep(collector.opts.LogInterval)
+
 	for collector.collecting {
 		n, err := stream.Read(buffer)
 
 		if err == io.EOF {
-			logrus.WithFields(resourceFields(collector.pod, container)).Infof("encountered EOF on log stream for container")
-			break
+			logrus.WithFields(resourceFields(collector.pod, container)).Debugf("encountered EOF on log stream for container")
 		} else if err != nil {
 			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not read from log stream for container: %s", err)
 			break
-		}
-
-		if _, err := logFile.Write(buffer[:n]); err != nil {
+		} else if _, err := logFile.Write(buffer[:n]); err != nil {
 			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not write to container log file '%s': %s", logFilePath, err)
 			break
 		}
 
+		// EOF encountered or log written to file
 		time.Sleep(collector.opts.LogInterval)
 	}
+
+	delete(collector.files, logFilePath)
 
 	logrus.WithFields(resourceFields(collector.pod, container)).Infof("stopping logs for container")
 }
@@ -209,14 +230,27 @@ func (collector *PodCollector) Start() error {
 	return nil
 }
 
-func (collector *PodCollector) Stop() error {
-	collector.collecting = false
+func (collector *PodCollector) Sync() error {
+	syncFailed := false
 
-	if collector.stream != nil {
-		if err := collector.stream.Close(); err != nil {
-			logrus.Errorf("error closing log stream: %s", err)
+	for filePath, file := range collector.files {
+		if err := file.Sync(); err != nil {
+			logrus.Errorf("error syncing logs to '%s'", filePath)
+			syncFailed = true
+		} else {
+			logrus.Debugf("synced pod '%s' logs to '%s'", collector.pod.Name, filePath)
 		}
 	}
+
+	if syncFailed {
+		return fmt.Errorf("could not sync pod '%s', see logs for details", collector.pod.Name)
+	}
+
+	return nil
+}
+
+func (collector *PodCollector) Stop() error {
+	collector.collecting = false
 
 	collector.wg.Wait()
 

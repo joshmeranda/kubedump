@@ -80,7 +80,7 @@ docker: kubedump-server
 
 charts:
 	for chart in $$(ls "${CHARTS_DIR}"); do \
-	   ${HELM_PACKAGE} --destination artifacts "${CHARTS_DIR}/$${chart}";						\
+	   ${HELM_PACKAGE} --destination artifacts "${CHARTS_DIR}/$${chart}"; \
 	done
 
 # # # # # # # # # # # # # # # # # # # #
@@ -96,6 +96,7 @@ test: ${SOURCES}
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
+	${RM} --recursive kubedump-*.tar.gz kubedump
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin

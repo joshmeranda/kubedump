@@ -25,6 +25,10 @@ const (
 )
 
 func dump(ctx *cli.Context) error {
+	if ctx.Bool("verbose") {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	parentPath := ctx.String("destination")
 	f, err := filter.Parse(ctx.String("filter"))
 
@@ -68,7 +72,7 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not start collector for cluster: %s", err)
 	}
 
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Hour * 1)
 
 	if err := clusterCollector.Stop(); err != nil {
 		return fmt.Errorf("could not stop collector for cluster: %s", err)
@@ -189,7 +193,7 @@ func pull(ctx *cli.Context) error {
 	}
 	defer response.Body.Close()
 
-	f, err := os.Create(fmt.Sprintf("kubedump-%s.tar.gz", time.Now().Format(time.RFC3339)))
+	f, err := os.Create(fmt.Sprintf("kubedump-%d.tar.gz", time.Now().UTC().Unix()))
 
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
@@ -253,7 +257,7 @@ func main() {
 	app := &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
-		Version: "0.0.0",
+		Version: "0.2.0",
 		Commands: []*cli.Command{
 			{
 				Name:   "dump",
@@ -296,9 +300,11 @@ func main() {
 						EnvVars: []string{"KUBEDUMP_FILTER"},
 					},
 					&cli.BoolFlag{
-						Name:    "internal",
-						Usage:   "use an internal cluster config",
-						EnvVars: []string{"KUBEDUMP_INTERNAL"},
+						Name:    "verbose",
+						Usage:   "run kubedump verbosely",
+						Value:   false,
+						Aliases: []string{"V"},
+						EnvVars: []string{"KUBEDUMP_VERBOSE"},
 					},
 				},
 			},

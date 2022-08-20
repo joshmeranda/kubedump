@@ -202,6 +202,25 @@ func (collector *NamespaceCollector) Start() error {
 	return nil
 }
 
+func (collector *NamespaceCollector) Sync() error {
+	failedSync := false
+
+	for _, pc := range collector.podCollectors {
+		if err := pc.Sync(); err != nil {
+			logrus.Errorf("error syncing pod '%s': %s", pc.pod.Name, err)
+			failedSync = true
+		} else {
+			logrus.Debugf("synced pod '%s'", pc.pod.Name)
+		}
+	}
+
+	if failedSync {
+		return fmt.Errorf("could not sync namespace '%s', see logs for details", collector.namespace.Name)
+	}
+
+	return nil
+}
+
 func (collector *NamespaceCollector) Stop() error {
 	logrus.WithFields(resourceFields(collector.namespace)).Infof("stopping watchers for namespace")
 	for _, watcher := range collector.watchers {
@@ -225,42 +244,6 @@ func (collector *NamespaceCollector) Stop() error {
 	}
 
 	collector.wg.Wait()
-
-	return nil
-}
-
-type MultiNamespaceCollector struct {
-	collectors []*NamespaceCollector
-}
-
-func NewMultiNamespaceCollector(namespaces []*apicorev1.Namespace, client *kubernetes.Clientset, opts NamespaceCollectorOptions) *MultiNamespaceCollector {
-	collectors := make([]*NamespaceCollector, len(namespaces))
-
-	for _, ns := range namespaces {
-		collectors = append(collectors, NewNamespaceCollector(*ns, client, opts))
-	}
-
-	return &MultiNamespaceCollector{
-		collectors: collectors,
-	}
-}
-
-func (collector *MultiNamespaceCollector) Start() error {
-	for _, collector := range collector.collectors {
-		if err := collector.Start(); err != nil {
-			logrus.Errorf("could not collect for namespace '%s': %s", collector.namespace.Name, err)
-		}
-	}
-
-	return nil
-}
-
-func (collector *MultiNamespaceCollector) Stop() error {
-	for _, collector := range collector.collectors {
-		if err := collector.Stop(); err != nil {
-			logrus.Errorf("could not stop collecting for namespace '%s': %s", collector.namespace.Name, err)
-		}
-	}
 
 	return nil
 }

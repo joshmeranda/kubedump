@@ -31,5 +31,6 @@ go.work
 
 # Generated files
 bin/
-artifacts/
-./kubedump
+artifacts
+kubedump/
+kubedump-*.tar.gz
