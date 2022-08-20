@@ -104,10 +104,19 @@ func (collector *ClusterCollector) Start() error {
 }
 
 func (collector *ClusterCollector) Sync() error {
+	failedSync := false
+
 	for _, nsc := range collector.namespaceCollectors {
 		if err := nsc.Sync(); err != nil {
-			logrus.Errorf("error syncing logs for namespace '%s'", nsc.namespace.Name)
+			logrus.Errorf("could not sync namespace '%s'", nsc.namespace.Name)
+			failedSync = true
+		} else {
+			logrus.Debugf("synced cluster")
 		}
+	}
+
+	if failedSync {
+		return fmt.Errorf("could not sync cluster, see logs for details")
 	}
 
 	return nil

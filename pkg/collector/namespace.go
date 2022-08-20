@@ -203,10 +203,19 @@ func (collector *NamespaceCollector) Start() error {
 }
 
 func (collector *NamespaceCollector) Sync() error {
+	failedSync := false
+
 	for _, pc := range collector.podCollectors {
 		if err := pc.Sync(); err != nil {
-			logrus.Errorf("error syncing logs for pod '%s'", pc.pod.Name)
+			logrus.Errorf("error syncing pod '%s': %s", pc.pod.Name, err)
+			failedSync = true
+		} else {
+			logrus.Debugf("synced pod '%s'", pc.pod.Name)
 		}
+	}
+
+	if failedSync {
+		return fmt.Errorf("could not sync namespace '%s', see logs for details", collector.namespace.Name)
 	}
 
 	return nil
