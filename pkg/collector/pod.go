@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"sigs.k8s.io/yaml"
-	"strings"
 	"sync"
 	"time"
 )
@@ -43,7 +42,8 @@ func NewPodCollector(podClient corev1.PodInterface, pod apicorev1.Pod, opts PodC
 		collecting: false,
 		wg:         &sync.WaitGroup{},
 
-		opts: opts,
+		opts:  opts,
+		files: make(map[string]*os.File),
 	}
 }
 
@@ -133,7 +133,23 @@ func (collector *PodCollector) collectDescription() {
 	logrus.WithFields(resourceFields(collector.pod)).Infof("stopping description for pod")
 }
 
+// waitContainer waits for the given container to be ready in the pod or until collecting is stop, each check is delayed
+// by the log collection interval.
+func (collector *PodCollector) waitContainer(container apicorev1.Container) {
+	for collector.collecting {
+		for _, status := range collector.pod.Status.ContainerStatuses {
+			if status.Name == container.Name && status.Ready {
+				return
+			}
+		}
+
+		time.Sleep(collector.opts.LogInterval)
+	}
+}
+
 func (collector *PodCollector) collectLogs(container apicorev1.Container) {
+	collector.waitContainer(container)
+
 	logFilePath := collector.podLog()
 
 	if err := createPathParents(logFilePath); err != nil {
@@ -159,7 +175,6 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 	stream, err := req.Stream(context.TODO())
 
 	if err != nil {
-		// todo: fails when container is still in "ContainerCreating"
 		logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not start log stream for container: %s", err)
 		return
 	}
@@ -173,22 +188,22 @@ func (collector *PodCollector) collectLogs(container apicorev1.Container) {
 
 	logrus.WithFields(resourceFields(collector.pod, container)).Infof("collecting logs for container")
 
+	time.Sleep(collector.opts.LogInterval)
+
 	for collector.collecting {
 		n, err := stream.Read(buffer)
 
 		if err == io.EOF {
-			logrus.WithFields(resourceFields(collector.pod, container)).Infof("encountered EOF on log stream for container")
-			break
+			logrus.WithFields(resourceFields(collector.pod, container)).Debugf("encountered EOF on log stream for container")
 		} else if err != nil {
 			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not read from log stream for container: %s", err)
 			break
-		}
-
-		if _, err := logFile.Write(buffer[:n]); err != nil {
+		} else if _, err := logFile.Write(buffer[:n]); err != nil {
 			logrus.WithFields(resourceFields(collector.pod, container)).Errorf("could not write to container log file '%s': %s", logFilePath, err)
 			break
 		}
 
+		// EOF encountered or log written to file
 		time.Sleep(collector.opts.LogInterval)
 	}
 
@@ -216,18 +231,19 @@ func (collector *PodCollector) Start() error {
 }
 
 func (collector *PodCollector) Sync() error {
-	failedSyncs := make([]string, 0, len(collector.files))
+	syncFailed := false
 
 	for filePath, file := range collector.files {
 		if err := file.Sync(); err != nil {
-			failedSyncs = append(failedSyncs, filePath)
+			logrus.Errorf("error syncing logs to '%s'", filePath)
+			syncFailed = true
 		} else {
-			logrus.Debugf("synced logs to '%s'", filePath)
+			logrus.Debugf("synced pod '%s' logs to '%s'", collector.pod.Name, filePath)
 		}
 	}
 
-	if len(failedSyncs) == 0 {
-		return fmt.Errorf("failed syncing logs to files: %s", strings.Join(failedSyncs, ","))
+	if syncFailed {
+		return fmt.Errorf("could not sync pod '%s', see logs for details", collector.pod.Name)
 	}
 
 	return nil
