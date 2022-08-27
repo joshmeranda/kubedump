@@ -1,4 +1,4 @@
-SOURCES=./pkg/*.go ./pkg/collector/*.go ./pkg/filter/*.go
+SOURCES=./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
 TEST_PATHS=./pkg ./pkg/filter/
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)

@@ -9,13 +9,16 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
-	"kubedump/pkg/collector"
+	"kubedump/pkg/controller"
 	"kubedump/pkg/filter"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -23,6 +26,24 @@ const (
 	CategoryIntervals      = "Intervals"
 	CategoryChartReference = "Chart Reference"
 )
+
+var onlyOneSignalHandler = make(chan struct{})
+
+func SetupSignalHandler() (stopCh <-chan struct{}) {
+	close(onlyOneSignalHandler) // panics when called twice
+
+	stop := make(chan struct{})
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		close(stop)
+		<-c
+		os.Exit(1) // second signal. Exit directly.
+	}()
+
+	return stop
+}
 
 func dump(ctx *cli.Context) error {
 	if ctx.Bool("verbose") {
@@ -36,22 +57,9 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not parse f: %w", err)
 	}
 
-	opts := collector.ClusterCollectorOptions{
+	opts := controller.Options{
 		ParentPath: parentPath,
 		Filter:     f,
-		NamespaceCollectorOptions: collector.NamespaceCollectorOptions{
-			ParentPath: parentPath,
-			Filter:     f,
-			PodCollectorOptions: collector.PodCollectorOptions{
-				ParentPath:          parentPath,
-				LogInterval:         durationFromSeconds(ctx.Float64("pod-log-interval")),
-				DescriptionInterval: durationFromSeconds(ctx.Float64("pod-desc-interval")),
-			},
-			JobCollectorOptions: collector.JobCollectorOptions{
-				ParentPath:          parentPath,
-				DescriptionInterval: durationFromSeconds(ctx.Float64("job-desc-interval")),
-			},
-		},
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
@@ -61,24 +69,16 @@ func dump(ctx *cli.Context) error {
 	}
 
 	client, err := kubernetes.NewForConfig(config)
+	informerFactory := informers.NewSharedInformerFactory(client, time.Second*5)
 
-	if err != nil {
-		return fmt.Errorf("could not load kubeconfig: %w", err)
-	}
+	c := controller.NewController(client, informerFactory.Core().V1().Pods(), opts)
+	stopCh := SetupSignalHandler()
 
-	clusterCollector := collector.NewClusterCollector(client, opts)
+	informerFactory.Start(stopCh)
 
-	if err := clusterCollector.Start(); err != nil {
-		return fmt.Errorf("could not start collector for cluster: %s", err)
-	}
+	err = c.Run(5, stopCh)
 
-	time.Sleep(time.Hour * 1)
-
-	if err := clusterCollector.Stop(); err != nil {
-		return fmt.Errorf("could not stop collector for cluster: %s", err)
-	}
-
-	return nil
+	return err
 }
 
 func create(ctx *cli.Context) error {
