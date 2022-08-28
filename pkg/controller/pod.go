@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	apicorev1 "k8s.io/api/core/v1"
@@ -29,9 +30,11 @@ func (controller *Controller) podFileWithExt(pod *apicorev1.Pod, ext string) str
 	return path.Join(controller.podDir(pod), pod.Name+"."+ext)
 }
 
-func (controller *Controller) dumpPodDescription(pod *apicorev1.Pod) error {
-	logrus.Debugf("dumping description for pod '%s/%s'", pod.Namespace, pod.Name)
+func (controller *Controller) containerLogPath(pod *apicorev1.Pod, containerName string) string {
+	return path.Join(controller.podDir(pod), containerName+".log")
+}
 
+func (controller *Controller) dumpPodDescription(pod *apicorev1.Pod) error {
 	yamlPath := controller.podFileWithExt(pod, "yaml")
 
 	if exists(yamlPath) {
@@ -65,9 +68,55 @@ func (controller *Controller) dumpPodDescription(pod *apicorev1.Pod) error {
 	return nil
 }
 
-func (controller *Controller) dumpPodLogs(pod *apicorev1.Pod) error {
-	logrus.Infof("dumping logs for pod '%s/%s'", pod.Namespace, pod.Name)
-	return nil
+func (controller *Controller) addContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
+	logFilePath := controller.containerLogPath(pod, container.Name)
+
+	if err := createPathParents(logFilePath); err != nil {
+		logrus.WithFields(resourceFields(pod)).Errorf("could not create log file '%s': %s", logFilePath, err)
+		return
+	}
+
+	logFile, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE, 0644)
+
+	if err != nil {
+		logrus.WithFields(resourceFields(pod)).Errorf("could open create log file '%s': %s", logFilePath, err)
+		return
+	}
+
+	//defer logFile.Close()
+
+	req := controller.kubeclientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &apicorev1.PodLogOptions{
+		Container: container.Name,
+		Follow:    true,
+	})
+
+	stream, err := req.Stream(context.TODO())
+
+	if err != nil {
+		logrus.WithFields(resourceFields(pod, container)).Errorf("could not start log stream for container: %s", err)
+		return
+	}
+
+	controller.streamMapLock.Lock()
+	controller.logStreams[logFile] = stream
+	controller.streamMapLock.Unlock()
+}
+
+func (controller *Controller) removeContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
+	logFilePath := controller.containerLogPath(pod, container.Name)
+	var logFile *os.File
+
+	controller.streamMapLock.RLock()
+	for file, _ := range controller.logStreams {
+		if file.Name() == logFilePath {
+			logFile = file
+		}
+	}
+	controller.streamMapLock.RUnlock()
+
+	controller.streamMapLock.Lock()
+	delete(controller.logStreams, logFile)
+	controller.streamMapLock.Unlock()
 }
 
 func (controller *Controller) podAddHandler(obj interface{}) {
@@ -92,6 +141,12 @@ func (controller *Controller) podAddHandler(obj interface{}) {
 			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
 		}
 	}))
+
+	for _, container := range pod.Spec.Containers {
+		controller.workQueue.AddRateLimited(NewJob(func() {
+			controller.addContainerStream(pod, &container)
+		}))
+	}
 }
 
 func (controller *Controller) podUpdateHandler(_ interface{}, obj interface{}) {
@@ -135,9 +190,9 @@ func (controller *Controller) podDeletedHandler(obj interface{}) {
 		return
 	}
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := controller.dumpPodLogs(pod); err != nil {
-			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
-		}
-	}))
+	for _, container := range pod.Spec.Containers {
+		controller.workQueue.AddRateLimited(NewJob(func() {
+			controller.removeContainerStream(pod, &container)
+		}))
+	}
 }
