@@ -9,7 +9,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
@@ -17,8 +16,6 @@ import (
 	"kubedump/pkg/filter"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 )
 
@@ -26,24 +23,6 @@ const (
 	CategoryIntervals      = "Intervals"
 	CategoryChartReference = "Chart Reference"
 )
-
-var onlyOneSignalHandler = make(chan struct{})
-
-func SetupSignalHandler() (stopCh <-chan struct{}) {
-	close(onlyOneSignalHandler) // panics when called twice
-
-	stop := make(chan struct{})
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		close(stop)
-		<-c
-		os.Exit(1) // second signal. Exit directly.
-	}()
-
-	return stop
-}
 
 func dump(ctx *cli.Context) error {
 	if ctx.Bool("verbose") {
@@ -69,14 +48,22 @@ func dump(ctx *cli.Context) error {
 	}
 
 	client, err := kubernetes.NewForConfig(config)
-	informerFactory := informers.NewSharedInformerFactory(client, time.Second*5)
 
-	c := controller.NewController(client, informerFactory.Core().V1().Pods(), opts)
-	stopCh := SetupSignalHandler()
+	if err != nil {
+		return fmt.Errorf("could not crete client: %w", err)
+	}
 
-	informerFactory.Start(stopCh)
+	c := controller.NewController(client, opts)
 
-	err = c.Run(5, stopCh)
+	if err = c.Start(5); err != nil {
+		return fmt.Errorf("could not start controller: %w", err)
+	}
+
+	time.Sleep(time.Second * 5)
+
+	if err = c.Stop(); err != nil {
+		return fmt.Errorf("could not stop controller: %w", err)
+	}
 
 	return err
 }
