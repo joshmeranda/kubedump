@@ -132,7 +132,7 @@ func (controller *Controller) podAddHandler(obj interface{}) {
 		return
 	}
 
-	if !controller.opts.Filter.Evaluate(*pod) {
+	if !controller.opts.Filter.Matches(*pod) {
 		return
 	}
 
@@ -162,7 +162,7 @@ func (controller *Controller) podUpdateHandler(_ interface{}, obj interface{}) {
 		return
 	}
 
-	if !controller.opts.Filter.Evaluate(*pod) {
+	if !controller.opts.Filter.Matches(*pod) {
 		return
 	}
 
@@ -186,7 +186,7 @@ func (controller *Controller) podDeletedHandler(obj interface{}) {
 		return
 	}
 
-	if !controller.opts.Filter.Evaluate(*pod) {
+	if !controller.opts.Filter.Matches(*pod) {
 		return
 	}
 

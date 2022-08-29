@@ -1,6 +1,6 @@
 module kubedump
 
-go 1.17
+go 1.18
 
 require (
 	k8s.io/api v0.24.2
