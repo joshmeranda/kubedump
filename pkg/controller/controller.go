@@ -7,7 +7,7 @@ import (
 	"io"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -38,6 +38,9 @@ type Controller struct {
 	opts          Options
 	kubeclientset kubernetes.Interface
 
+	informerFactory informers.SharedInformerFactory
+	stopChan        chan struct{}
+
 	podInformerSynced cache.InformerSynced
 
 	workQueue workqueue.RateLimitingInterface
@@ -49,17 +52,29 @@ type Controller struct {
 
 func NewController(
 	kubeclientset kubernetes.Interface,
-	podInformer coreinformers.PodInformer,
 	opts Options,
 ) *Controller {
+	informerFactory := informers.NewSharedInformerFactory(kubeclientset, time.Second*5)
+
+	eventInformer := informerFactory.Events().V1().Events()
+	podInformer := informerFactory.Core().V1().Pods()
+
 	controller := &Controller{
-		opts:              opts,
-		kubeclientset:     kubeclientset,
+		opts:          opts,
+		kubeclientset: kubeclientset,
+
+		informerFactory: informerFactory,
+		stopChan:        nil,
+
 		podInformerSynced: podInformer.Informer().HasSynced,
-		workQueue:         workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		logStreams:        make(map[*os.File]io.ReadCloser),
-		streamMapLock:     &sync.RWMutex{},
+
+		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+
+		logStreams:    make(map[*os.File]io.ReadCloser),
+		streamMapLock: &sync.RWMutex{},
 	}
+
+	eventInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{})
 
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.podAddHandler,
@@ -93,11 +108,7 @@ func (controller *Controller) processNextWorkItem() bool {
 }
 
 func (controller *Controller) syncLogStreams(buffer []byte) {
-	logrus.Debugf("syncing logs")
-
 	for file, stream := range controller.logStreams {
-		logrus.Debugf("syncing to file '%s'", file.Name())
-
 		readChan := make(chan int, 1)
 
 		go func() {
@@ -118,13 +129,24 @@ func (controller *Controller) syncLogStreams(buffer []byte) {
 	}
 }
 
-func (controller *Controller) Run(nWorkers int, stopCh <-chan struct{}) error {
+func (controller *Controller) Sync() {
+	// doing nothing
+}
+
+func (controller *Controller) Start(nWorkers int) error {
+	if controller.stopChan != nil {
+		return fmt.Errorf("controller is already running")
+	}
 	defer runtime.HandleCrash()
+
+	controller.stopChan = make(chan struct{})
 
 	logrus.Infof("starting controller")
 
+	controller.informerFactory.Start(controller.stopChan)
+
 	logrus.Infof("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, controller.podInformerSynced); !ok {
+	if ok := cache.WaitForCacheSync(controller.stopChan, controller.podInformerSynced); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
@@ -142,12 +164,22 @@ func (controller *Controller) Run(nWorkers int, stopCh <-chan struct{}) error {
 	buffer := make([]byte, 4098)
 	go wait.Until(func() {
 		controller.syncLogStreams(buffer)
-	}, time.Second, stopCh)
+	}, time.Second, controller.stopChan)
 
 	logrus.Infof("Started controller")
-	<-stopCh
+
+	return nil
+}
+
+func (controller *Controller) Stop() error {
+	if controller.stopChan == nil {
+		return fmt.Errorf("controller was not running")
+	}
+
 	logrus.Infof("Stopping controller")
 
+	close(controller.stopChan)
+	controller.stopChan = nil
 	controller.workQueue.ShutDown()
 
 	return nil
