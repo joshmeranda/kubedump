@@ -41,7 +41,8 @@ type Controller struct {
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
 
-	podInformerSynced cache.InformerSynced
+	eventInformerSynced cache.InformerSynced
+	podInformerSynced   cache.InformerSynced
 
 	workQueue workqueue.RateLimitingInterface
 
@@ -66,7 +67,8 @@ func NewController(
 		informerFactory: informerFactory,
 		stopChan:        nil,
 
-		podInformerSynced: podInformer.Informer().HasSynced,
+		eventInformerSynced: eventInformer.Informer().HasSynced,
+		podInformerSynced:   podInformer.Informer().HasSynced,
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 
@@ -74,7 +76,7 @@ func NewController(
 		streamMapLock: &sync.RWMutex{},
 	}
 
-	eventInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{})
+	eventInformer.Informer().AddEventHandler(&EventHandler{})
 
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.podAddHandler,
@@ -146,7 +148,7 @@ func (controller *Controller) Start(nWorkers int) error {
 	controller.informerFactory.Start(controller.stopChan)
 
 	logrus.Infof("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(controller.stopChan, controller.podInformerSynced); !ok {
+	if ok := cache.WaitForCacheSync(controller.stopChan, controller.eventInformerSynced, controller.podInformerSynced); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
