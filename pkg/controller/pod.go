@@ -120,12 +120,7 @@ func (controller *Controller) removeContainerStream(pod *apicorev1.Pod, containe
 }
 
 func (controller *Controller) podAddHandler(obj interface{}) {
-	podObj, err := getObject(obj)
-	if err != nil {
-		logrus.Errorf("%s", err)
-	}
-
-	pod, ok := podObj.(*apicorev1.Pod)
+	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
 		logrus.Errorf("could not coerce object to pod")
@@ -150,12 +145,7 @@ func (controller *Controller) podAddHandler(obj interface{}) {
 }
 
 func (controller *Controller) podUpdateHandler(_ interface{}, obj interface{}) {
-	podObj, err := getObject(obj)
-	if err != nil {
-		logrus.Errorf("%s", err)
-	}
-
-	pod, ok := podObj.(*apicorev1.Pod)
+	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
 		logrus.Errorf("could not coerce object to pod")
@@ -174,12 +164,7 @@ func (controller *Controller) podUpdateHandler(_ interface{}, obj interface{}) {
 }
 
 func (controller *Controller) podDeletedHandler(obj interface{}) {
-	podObj, err := getObject(obj)
-	if err != nil {
-		logrus.Errorf("%s", err)
-	}
-
-	pod, ok := podObj.(*apicorev1.Pod)
+	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
 		logrus.Errorf("could not coerce object to pod")
