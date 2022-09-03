@@ -76,7 +76,13 @@ func NewController(
 		streamMapLock: &sync.RWMutex{},
 	}
 
-	eventInformer.Informer().AddEventHandler(&EventHandler{})
+	eventInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: controller.eventHandler,
+		UpdateFunc: func(_, obj interface{}) {
+			controller.eventHandler(obj)
+		},
+		DeleteFunc: controller.eventHandler,
+	})
 
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.podAddHandler,

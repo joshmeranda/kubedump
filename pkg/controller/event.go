@@ -1,30 +1,65 @@
 package controller
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	eventsv1 "k8s.io/api/events/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubedump "kubedump/pkg"
+	"os"
+	"path"
 )
 
-type EventHandler struct{}
+const (
+	// [<event-time>] <type> <reason> <from> <message>
+	eventFormat = "[%s] %s %s %s %s\n"
+)
 
-func (handler *EventHandler) onEvent(obj interface{}) {
+func (controller *Controller) handlePodEvent(podEvent *eventsv1.Event) error {
+	podDir := resourceDirPath(kubedump.ResourcePod, controller.opts.ParentPath, &v1.ObjectMeta{
+		Name:      podEvent.Regarding.Name,
+		Namespace: podEvent.Regarding.Namespace,
+	})
+
+	// todo: this does not account for job pods
+	eventFilePath := path.Join(podDir, podEvent.Regarding.Name+".events")
+
+	if err := createPathParents(eventFilePath); err != nil {
+		return fmt.Errorf("could not create pod event file '%s': %w", eventFilePath, err)
+	}
+
+	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
+
+	if err != nil {
+		return fmt.Errorf("could not open pod event file '%s': %w", eventFilePath, err)
+	}
+
+	s := fmt.Sprintf(eventFormat, podEvent.EventTime, podEvent.Type, podEvent.Reason, podEvent.ReportingController, podEvent.Note)
+
+	logrus.Debugf("Received event: %s", s)
+
+	if _, err = eventFile.Write([]byte(s)); err != nil {
+		return fmt.Errorf("could not write to event file '%s': %w", eventFilePath, err)
+	}
+
+	return nil
+}
+
+func (controller *Controller) eventHandler(obj interface{}) {
 	event, ok := obj.(*eventsv1.Event)
 
 	if !ok {
 		logrus.Errorf("could not coerce object to event")
+		return
 	}
 
-	logrus.Infof("Received event: %s [%s] %s", event.Regarding.Kind, event.EventTime.String(), event.Note)
-}
+	var err error
+	switch kubedump.ResourceKind(event.Regarding.Kind) {
+	case kubedump.ResourcePod:
+		err = controller.handlePodEvent(event)
+	}
 
-func (handler *EventHandler) OnAdd(obj interface{}) {
-	handler.onEvent(obj)
-}
-
-func (handler *EventHandler) OnUpdate(_ interface{}, obj interface{}) {
-	handler.onEvent(obj)
-}
-
-func (handler *EventHandler) OnDelete(obj interface{}) {
-	handler.onEvent(obj)
+	if err != nil {
+		logrus.Errorf("error handlin pod event: %s", err)
+	}
 }
