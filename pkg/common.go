@@ -8,8 +8,8 @@ var Port int32 = 9000
 type ResourceKind string
 
 const (
-	ResourcePod ResourceKind = "pod"
-	ResourceJob              = "job"
+	ResourcePod ResourceKind = "Pod"
+	ResourceJob              = "Job"
 )
 
 const (

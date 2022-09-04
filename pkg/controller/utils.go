@@ -1,12 +1,10 @@
 package controller
 
 import (
-	"fmt"
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
@@ -68,23 +66,4 @@ func resourceFields(objs ...interface{}) logrus.Fields {
 	}
 
 	return fields
-}
-
-func getObject(obj interface{}) (apismetav1.Object, error) {
-	var object apismetav1.Object
-	var ok bool
-
-	if object, ok = obj.(apismetav1.Object); !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			return nil, fmt.Errorf("error decoding object, invalid type")
-		}
-
-		object, ok = tombstone.Obj.(apismetav1.Object)
-		if !ok {
-			return nil, fmt.Errorf("error decoding object tombstone, invalid type")
-		}
-	}
-
-	return object, nil
 }
