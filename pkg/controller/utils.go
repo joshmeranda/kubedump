@@ -1,14 +1,13 @@
-package collector
+package controller
 
 import (
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
-	"time"
 )
 
 // createPathParents ensures that the parent directory for filePath exists.
@@ -29,36 +28,8 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismeta.Object) string {
+func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object) string {
 	return path.Join(parent, obj.GetNamespace(), string(resourceKind), obj.GetName())
-}
-
-func resourceYamlPath(resourceKind kubedump.ResourceKind, parent string, obj apismeta.Object) string {
-	return path.Join(resourceDirPath(resourceKind, parent, obj), obj.GetName()+".yaml")
-}
-
-func mostRecentPodTransitionTime(conditions []apicorev1.PodCondition) time.Time {
-	var mostRecent time.Time
-
-	for _, condition := range conditions {
-		if condition.LastTransitionTime.After(mostRecent) {
-			mostRecent = condition.LastTransitionTime.Time.UTC()
-		}
-	}
-
-	return mostRecent
-}
-
-func mostRecentJobTransitionTime(conditions []apibatchv1.JobCondition) time.Time {
-	var mostRecent time.Time
-
-	for _, condition := range conditions {
-		if condition.LastTransitionTime.After(mostRecent) {
-			mostRecent = condition.LastTransitionTime.Time.UTC()
-		}
-	}
-
-	return mostRecent
 }
 
 func resourceFields(objs ...interface{}) logrus.Fields {

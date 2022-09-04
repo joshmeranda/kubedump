@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
-	"kubedump/pkg/collector"
+	"kubedump/pkg/controller"
 	"kubedump/pkg/filter"
 	"net/http"
 	"os"
@@ -36,22 +36,9 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not parse f: %w", err)
 	}
 
-	opts := collector.ClusterCollectorOptions{
+	opts := controller.Options{
 		ParentPath: parentPath,
 		Filter:     f,
-		NamespaceCollectorOptions: collector.NamespaceCollectorOptions{
-			ParentPath: parentPath,
-			Filter:     f,
-			PodCollectorOptions: collector.PodCollectorOptions{
-				ParentPath:          parentPath,
-				LogInterval:         durationFromSeconds(ctx.Float64("pod-log-interval")),
-				DescriptionInterval: durationFromSeconds(ctx.Float64("pod-desc-interval")),
-			},
-			JobCollectorOptions: collector.JobCollectorOptions{
-				ParentPath:          parentPath,
-				DescriptionInterval: durationFromSeconds(ctx.Float64("job-desc-interval")),
-			},
-		},
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
@@ -63,22 +50,22 @@ func dump(ctx *cli.Context) error {
 	client, err := kubernetes.NewForConfig(config)
 
 	if err != nil {
-		return fmt.Errorf("could not load kubeconfig: %w", err)
+		return fmt.Errorf("could not crete client: %w", err)
 	}
 
-	clusterCollector := collector.NewClusterCollector(client, opts)
+	c := controller.NewController(client, opts)
 
-	if err := clusterCollector.Start(); err != nil {
-		return fmt.Errorf("could not start collector for cluster: %s", err)
+	if err = c.Start(5); err != nil {
+		return fmt.Errorf("could not start controller: %w", err)
 	}
 
-	time.Sleep(time.Hour * 1)
+	time.Sleep(time.Second * 5)
 
-	if err := clusterCollector.Stop(); err != nil {
-		return fmt.Errorf("could not stop collector for cluster: %s", err)
+	if err = c.Stop(); err != nil {
+		return fmt.Errorf("could not stop controller: %w", err)
 	}
 
-	return nil
+	return err
 }
 
 func create(ctx *cli.Context) error {

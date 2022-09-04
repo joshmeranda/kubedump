@@ -1,6 +1,6 @@
 module kubedump
 
-go 1.17
+go 1.18
 
 require (
 	k8s.io/api v0.24.2
@@ -10,10 +10,11 @@ require (
 
 require (
 	github.com/IGLOU-EU/go-wildcard v1.0.3
+	github.com/google/uuid v1.2.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.2
 	github.com/urfave/cli/v2 v2.10.3
-	helm.sh/helm/v3 v3.9.3
+	helm.sh/helm/v3 v3.9.4
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -60,7 +61,6 @@ require (
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.2.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect

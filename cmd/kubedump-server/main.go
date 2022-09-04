@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	kubedump "kubedump/pkg"
-	"kubedump/pkg/collector"
+	"kubedump/pkg/controller"
 	"kubedump/pkg/filter"
 	"net/http"
 	"os"
@@ -116,8 +116,8 @@ func archiveTree(dir string, writer *tar.Writer) error {
 }
 
 type KubedumpHandler struct {
-	clusterCollector *collector.ClusterCollector
-	lock             *sync.Mutex
+	clusterController *controller.Controller
+	lock              *sync.Mutex
 }
 
 func NewHandler() KubedumpHandler {
@@ -157,9 +157,7 @@ func (handler *KubedumpHandler) handleTar(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		if err := handler.clusterCollector.Sync(); err != nil {
-			logrus.Errorf("could not sync cluster collector: %s", err)
-		}
+		handler.clusterController.Sync()
 
 		// todo: support better speed / compression
 		compressor := gzip.NewWriter(file)
@@ -203,49 +201,15 @@ func (handler *KubedumpHandler) handleTar(w http.ResponseWriter, r *http.Request
 func (handler *KubedumpHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		podLogInterval, err := queryFloat64OrDefault(r.URL.Query().Get("pod-log-interval"), kubedump.DefaultPodLogInterval)
-
-		if err != nil {
-			errorResponse(w, fmt.Sprintf("could not parse query pod-log-interval as float: %s", err), http.StatusBadRequest)
-			return
-		}
-
-		podDescInterval, err := queryFloat64OrDefault(r.URL.Query().Get("pod-desc-interval"), kubedump.DefaultPodDescriptionInterval)
-
-		if err != nil {
-			errorResponse(w, fmt.Sprintf("could not parse query pod-desc-interval as float: %s", err), http.StatusBadRequest)
-			return
-		}
-
-		jobDescInterval, err := queryFloat64OrDefault(r.URL.Query().Get("job-desc-interval"), kubedump.DefaultJobDescriptionInterval)
-
-		if err != nil {
-			errorResponse(w, fmt.Sprintf("could not parse query job-desc-interval as float: %s", err), http.StatusBadRequest)
-			return
-		}
-
 		f, err := filter.Parse(r.URL.Query().Get("filter"))
 
 		if err != nil {
 			errorResponse(w, fmt.Sprintf("could not parse query filter as filter: %s", err), http.StatusBadRequest)
 		}
 
-		opts := collector.ClusterCollectorOptions{
+		opts := controller.Options{
 			ParentPath: ParentPath,
 			Filter:     f,
-			NamespaceCollectorOptions: collector.NamespaceCollectorOptions{
-				ParentPath: ParentPath,
-				Filter:     f,
-				PodCollectorOptions: collector.PodCollectorOptions{
-					ParentPath:          ParentPath,
-					LogInterval:         durationFromSeconds(podLogInterval),
-					DescriptionInterval: durationFromSeconds(podDescInterval),
-				},
-				JobCollectorOptions: collector.JobCollectorOptions{
-					ParentPath:          ParentPath,
-					DescriptionInterval: durationFromSeconds(jobDescInterval),
-				},
-			},
 		}
 
 		config, err := rest.InClusterConfig()
@@ -262,14 +226,14 @@ func (handler *KubedumpHandler) handleStart(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		clusterCollector := collector.NewClusterCollector(client, opts)
+		c := controller.NewController(client, opts)
 
 		handler.lock.Lock()
 
-		handler.clusterCollector = clusterCollector
+		handler.clusterController = c
 
 		logrus.Infof("starting collector for cluster")
-		if err := handler.clusterCollector.Start(); err != nil {
+		if err := handler.clusterController.Start(5); err != nil {
 			errorResponse(w, fmt.Sprintf("could not start collector for cluster: %s", err), http.StatusInternalServerError)
 		}
 
@@ -282,17 +246,17 @@ func (handler *KubedumpHandler) handleStart(w http.ResponseWriter, r *http.Reque
 func (handler *KubedumpHandler) handleStop(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		if handler.clusterCollector == nil {
+		if handler.clusterController == nil {
 			errorResponse(w, "cluster collector is not running", http.StatusInternalServerError)
 		}
 
 		handler.lock.Lock()
 
-		if err := handler.clusterCollector.Stop(); err != nil {
+		if err := handler.clusterController.Stop(); err != nil {
 			errorResponse(w, fmt.Sprintf("could not stop collector for cluster: %s", err), http.StatusInternalServerError)
 		}
 
-		handler.clusterCollector = nil
+		handler.clusterController = nil
 
 		handler.lock.Unlock()
 	default:
