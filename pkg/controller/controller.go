@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"io"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"kubedump/pkg/filter"
-	"os"
-	"sync"
 	"time"
 )
 
@@ -41,14 +37,12 @@ type Controller struct {
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
 
+	podHandler *PodHandler
+
 	eventInformerSynced cache.InformerSynced
 	podInformerSynced   cache.InformerSynced
 
 	workQueue workqueue.RateLimitingInterface
-
-	// logStreams is a map of a string identifier of a container (<namespace>/<pod>/<container-name>/c<container-id>) and a log stream
-	logStreams    map[*os.File]io.ReadCloser
-	streamMapLock *sync.RWMutex
 }
 
 func NewController(
@@ -71,9 +65,6 @@ func NewController(
 		podInformerSynced:   podInformer.Informer().HasSynced,
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-
-		logStreams:    make(map[*os.File]io.ReadCloser),
-		streamMapLock: &sync.RWMutex{},
 	}
 
 	eventInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -84,11 +75,8 @@ func NewController(
 		DeleteFunc: controller.eventHandler,
 	})
 
-	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    controller.podAddHandler,
-		UpdateFunc: controller.podUpdateHandler,
-		DeleteFunc: controller.podDeletedHandler,
-	})
+	controller.podHandler = NewPodHandler(controller.opts, controller.workQueue, controller.kubeclientset)
+	podInformer.Informer().AddEventHandler(controller.podHandler)
 
 	return controller
 }
@@ -113,28 +101,6 @@ func (controller *Controller) processNextWorkItem() bool {
 	controller.workQueue.Done(obj)
 
 	return true
-}
-
-func (controller *Controller) syncLogStreams(buffer []byte) {
-	for file, stream := range controller.logStreams {
-		readChan := make(chan int, 1)
-
-		go func() {
-			if n, err := stream.Read(buffer); err != nil && err != io.EOF {
-				logrus.Errorf("error writing logs to file '%s': %s", file.Name(), err)
-			} else {
-				readChan <- n
-			}
-		}()
-
-		select {
-		case n := <-readChan:
-			if _, err := file.Write(buffer[:n]); err != nil {
-				logrus.Errorf("error writing logs to file '%s': %s", file.Name(), err)
-			}
-		case <-time.After(time.Millisecond):
-		}
-	}
 }
 
 func (controller *Controller) Sync() {
@@ -169,10 +135,7 @@ func (controller *Controller) Start(nWorkers int) error {
 		}()
 	}
 
-	buffer := make([]byte, 4098)
-	go wait.Until(func() {
-		controller.syncLogStreams(buffer)
-	}, time.Second, controller.stopChan)
+	controller.workQueue.AddRateLimited(NewJob(controller.podHandler.syncLogStreams))
 
 	logrus.Infof("Started controller")
 

@@ -32,6 +32,10 @@ func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apis
 	return path.Join(parent, obj.GetNamespace(), string(resourceKind), obj.GetName())
 }
 
+func resourceFilePath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object, name string) string {
+	return path.Join(resourceDirPath(resourceKind, parent, obj), name)
+}
+
 func resourceFields(objs ...interface{}) logrus.Fields {
 	fields := logrus.Fields{}
 

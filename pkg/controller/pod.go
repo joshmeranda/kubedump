@@ -4,38 +4,66 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"io"
 	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/workqueue"
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
 	"sigs.k8s.io/yaml"
+	"sync"
+	"time"
 )
 
-func (controller *Controller) podDir(pod *apicorev1.Pod) string {
+type PodHandler struct {
+	// will be inherited from parent controller
+	opts          Options
+	workQueue     workqueue.RateLimitingInterface
+	kubeclientset kubernetes.Interface
+
+	// logStreams is a map of a string identifier of a container (<namespace>/<pod>/<container-name>/c<container-id>) and a log stream
+	logStreams    map[*os.File]io.ReadCloser
+	streamMapLock *sync.RWMutex
+	logBuffer     []byte
+}
+
+func NewPodHandler(opts Options, workQueue workqueue.RateLimitingInterface, kubeclientset kubernetes.Interface) *PodHandler {
+	return &PodHandler{
+		opts:          opts,
+		workQueue:     workQueue,
+		kubeclientset: kubeclientset,
+		logStreams:    make(map[*os.File]io.ReadCloser),
+		streamMapLock: &sync.RWMutex{},
+		logBuffer:     make([]byte, 4096),
+	}
+}
+
+func (handler *PodHandler) podDir(pod *apicorev1.Pod) string {
 	jobName, ok := pod.Labels["job-name"]
 
 	if !ok {
-		return resourceDirPath(kubedump.ResourcePod, controller.opts.ParentPath, pod)
+		return resourceDirPath(kubedump.ResourcePod, handler.opts.ParentPath, pod)
 	}
 
-	return path.Join(resourceDirPath(kubedump.ResourceJob, controller.opts.ParentPath, &apismeta.ObjectMeta{
+	return path.Join(resourceDirPath(kubedump.ResourceJob, handler.opts.ParentPath, &apismeta.ObjectMeta{
 		Name:      jobName,
 		Namespace: pod.Namespace,
 	}), "pod", pod.Name)
 }
 
 // podFileWithExt returns the file path of a pad with the given extension excluding the '.' (ex 'yaml', 'log', etc)
-func (controller *Controller) podFileWithExt(pod *apicorev1.Pod, ext string) string {
-	return path.Join(controller.podDir(pod), pod.Name+"."+ext)
+func (handler *PodHandler) podFileWithExt(pod *apicorev1.Pod, ext string) string {
+	return path.Join(handler.podDir(pod), pod.Name+"."+ext)
 }
 
-func (controller *Controller) containerLogPath(pod *apicorev1.Pod, containerName string) string {
-	return path.Join(controller.podDir(pod), containerName+".log")
+func (handler *PodHandler) containerLogPath(pod *apicorev1.Pod, containerName string) string {
+	return path.Join(handler.podDir(pod), containerName+".log")
 }
 
-func (controller *Controller) dumpPodDescription(pod *apicorev1.Pod) error {
-	yamlPath := controller.podFileWithExt(pod, "yaml")
+func (handler *PodHandler) dumpPodDescription(pod *apicorev1.Pod) error {
+	yamlPath := handler.podFileWithExt(pod, "yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -68,8 +96,8 @@ func (controller *Controller) dumpPodDescription(pod *apicorev1.Pod) error {
 	return nil
 }
 
-func (controller *Controller) addContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
-	logFilePath := controller.containerLogPath(pod, container.Name)
+func (handler *PodHandler) addContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
+	logFilePath := handler.containerLogPath(pod, container.Name)
 
 	if err := createPathParents(logFilePath); err != nil {
 		logrus.WithFields(resourceFields(pod)).Errorf("could not create log file '%s': %s", logFilePath, err)
@@ -85,7 +113,7 @@ func (controller *Controller) addContainerStream(pod *apicorev1.Pod, container *
 
 	//defer logFile.Close()
 
-	req := controller.kubeclientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &apicorev1.PodLogOptions{
+	req := handler.kubeclientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &apicorev1.PodLogOptions{
 		Container: container.Name,
 		Follow:    true,
 	})
@@ -97,29 +125,55 @@ func (controller *Controller) addContainerStream(pod *apicorev1.Pod, container *
 		return
 	}
 
-	controller.streamMapLock.Lock()
-	controller.logStreams[logFile] = stream
-	controller.streamMapLock.Unlock()
+	handler.streamMapLock.Lock()
+	handler.logStreams[logFile] = stream
+	handler.streamMapLock.Unlock()
 }
 
-func (controller *Controller) removeContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
-	logFilePath := controller.containerLogPath(pod, container.Name)
+func (handler *PodHandler) removeContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
+	logFilePath := handler.containerLogPath(pod, container.Name)
 	var logFile *os.File
 
-	controller.streamMapLock.RLock()
-	for file, _ := range controller.logStreams {
+	handler.streamMapLock.RLock()
+	for file, _ := range handler.logStreams {
 		if file.Name() == logFilePath {
 			logFile = file
 		}
 	}
-	controller.streamMapLock.RUnlock()
+	handler.streamMapLock.RUnlock()
 
-	controller.streamMapLock.Lock()
-	delete(controller.logStreams, logFile)
-	controller.streamMapLock.Unlock()
+	handler.streamMapLock.Lock()
+	delete(handler.logStreams, logFile)
+	handler.streamMapLock.Unlock()
 }
 
-func (controller *Controller) podAddHandler(obj interface{}) {
+func (handler *PodHandler) syncLogStreams() {
+	for file, stream := range handler.logStreams {
+		readChan := make(chan int, 1)
+
+		go func() {
+			if n, err := stream.Read(handler.logBuffer); err != nil && err != io.EOF {
+				logrus.Errorf("error writing logs to file '%s': %s", file.Name(), err)
+			} else {
+				readChan <- n
+			}
+		}()
+
+		select {
+		case n := <-readChan:
+			if _, err := file.Write(handler.logBuffer[:n]); err != nil {
+				logrus.Errorf("error writing logs to file '%s': %s", file.Name(), err)
+			}
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	if !handler.workQueue.ShuttingDown() {
+		handler.workQueue.AddRateLimited(NewJob(handler.syncLogStreams))
+	}
+}
+
+func (handler *PodHandler) OnAdd(obj interface{}) {
 	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
@@ -127,24 +181,24 @@ func (controller *Controller) podAddHandler(obj interface{}) {
 		return
 	}
 
-	if !controller.opts.Filter.Matches(*pod) {
+	if !handler.opts.Filter.Matches(*pod) {
 		return
 	}
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := controller.dumpPodDescription(pod); err != nil {
+	handler.workQueue.AddRateLimited(NewJob(func() {
+		if err := handler.dumpPodDescription(pod); err != nil {
 			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
 		}
 	}))
 
 	for _, container := range pod.Spec.Containers {
-		controller.workQueue.AddRateLimited(NewJob(func() {
-			controller.addContainerStream(pod, &container)
+		handler.workQueue.AddRateLimited(NewJob(func() {
+			handler.addContainerStream(pod, &container)
 		}))
 	}
 }
 
-func (controller *Controller) podUpdateHandler(_ interface{}, obj interface{}) {
+func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
 	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
@@ -152,18 +206,18 @@ func (controller *Controller) podUpdateHandler(_ interface{}, obj interface{}) {
 		return
 	}
 
-	if !controller.opts.Filter.Matches(*pod) {
+	if !handler.opts.Filter.Matches(*pod) {
 		return
 	}
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := controller.dumpPodDescription(pod); err != nil {
+	handler.workQueue.AddRateLimited(NewJob(func() {
+		if err := handler.dumpPodDescription(pod); err != nil {
 			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
 		}
 	}))
 }
 
-func (controller *Controller) podDeletedHandler(obj interface{}) {
+func (handler *PodHandler) OnDelete(obj interface{}) {
 	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
@@ -171,13 +225,13 @@ func (controller *Controller) podDeletedHandler(obj interface{}) {
 		return
 	}
 
-	if !controller.opts.Filter.Matches(*pod) {
+	if !handler.opts.Filter.Matches(*pod) {
 		return
 	}
 
 	for _, container := range pod.Spec.Containers {
-		controller.workQueue.AddRateLimited(NewJob(func() {
-			controller.removeContainerStream(pod, &container)
+		handler.workQueue.AddRateLimited(NewJob(func() {
+			handler.removeContainerStream(pod, &container)
 		}))
 	}
 }

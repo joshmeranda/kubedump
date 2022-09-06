@@ -1,5 +1,7 @@
 package main
 
+// todo: use runtime.HandleError over logrus.Error
+
 import (
 	"context"
 	"fmt"
