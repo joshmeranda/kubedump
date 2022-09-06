@@ -5,6 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	eventsv1 "k8s.io/api/events/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/workqueue"
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
@@ -15,8 +16,21 @@ const (
 	eventFormat = "[%s] %s %s %s %s\n"
 )
 
-func (controller *Controller) handlePodEvent(podEvent *eventsv1.Event) error {
-	podDir := resourceDirPath(kubedump.ResourcePod, controller.opts.ParentPath, &v1.ObjectMeta{
+type EventHandler struct {
+	// will be inherited from parent controller
+	opts      Options
+	workQueue workqueue.RateLimitingInterface
+}
+
+func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface) *EventHandler {
+	return &EventHandler{
+		opts:      opts,
+		workQueue: workQueue,
+	}
+}
+
+func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
+	podDir := resourceDirPath(kubedump.ResourcePod, handler.opts.ParentPath, &v1.ObjectMeta{
 		Name:      podEvent.Regarding.Name,
 		Namespace: podEvent.Regarding.Namespace,
 	})
@@ -45,7 +59,7 @@ func (controller *Controller) handlePodEvent(podEvent *eventsv1.Event) error {
 	return nil
 }
 
-func (controller *Controller) eventHandler(obj interface{}) {
+func (handler *EventHandler) handleFunc(obj interface{}) {
 	event, ok := obj.(*eventsv1.Event)
 
 	if !ok {
@@ -56,10 +70,22 @@ func (controller *Controller) eventHandler(obj interface{}) {
 	var err error
 	switch kubedump.ResourceKind(event.Regarding.Kind) {
 	case kubedump.ResourcePod:
-		err = controller.handlePodEvent(event)
+		err = handler.handlePodEvent(event)
 	}
 
 	if err != nil {
 		logrus.Errorf("error handlin pod event: %s", err)
 	}
+}
+
+func (handler *EventHandler) OnAdd(obj interface{}) {
+	handler.handleFunc(obj)
+}
+
+func (handler *EventHandler) OnUpdate(_ interface{}, obj interface{}) {
+	handler.handleFunc(obj)
+}
+
+func (handler *EventHandler) OnDelete(obj interface{}) {
+	handler.handleFunc(obj)
 }
