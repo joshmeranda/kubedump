@@ -35,7 +35,7 @@ func dump(ctx *cli.Context) error {
 	f, err := filter.Parse(ctx.String("filter"))
 
 	if err != nil {
-		return fmt.Errorf("could not parse f: %w", err)
+		return fmt.Errorf("could not parse filter: %w", err)
 	}
 
 	opts := controller.Options{

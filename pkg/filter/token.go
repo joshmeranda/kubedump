@@ -2,7 +2,6 @@ package filter
 
 import (
 	"fmt"
-	kubedump "kubedump/pkg"
 	"strings"
 	"unicode"
 )
@@ -89,7 +88,7 @@ func (tokenizer *tokenizer) Next() (token, error) {
 
 	var t token
 	switch body {
-	case string(kubedump.ResourcePod), kubedump.ResourceJob:
+	case "pod", "job":
 		t = token{
 			Kind: Resource,
 			Body: body,
