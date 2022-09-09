@@ -50,8 +50,6 @@ func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
 
 	s := fmt.Sprintf(eventFormat, podEvent.EventTime, podEvent.Type, podEvent.Reason, podEvent.ReportingController, podEvent.Note)
 
-	logrus.Debugf("Received event: %s", s)
-
 	if _, err = eventFile.Write([]byte(s)); err != nil {
 		return fmt.Errorf("could not write to event file '%s': %w", eventFilePath, err)
 	}

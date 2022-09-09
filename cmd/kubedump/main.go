@@ -61,7 +61,7 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not start controller: %w", err)
 	}
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 30)
 
 	if err = c.Stop(); err != nil {
 		return fmt.Errorf("could not stop controller: %w", err)

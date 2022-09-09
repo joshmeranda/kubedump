@@ -41,6 +41,7 @@ type Controller struct {
 
 	eventInformerSynced cache.InformerSynced
 	podInformerSynced   cache.InformerSynced
+	jobInformerSynced   cache.InformerSynced
 
 	workQueue workqueue.RateLimitingInterface
 }
@@ -53,6 +54,7 @@ func NewController(
 
 	eventInformer := informerFactory.Events().V1().Events()
 	podInformer := informerFactory.Core().V1().Pods()
+	jobInformer := informerFactory.Batch().V1().Jobs()
 
 	controller := &Controller{
 		opts:          opts,
@@ -63,20 +65,17 @@ func NewController(
 
 		eventInformerSynced: eventInformer.Informer().HasSynced,
 		podInformerSynced:   podInformer.Informer().HasSynced,
+		jobInformerSynced:   jobInformer.Informer().HasSynced,
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	eventInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.eventHandler,
-		UpdateFunc: func(_, obj interface{}) {
-			controller.eventHandler(obj)
-		},
-		DeleteFunc: controller.eventHandler,
-	})
+	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue))
 
 	controller.podHandler = NewPodHandler(controller.opts, controller.workQueue, controller.kubeclientset)
 	podInformer.Informer().AddEventHandler(controller.podHandler)
+
+	jobInformer.Informer().AddEventHandler(NewJobHandler(controller.opts, controller.workQueue))
 
 	return controller
 }

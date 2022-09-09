@@ -41,6 +41,7 @@ func NewPodHandler(opts Options, workQueue workqueue.RateLimitingInterface, kube
 }
 
 func (handler *PodHandler) podDir(pod *apicorev1.Pod) string {
+	// todo: we should use pod.OwnerReferences here instead
 	jobName, ok := pod.Labels["job-name"]
 
 	if !ok {
@@ -187,7 +188,7 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
 		if err := handler.dumpPodDescription(pod); err != nil {
-			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
+			logrus.WithFields(resourceFields(pod)).Errorf("could not dump pod description: %s", err)
 		}
 	}))
 
