@@ -8,6 +8,7 @@ import (
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
+	"strings"
 )
 
 // createPathParents ensures that the parent directory for filePath exists.
@@ -29,7 +30,17 @@ func exists(filePath string) bool {
 }
 
 func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object) string {
-	return path.Join(parent, obj.GetNamespace(), string(resourceKind), obj.GetName())
+	ownerRefs := obj.GetOwnerReferences()
+
+	if len(ownerRefs) == 0 {
+		return path.Join(parent, obj.GetNamespace(), strings.ToLower(string(resourceKind)), obj.GetName())
+	} else {
+		owner := ownerRefs[0]
+
+		// use the obj namespace since an owner reference should be in the same namespace
+		return path.Join(parent, obj.GetNamespace(), strings.ToLower(owner.Kind), owner.Name,
+			strings.ToLower(string(resourceKind)), obj.GetName())
+	}
 }
 
 func resourceFilePath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object, name string) string {

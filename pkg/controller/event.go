@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	eventsv1 "k8s.io/api/events/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/util/workqueue"
 	kubedump "kubedump/pkg"
 	"os"
@@ -18,22 +18,28 @@ const (
 
 type EventHandler struct {
 	// will be inherited from parent controller
-	opts      Options
-	workQueue workqueue.RateLimitingInterface
+	opts        Options
+	workQueue   workqueue.RateLimitingInterface
+	podInformer informerscorev1.PodInformer
 }
 
-func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface) *EventHandler {
+func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface, podInformer informerscorev1.PodInformer) *EventHandler {
 	return &EventHandler{
-		opts:      opts,
-		workQueue: workQueue,
+		opts:        opts,
+		workQueue:   workQueue,
+		podInformer: podInformer,
 	}
 }
 
 func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
-	podDir := resourceDirPath(kubedump.ResourcePod, handler.opts.ParentPath, &v1.ObjectMeta{
-		Name:      podEvent.Regarding.Name,
-		Namespace: podEvent.Regarding.Namespace,
-	})
+	// todo: filter pods
+	pod, err := handler.podInformer.Lister().Pods(podEvent.Regarding.Namespace).Get(podEvent.Regarding.Name)
+
+	if err != nil {
+		return fmt.Errorf("could not get pod from event: %w", err)
+	}
+
+	podDir := resourceDirPath(kubedump.ResourcePod, handler.opts.ParentPath, pod)
 
 	// todo: this does not account for job pods
 	eventFilePath := path.Join(podDir, podEvent.Regarding.Name+".events")
@@ -72,7 +78,7 @@ func (handler *EventHandler) handleFunc(obj interface{}) {
 	}
 
 	if err != nil {
-		logrus.Errorf("error handlin pod event: %s", err)
+		logrus.Errorf("error handling event: %s", err)
 	}
 }
 

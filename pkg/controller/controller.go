@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
+	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -43,6 +44,8 @@ type Controller struct {
 	podInformerSynced   cache.InformerSynced
 	jobInformerSynced   cache.InformerSynced
 
+	podInformer informerscorev1.PodInformer
+
 	workQueue workqueue.RateLimitingInterface
 }
 
@@ -67,10 +70,12 @@ func NewController(
 		podInformerSynced:   podInformer.Informer().HasSynced,
 		jobInformerSynced:   jobInformer.Informer().HasSynced,
 
+		podInformer: podInformer,
+
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue))
+	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue, podInformer))
 
 	controller.podHandler = NewPodHandler(controller.opts, controller.workQueue, controller.kubeclientset)
 	podInformer.Informer().AddEventHandler(controller.podHandler)
