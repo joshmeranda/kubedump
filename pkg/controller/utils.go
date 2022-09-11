@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
@@ -8,6 +9,7 @@ import (
 	kubedump "kubedump/pkg"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -29,22 +31,87 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object) string {
-	ownerRefs := obj.GetOwnerReferences()
+func isNamespaced(resourceKind string) bool {
+	switch resourceKind {
+	// list created by running: kubectl api-resources --namespaced=false
+	case "ComponentStatus",
+		"Namespace",
+		"Node",
+		"PersistentVolume",
+		"MutatingWebhookConfiguration",
+		"ValidatingWebhookConfiguration",
+		"CustomResourceDefinition",
+		"APIService",
+		"TokenReview",
+		"SelfSubjectAccessReview",
+		"SelfSubjectRulesReview",
+		"SubjectAccessReview",
+		"CertificateSigningRequest",
+		"FlowSchema",
+		"PriorityLevelConfiguration",
+		"IngressClass",
+		"RuntimeClass",
+		"PodSecurityPolicy",
+		"ClusterRoleBinding",
+		"ClusterRole",
+		"PriorityClass",
+		"CSIDriver",
+		"CSINode",
+		"StorageClass", "VolumeAttachment":
+		return false
+	default:
+		return true
+	}
+}
 
-	if len(ownerRefs) == 0 {
+func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object) string {
+	if isNamespaced(string(resourceKind)) {
 		return path.Join(parent, obj.GetNamespace(), strings.ToLower(string(resourceKind)), obj.GetName())
 	} else {
-		owner := ownerRefs[0]
-
-		// use the obj namespace since an owner reference should be in the same namespace
-		return path.Join(parent, obj.GetNamespace(), strings.ToLower(owner.Kind), owner.Name,
-			strings.ToLower(string(resourceKind)), obj.GetName())
+		return path.Join(parent, strings.ToLower(string(resourceKind)), obj.GetName())
 	}
 }
 
 func resourceFilePath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object, name string) string {
 	return path.Join(resourceDirPath(resourceKind, parent, obj), name)
+}
+
+func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind kubedump.ResourceKind, obj apismetav1.Object) error {
+	ownerPath := resourceDirPath(kubedump.ResourceKind(owner.Kind), parent, &apismetav1.ObjectMeta{
+		Name: owner.Name,
+
+		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
+		Namespace: obj.GetNamespace(),
+	})
+	ownerResourcePath := path.Join(ownerPath, strings.ToLower(string(resourceKind)))
+	objPath := resourceDirPath(resourceKind, parent, obj)
+
+	relPath, err := filepath.Rel(ownerResourcePath, objPath)
+
+	if err != nil {
+		return fmt.Errorf("could not get baseepath for owner and obj: %w", err)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	symlinkPath := path.Join(resourceDirPath(kubedump.ResourceKind(owner.Kind), parent, &apismetav1.ObjectMeta{
+		Name: owner.Name,
+
+		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
+		Namespace: obj.GetNamespace(),
+	}), strings.ToLower(string(resourceKind)), obj.GetName())
+
+	if err := createPathParents(symlinkPath); err != nil {
+		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
+	}
+
+	if err := os.Symlink(relPath, symlinkPath); err != nil {
+		return fmt.Errorf("could not create symlink '%s': %w", symlinkPath, err)
+	}
+
+	return nil
 }
 
 func resourceFields(objs ...interface{}) logrus.Fields {

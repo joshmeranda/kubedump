@@ -57,7 +57,7 @@ func (handler *JobHandler) dumpJobDescription(job *apibatchv1.Job) error {
 	return nil
 }
 
-func (handler *JobHandler) handleFunc(obj interface{}) {
+func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
 	job, ok := obj.(*apibatchv1.Job)
 
 	if !ok {
@@ -69,6 +69,14 @@ func (handler *JobHandler) handleFunc(obj interface{}) {
 		return
 	}
 
+	if isAdd {
+		for _, ownerRef := range job.OwnerReferences {
+			if err := linkToOwner(handler.opts.ParentPath, ownerRef, kubedump.ResourceJob, job); err != nil {
+				logrus.Errorf("could not link job to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
+			}
+		}
+	}
+
 	handler.workQueue.AddRateLimited(NewJob(func() {
 		if err := handler.dumpJobDescription(job); err != nil {
 			logrus.WithFields(resourceFields(job)).Errorf("could not dump job description: %s", err)
@@ -77,13 +85,13 @@ func (handler *JobHandler) handleFunc(obj interface{}) {
 }
 
 func (handler *JobHandler) OnAdd(obj interface{}) {
-	handler.handleFunc(obj)
+	handler.handleFunc(obj, true)
 }
 
 func (handler *JobHandler) OnUpdate(_ interface{}, obj interface{}) {
-	handler.handleFunc(obj)
+	handler.handleFunc(obj, false)
 }
 
 func (handler *JobHandler) OnDelete(obj interface{}) {
-	handler.handleFunc(obj)
+	handler.handleFunc(obj, false)
 }
