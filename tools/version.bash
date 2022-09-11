@@ -15,7 +15,7 @@ if [ "$#" -lt 1 ]; then
   exit
 fi
 
-get_version() {
+function get_version() {
   local head_tag="$(git tag --contains HEAD)"
 
   if [ -n "$head_tag" ]; then
@@ -28,7 +28,7 @@ get_version() {
   fi
 }
 
-set_version() {
+function set_version() {
   if [ "$#" -lt 1 ]; then
     echo -e "expected a tag value but found none\n$usage"
     exit 4
@@ -41,7 +41,7 @@ set_version() {
   echo '  2) Push new docker image'
 }
 
-bump() {
+function bump() {
   if [ "$#" -lt 1 ]; then
     echo -e "expected one of major, minor, patch, or rc but found none\n$usage"
   fi

@@ -1,5 +1,5 @@
 SOURCES=./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
-TEST_PATHS=./pkg ./pkg/filter/
+TEST_PATHS=./pkg/filter/ ./pkg/controller
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
 IMAGE_TAG=joshmeranda/kubedump-server:${KUBEDUMP_VERSION}
@@ -14,7 +14,7 @@ HELM_PACKAGE=helm package
 # Go commands                         #
 # # # # # # # # # # # # # # # # # # # #
 GO_BUILD=go build
-GO_FMT=go fmt -x
+GO_FMT=go fmt
 GO_TEST=go test -test.parallel 1
 
 ifdef VERBOSE
@@ -102,4 +102,4 @@ clean: mostly-clean
 	${RM} --recursive artifacts bin
 
 fmt:
-	${GO_FMT} ./cmd/kubedump
+	${GO_FMT} ./cmd/kubedump ./cmd/kubedump-server ./pkg ./pkg/controller ./pkg/filter
