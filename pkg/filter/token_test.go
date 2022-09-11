@@ -48,7 +48,7 @@ func TestTokenizerNextExpectingPattern(t *testing.T) {
 }
 
 func TestTokenization(t *testing.T) {
-	s := "pod job and or (not namespace/pod)"
+	s := "pod job and or (not namespace/pod) namespace"
 	tokenizer := newTokenizer(s)
 
 	expected := []token{
@@ -83,6 +83,10 @@ func TestTokenization(t *testing.T) {
 		{
 			Kind: CloseParenthesis,
 			Body: ")",
+		},
+		{
+			Kind: Namespace,
+			Body: "namespace",
 		},
 		{
 			Kind: EOE,
