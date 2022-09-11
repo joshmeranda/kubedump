@@ -4,6 +4,7 @@ import (
 	"github.com/IGLOU-EU/go-wildcard"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Expression interface {
@@ -74,6 +75,7 @@ func (expr jobExpression) Matches(v interface{}) bool {
 	case apicorev1.Pod:
 		pod := v.(apicorev1.Pod)
 
+		// todo: we probably want to search through owners instead?
 		if jobName, ok := pod.Labels["job-name"]; ok {
 			return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, jobName)
 		} else {
@@ -84,6 +86,32 @@ func (expr jobExpression) Matches(v interface{}) bool {
 
 		return wildcard.MatchSimple(expr.NamespacePattern, job.Namespace) && wildcard.MatchSimple(expr.NamePattern, job.Name)
 	default:
+		return false
+	}
+}
+
+// namespaceExpression evaluates to true only if the given value has a Namespace matching the specified pattern.
+type namespaceExpression struct {
+	NamespacePattern string
+}
+
+func (expr namespaceExpression) Matches(v interface{}) bool {
+	switch v.(type) {
+	case apicorev1.Pod:
+		obj := v.(apicorev1.Pod)
+		return expr.checkObject(&obj)
+	case apibatchv1.Job:
+		obj := v.(apibatchv1.Job)
+		return expr.checkObject(&obj)
+	default:
+		return false
+	}
+}
+
+func (expr namespaceExpression) checkObject(obj apismetav1.Object) bool {
+	if wildcard.MatchSimple(expr.NamespacePattern, obj.GetNamespace()) {
+		return true
+	} else {
 		return false
 	}
 }
