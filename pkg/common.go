@@ -5,6 +5,7 @@ var ServiceName = HelmReleaseName
 var Namespace = "kubedump"
 var Port int32 = 9000
 
+// todo: REMOVE_ME: this is gonn waste a lot of effort
 type ResourceKind string
 
 const (

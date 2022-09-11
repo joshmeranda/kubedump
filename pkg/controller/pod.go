@@ -6,7 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 	apicorev1 "k8s.io/api/core/v1"
-	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
 	kubedump "kubedump/pkg"
@@ -40,27 +39,13 @@ func NewPodHandler(opts Options, workQueue workqueue.RateLimitingInterface, kube
 	}
 }
 
-func (handler *PodHandler) podDir(pod *apicorev1.Pod) string {
-	// todo: we should use pod.OwnerReferences here instead
-	jobName, ok := pod.Labels["job-name"]
-
-	if !ok {
-		return resourceDirPath(kubedump.ResourcePod, handler.opts.ParentPath, pod)
-	}
-
-	return path.Join(resourceDirPath(kubedump.ResourceJob, handler.opts.ParentPath, &apismeta.ObjectMeta{
-		Name:      jobName,
-		Namespace: pod.Namespace,
-	}), "pod", pod.Name)
-}
-
 // podFileWithExt returns the file path of a pad with the given extension excluding the '.' (ex 'yaml', 'log', etc)
 func (handler *PodHandler) podFileWithExt(pod *apicorev1.Pod, ext string) string {
-	return path.Join(handler.podDir(pod), pod.Name+"."+ext)
+	return path.Join(resourceDirPath("Pod", handler.opts.ParentPath, pod), pod.Name+"."+ext)
 }
 
 func (handler *PodHandler) containerLogPath(pod *apicorev1.Pod, containerName string) string {
-	return path.Join(handler.podDir(pod), containerName+".log")
+	return path.Join(resourceDirPath("Pod", handler.opts.ParentPath, pod), containerName+".log")
 }
 
 func (handler *PodHandler) dumpPodDescription(pod *apicorev1.Pod) error {
@@ -184,6 +169,12 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 
 	if !handler.opts.Filter.Matches(*pod) {
 		return
+	}
+
+	for _, ownerRef := range pod.OwnerReferences {
+		if err := linkToOwner(handler.opts.ParentPath, ownerRef, kubedump.ResourcePod, pod); err != nil {
+			logrus.Errorf("could not link pod to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
+		}
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
