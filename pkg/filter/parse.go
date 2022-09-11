@@ -89,7 +89,7 @@ func (p *parser) parseExpression() (Expression, error) {
 		return p.parseOperatorExpression()
 	case "not":
 		return p.parseNotExpression()
-	case string(kubedump.ResourcePod), kubedump.ResourceJob:
+	case "pod", "job":
 		return p.parseResourceExpression()
 	}
 
@@ -104,12 +104,12 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 	namespace, name := splitPattern(pattern)
 
 	switch kubedump.ResourceKind(kind) {
-	case kubedump.ResourcePod:
+	case "pod":
 		return podExpression{
 			NamePattern:      name,
 			NamespacePattern: namespace,
 		}, nil
-	case kubedump.ResourceJob:
+	case "job":
 		return jobExpression{
 			NamePattern:      name,
 			NamespacePattern: namespace,

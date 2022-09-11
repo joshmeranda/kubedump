@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
+	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -41,6 +42,9 @@ type Controller struct {
 
 	eventInformerSynced cache.InformerSynced
 	podInformerSynced   cache.InformerSynced
+	jobInformerSynced   cache.InformerSynced
+
+	podInformer informerscorev1.PodInformer
 
 	workQueue workqueue.RateLimitingInterface
 }
@@ -53,6 +57,7 @@ func NewController(
 
 	eventInformer := informerFactory.Events().V1().Events()
 	podInformer := informerFactory.Core().V1().Pods()
+	jobInformer := informerFactory.Batch().V1().Jobs()
 
 	controller := &Controller{
 		opts:          opts,
@@ -63,20 +68,19 @@ func NewController(
 
 		eventInformerSynced: eventInformer.Informer().HasSynced,
 		podInformerSynced:   podInformer.Informer().HasSynced,
+		jobInformerSynced:   jobInformer.Informer().HasSynced,
+
+		podInformer: podInformer,
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	eventInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.eventHandler,
-		UpdateFunc: func(_, obj interface{}) {
-			controller.eventHandler(obj)
-		},
-		DeleteFunc: controller.eventHandler,
-	})
+	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue, podInformer))
 
 	controller.podHandler = NewPodHandler(controller.opts, controller.workQueue, controller.kubeclientset)
 	podInformer.Informer().AddEventHandler(controller.podHandler)
+
+	jobInformer.Informer().AddEventHandler(NewJobHandler(controller.opts, controller.workQueue))
 
 	return controller
 }
