@@ -140,6 +140,13 @@ func TestParseSimple(t *testing.T) {
 		NamePattern:      "*",
 		NamespacePattern: "default",
 	}, expr)
+
+	expr, err = Parse("namespace default")
+
+	assert.NoError(t, err)
+	assert.Equal(t, namespaceExpression{
+		NamespacePattern: "default",
+	}, expr)
 }
 
 func TestComplex(t *testing.T) {
@@ -168,7 +175,14 @@ func TestComplex(t *testing.T) {
 
 func TestParseBadExpression(t *testing.T) {
 	expr, err := Parse("and and")
+	assert.Error(t, err)
+	assert.Nil(t, expr)
 
+	expr, err = Parse("pod")
+	assert.Error(t, err)
+	assert.Nil(t, expr)
+
+	expr, err = Parse("namespace")
 	assert.Error(t, err)
 	assert.Nil(t, expr)
 }

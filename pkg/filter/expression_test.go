@@ -95,3 +95,23 @@ func TestPod(t *testing.T) {
 		},
 	}))
 }
+
+func TestNamespace(t *testing.T) {
+	expr := namespaceExpression{
+		NamespacePattern: "*-ns",
+	}
+
+	assert.True(t, expr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Namespace: "sample-ns",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Namespace: "sample-namespace",
+		},
+	}))
+
+	assert.False(t, expr.Matches("non-object-values"))
+}

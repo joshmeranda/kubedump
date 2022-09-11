@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+var (
+	unexpectedEOE = fmt.Errorf("unexpected end-of-expressions (EOE)")
+)
+
 func operatorPrecedence(op string) int {
 	switch op {
 	case "not":
@@ -32,7 +36,7 @@ func prefixTokens(tokens []token) []token {
 
 	for _, t := range tokens {
 		switch t.Kind {
-		case Pattern, Resource, EOE:
+		case Pattern, Resource, Namespace, EOE:
 			prefix.push(t)
 		case Operator:
 			if opStack.len() == 0 {
@@ -90,19 +94,25 @@ func (p *parser) parseExpression() (Expression, error) {
 		return p.parseNotExpression()
 	case "pod", "job":
 		return p.parseResourceExpression()
+	case "namespace":
+		return p.parseNamespaceExpression()
 	}
 
 	return nil, fmt.Errorf("unexpected token '%s'", p.tokens[p.head].Body)
 }
 
 func (p *parser) parseResourceExpression() (Expression, error) {
-	kind := p.tokens[p.head].Body
-	pattern := p.tokens[p.head+1].Body
+	kind := p.tokens[p.head]
+	pattern := p.tokens[p.head+1]
 	p.head += 2
 
-	namespace, name := splitPattern(pattern)
+	if pattern.Kind == EOE {
+		return nil, unexpectedEOE
+	}
 
-	switch kind {
+	namespace, name := splitPattern(pattern.Body)
+
+	switch kind.Body {
 	case "pod":
 		return podExpression{
 			NamePattern:      name,
@@ -114,7 +124,7 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 			NamespacePattern: namespace,
 		}, nil
 	default:
-		return nil, fmt.Errorf("unsupported resource type '%s", kind)
+		return nil, fmt.Errorf("unsupported resource type '%s", kind.Body)
 	}
 }
 
@@ -160,6 +170,19 @@ func (p *parser) parseNotExpression() (Expression, error) {
 
 	return notExpression{
 		Inner: expr,
+	}, nil
+}
+
+func (p *parser) parseNamespaceExpression() (Expression, error) {
+	pattern := p.tokens[p.head+1]
+	p.head += 2
+
+	if pattern.Kind == EOE {
+		return nil, unexpectedEOE
+	}
+
+	return namespaceExpression{
+		NamespacePattern: pattern.Body,
 	}, nil
 }
 

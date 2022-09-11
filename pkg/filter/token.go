@@ -12,6 +12,8 @@ const (
 	Pattern tokenKind = iota
 	Operator
 
+	Namespace
+
 	Resource
 
 	OpenParenthesis
@@ -96,6 +98,11 @@ func (tokenizer *tokenizer) Next() (token, error) {
 	case "not", "and", "or":
 		t = token{
 			Kind: Operator,
+			Body: body,
+		}
+	case "namespace":
+		t = token{
+			Kind: Namespace,
 			Body: body,
 		}
 	default:
