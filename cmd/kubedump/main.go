@@ -22,7 +22,6 @@ import (
 )
 
 const (
-	CategoryIntervals      = "Intervals"
 	CategoryChartReference = "Chart Reference"
 )
 
@@ -61,7 +60,7 @@ func dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not start controller: %w", err)
 	}
 
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Second * 5)
 
 	if err = c.Stop(); err != nil {
 		return fmt.Errorf("could not stop controller: %w", err)
@@ -253,27 +252,6 @@ func main() {
 				Usage:  "collect cluster details to disk",
 				Action: dump,
 				Flags: []cli.Flag{
-					&cli.Float64Flag{
-						Name:     "pod-desc-interval",
-						Category: CategoryIntervals,
-						Usage:    "the interval at which pod descriptions are updated",
-						Value:    kubedump.DefaultPodDescriptionInterval,
-						EnvVars:  []string{"POD_DESCRIPTION_INTERVAL"},
-					},
-					&cli.Float64Flag{
-						Name:     "pod-log-interval",
-						Category: CategoryIntervals,
-						Usage:    "the interval at which pod container logs are updated",
-						Value:    kubedump.DefaultPodLogInterval,
-						EnvVars:  []string{"POD_LOG_INTERVAL"},
-					},
-					&cli.Float64Flag{
-						Name:     "job-desc-interval",
-						Category: CategoryIntervals,
-						Usage:    "the interval at which job descriptions are updated",
-						Value:    kubedump.DefaultJobDescriptionInterval,
-						EnvVars:  []string{"JOB_DESCRIPTION_INTERVAL"},
-					},
 					&cli.PathFlag{
 						Name:    "destination",
 						Usage:   "the directory path where the collected data will be stored",
