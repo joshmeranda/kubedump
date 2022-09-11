@@ -6,7 +6,6 @@ import (
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubedump "kubedump/pkg"
 	"os"
 	"path"
 	"path/filepath"
@@ -64,26 +63,26 @@ func isNamespaced(resourceKind string) bool {
 	}
 }
 
-func resourceDirPath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object) string {
-	if isNamespaced(string(resourceKind)) {
+func resourceDirPath(resourceKind string, parent string, obj apismetav1.Object) string {
+	if isNamespaced(resourceKind) {
 		return path.Join(parent, obj.GetNamespace(), strings.ToLower(string(resourceKind)), obj.GetName())
 	} else {
-		return path.Join(parent, strings.ToLower(string(resourceKind)), obj.GetName())
+		return path.Join(parent, strings.ToLower(resourceKind), obj.GetName())
 	}
 }
 
-func resourceFilePath(resourceKind kubedump.ResourceKind, parent string, obj apismetav1.Object, name string) string {
+func resourceFilePath(resourceKind string, parent string, obj apismetav1.Object, name string) string {
 	return path.Join(resourceDirPath(resourceKind, parent, obj), name)
 }
 
-func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind kubedump.ResourceKind, obj apismetav1.Object) error {
-	ownerPath := resourceDirPath(kubedump.ResourceKind(owner.Kind), parent, &apismetav1.ObjectMeta{
+func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind string, obj apismetav1.Object) error {
+	ownerPath := resourceDirPath(owner.Kind, parent, &apismetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
 		Namespace: obj.GetNamespace(),
 	})
-	ownerResourcePath := path.Join(ownerPath, strings.ToLower(string(resourceKind)))
+	ownerResourcePath := path.Join(ownerPath, strings.ToLower(resourceKind))
 	objPath := resourceDirPath(resourceKind, parent, obj)
 
 	relPath, err := filepath.Rel(ownerResourcePath, objPath)
@@ -96,7 +95,7 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind ku
 		return err
 	}
 
-	symlinkPath := path.Join(resourceDirPath(kubedump.ResourceKind(owner.Kind), parent, &apismetav1.ObjectMeta{
+	symlinkPath := path.Join(resourceDirPath(owner.Kind, parent, &apismetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath

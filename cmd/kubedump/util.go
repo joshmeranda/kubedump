@@ -17,7 +17,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"time"
 )
 
 var (
@@ -66,10 +65,6 @@ func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.U
 	}
 
 	return serviceUrl, nil
-}
-
-func durationFromSeconds(s float64) time.Duration {
-	return time.Duration(s * float64(time.Second))
 }
 
 func responseErrorMessage(response *http.Response) string {

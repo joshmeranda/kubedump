@@ -14,8 +14,6 @@ type RESTClientGetter struct {
 	namespace  string
 	kubeConfig []byte
 	restConfig *rest.Config
-
-	//opts []RESTCLientOption
 }
 
 func (getter *RESTClientGetter) ToRESTConfig() (*rest.Config, error) {

@@ -6,7 +6,6 @@ import (
 	eventsv1 "k8s.io/api/events/v1"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/util/workqueue"
-	kubedump "kubedump/pkg"
 	"os"
 	"path"
 )
@@ -39,9 +38,8 @@ func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
 		return fmt.Errorf("could not get pod from event: %w", err)
 	}
 
-	podDir := resourceDirPath(kubedump.ResourcePod, handler.opts.ParentPath, pod)
+	podDir := resourceDirPath("Job", handler.opts.ParentPath, pod)
 
-	// todo: this does not account for job pods
 	eventFilePath := path.Join(podDir, podEvent.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
@@ -72,8 +70,8 @@ func (handler *EventHandler) handleFunc(obj interface{}) {
 	}
 
 	var err error
-	switch kubedump.ResourceKind(event.Regarding.Kind) {
-	case kubedump.ResourcePod:
+	switch event.Regarding.Kind {
+	case "Pod":
 		err = handler.handlePodEvent(event)
 	}
 

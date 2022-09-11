@@ -2,7 +2,6 @@ package filter
 
 import (
 	"fmt"
-	kubedump "kubedump/pkg"
 	"strings"
 )
 
@@ -103,7 +102,7 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 
 	namespace, name := splitPattern(pattern)
 
-	switch kubedump.ResourceKind(kind) {
+	switch kind {
 	case "pod":
 		return podExpression{
 			NamePattern:      name,

@@ -16,10 +16,8 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 var (
@@ -37,24 +35,6 @@ func errorResponse(w http.ResponseWriter, message string, statusCode int) {
 
 	jsonResponse, _ := json.Marshal(response)
 	w.Write(jsonResponse)
-}
-
-func queryFloat64OrDefault(value string, defaultValue float64) (float64, error) {
-	if value == "" {
-		return defaultValue, nil
-	}
-
-	v, err := strconv.ParseFloat(value, 64)
-
-	if err != nil {
-		return 0, err
-	}
-
-	return v, nil
-}
-
-func durationFromSeconds(s float64) time.Duration {
-	return time.Duration(s * float64(time.Second) * float64(time.Millisecond))
 }
 
 func getArchivePath(dir string, name string) string {

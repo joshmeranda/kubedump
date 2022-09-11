@@ -8,7 +8,6 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
-	kubedump "kubedump/pkg"
 	"os"
 	"path"
 	"sigs.k8s.io/yaml"
@@ -172,7 +171,7 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 	}
 
 	for _, ownerRef := range pod.OwnerReferences {
-		if err := linkToOwner(handler.opts.ParentPath, ownerRef, kubedump.ResourcePod, pod); err != nil {
+		if err := linkToOwner(handler.opts.ParentPath, ownerRef, "Pod", pod); err != nil {
 			logrus.Errorf("could not link pod to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
 		}
 	}

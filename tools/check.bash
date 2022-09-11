@@ -36,10 +36,12 @@ function check_app_version() {
   fi
 }
 
-check 'GO TEST         ' 'make test'
-check 'GO FMT          ' 'check_gofmt'
-check 'HELM LINT       ' 'helm lint charts/kubedump-server'
-check 'HELM APP VERSION' 'check_app_version'
-check 'DOCKER IMAGE    ' "docker manifest inspect $docker_image"
+check 'GO BUILD KUBEDUMP' 'make kubedump'
+check 'GO BUILD KUBEDUMP-SERVER' 'make kubedump'
+check 'GO TEST                  ' 'make test'
+check 'GO FMT                   ' 'check_gofmt'
+check 'HELM LINT                ' 'helm lint charts/kubedump-server'
+check 'HELM APP VERSION         ' 'check_app_version'
+check 'DOCKER IMAGE             ' "docker manifest inspect $docker_image"
 
 echo -e "\nPASSED: $passed\tFAILED: $failed"
