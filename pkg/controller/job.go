@@ -5,7 +5,6 @@ import (
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	"k8s.io/client-go/util/workqueue"
-	kubedump "kubedump/pkg"
 	"os"
 	"sigs.k8s.io/yaml"
 )
@@ -24,7 +23,7 @@ func NewJobHandler(opts Options, workQueue workqueue.RateLimitingInterface) *Job
 }
 
 func (handler *JobHandler) dumpJobDescription(job *apibatchv1.Job) error {
-	yamlPath := resourceFilePath(kubedump.ResourceJob, handler.opts.ParentPath, job, job.Name+".yaml")
+	yamlPath := resourceFilePath("Job", handler.opts.ParentPath, job, job.Name+".yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -71,7 +70,7 @@ func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
 
 	if isAdd {
 		for _, ownerRef := range job.OwnerReferences {
-			if err := linkToOwner(handler.opts.ParentPath, ownerRef, kubedump.ResourceJob, job); err != nil {
+			if err := linkToOwner(handler.opts.ParentPath, ownerRef, "Job", job); err != nil {
 				logrus.Errorf("could not link job to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
 			}
 		}
