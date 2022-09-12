@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	eventsv1 "k8s.io/api/events/v1"
+	informersbatchv1 "k8s.io/client-go/informers/batch/v1"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/util/workqueue"
 	"os"
@@ -20,25 +21,30 @@ type EventHandler struct {
 	opts        Options
 	workQueue   workqueue.RateLimitingInterface
 	podInformer informerscorev1.PodInformer
+	jobInformer informersbatchv1.JobInformer
 }
 
-func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface, podInformer informerscorev1.PodInformer) *EventHandler {
+func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface, podInformer informerscorev1.PodInformer, jobInformer informersbatchv1.JobInformer) *EventHandler {
 	return &EventHandler{
 		opts:        opts,
 		workQueue:   workQueue,
 		podInformer: podInformer,
+		jobInformer: jobInformer,
 	}
 }
 
 func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
-	// todo: filter pods
 	pod, err := handler.podInformer.Lister().Pods(podEvent.Regarding.Namespace).Get(podEvent.Regarding.Name)
 
 	if err != nil {
 		return fmt.Errorf("could not get pod from event: %w", err)
 	}
 
-	podDir := resourceDirPath("Job", handler.opts.ParentPath, pod)
+	if !handler.opts.Filter.Matches(pod) {
+		return nil
+	}
+
+	podDir := resourceDirPath("Pod", handler.opts.ParentPath, pod)
 
 	eventFilePath := path.Join(podDir, podEvent.Regarding.Name+".events")
 
@@ -61,6 +67,40 @@ func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
 	return nil
 }
 
+func (handler *EventHandler) handleJobEvent(jobEvent *eventsv1.Event) error {
+	job, err := handler.jobInformer.Lister().Jobs(jobEvent.Regarding.Namespace).Get(jobEvent.Regarding.Name)
+
+	if err != nil {
+		return fmt.Errorf("could not get job from event: %s", err)
+	}
+
+	if !handler.opts.Filter.Matches(job) {
+		return nil
+	}
+
+	jobDir := resourceDirPath("Job", handler.opts.ParentPath, job)
+
+	eventFilePath := path.Join(jobDir, jobEvent.Regarding.Name+".events")
+
+	if err := createPathParents(eventFilePath); err != nil {
+		return fmt.Errorf("could not create job event file '%s': %w", eventFilePath, err)
+	}
+
+	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
+
+	if err != nil {
+		return fmt.Errorf("could not open job event file '%s': %w", eventFilePath, err)
+	}
+
+	s := fmt.Sprintf(eventFormat, jobEvent.EventTime, jobEvent.Type, jobEvent.Reason, jobEvent.ReportingController, jobEvent.Note)
+
+	if _, err = eventFile.Write([]byte(s)); err != nil {
+		return fmt.Errorf("could not write to event file '%s': %w", eventFilePath, err)
+	}
+
+	return nil
+}
+
 func (handler *EventHandler) handleFunc(obj interface{}) {
 	event, ok := obj.(*eventsv1.Event)
 
@@ -73,6 +113,8 @@ func (handler *EventHandler) handleFunc(obj interface{}) {
 	switch event.Regarding.Kind {
 	case "Pod":
 		err = handler.handlePodEvent(event)
+	case "Job":
+		err = handler.handleJobEvent(event)
 	}
 
 	if err != nil {

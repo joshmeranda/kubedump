@@ -65,7 +65,7 @@ func isNamespaced(resourceKind string) bool {
 
 func resourceDirPath(resourceKind string, parent string, obj apismetav1.Object) string {
 	if isNamespaced(resourceKind) {
-		return path.Join(parent, obj.GetNamespace(), strings.ToLower(string(resourceKind)), obj.GetName())
+		return path.Join(parent, obj.GetNamespace(), strings.ToLower(resourceKind), obj.GetName())
 	} else {
 		return path.Join(parent, strings.ToLower(resourceKind), obj.GetName())
 	}
@@ -100,7 +100,7 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind st
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
 		Namespace: obj.GetNamespace(),
-	}), strings.ToLower(string(resourceKind)), obj.GetName())
+	}), strings.ToLower(resourceKind), obj.GetName())
 
 	if err := createPathParents(symlinkPath); err != nil {
 		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
