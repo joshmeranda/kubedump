@@ -12,7 +12,10 @@ function check() {
   if ! eval "$2" &> "$log_file"; then
     echo "ERROR"
     ((failed++))
+
+    echo
     cat "$log_file"
+    echo
   else
     echo "OK"
     ((passed++))
@@ -36,8 +39,19 @@ function check_app_version() {
   fi
 }
 
-check 'GO BUILD KUBEDUMP' 'make kubedump'
-check 'GO BUILD KUBEDUMP-SERVER' 'make kubedump'
+function check_git_clean() {
+  s="$(git status --porcelain)"
+
+  if [ -n "$s" ]; then
+    echo 'workspace not clean:'
+    echo "$s"
+    return 1
+  fi
+}
+
+check 'CLEAN WORKSPACE          ' 'check_git_clean'
+check 'GO BUILD KUBEDUMP        ' 'make kubedump'
+check 'GO BUILD KUBEDUMP-SERVER ' 'make kubedump'
 check 'GO TEST                  ' 'make test'
 check 'GO FMT                   ' 'check_gofmt'
 check 'HELM LINT                ' 'helm lint charts/kubedump-server'
@@ -45,3 +59,7 @@ check 'HELM APP VERSION         ' 'check_app_version'
 check 'DOCKER IMAGE             ' "docker manifest inspect $docker_image"
 
 echo -e "\nPASSED: $passed\tFAILED: $failed"
+
+if [ "$failed" -ne 0 ]; then
+  exit 1
+fi
