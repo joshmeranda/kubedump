@@ -75,7 +75,7 @@ func NewController(
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue, podInformer))
+	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue, podInformer, jobInformer))
 
 	controller.podHandler = NewPodHandler(controller.opts, controller.workQueue, controller.kubeclientset)
 	podInformer.Informer().AddEventHandler(controller.podHandler)
