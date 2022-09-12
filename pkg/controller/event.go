@@ -31,11 +31,14 @@ func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface, po
 }
 
 func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
-	// todo: filter pods
 	pod, err := handler.podInformer.Lister().Pods(podEvent.Regarding.Namespace).Get(podEvent.Regarding.Name)
 
 	if err != nil {
 		return fmt.Errorf("could not get pod from event: %w", err)
+	}
+
+	if !handler.opts.Filter.Matches(pod) {
+		return nil
 	}
 
 	podDir := resourceDirPath("Job", handler.opts.ParentPath, pod)
