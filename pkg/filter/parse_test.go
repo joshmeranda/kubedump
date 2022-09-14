@@ -207,8 +207,6 @@ func TestParseLabelExpression(t *testing.T) {
 		labelPatterns: map[string]string{},
 	}, expr)
 
-	t.Skip("low frequency high impact bug")
-
 	expr, err = Parse("label resource=pod")
 	assert.NoError(t, err)
 	assert.Equal(t, labelExpression{

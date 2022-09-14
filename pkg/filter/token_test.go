@@ -11,15 +11,17 @@ func TestTokenizeNextWithExcessWhitespace(t *testing.T) {
 	nextToken, err := tokenizer.Next()
 	assert.NoError(t, err)
 	assert.Equal(t, token{
-		Kind: Resource,
-		Body: "pod",
+		Kind:   Resource,
+		Body:   "pod",
+		Column: 2,
 	}, nextToken)
 
 	nextToken, err = tokenizer.Next()
 	assert.NoError(t, err)
 	assert.Equal(t, token{
-		Kind: Pattern,
-		Body: "default/*",
+		Kind:   Pattern,
+		Body:   "default/*",
+		Column: 9,
 	}, nextToken)
 }
 
@@ -29,59 +31,63 @@ func TestTokenize(t *testing.T) {
 
 	expected := []token{
 		{
-			Kind: Resource,
-			Body: "pod",
+			Kind:   Resource,
+			Body:   "pod",
+			Column: 0,
 		},
 		{
-			Kind: Resource,
-			Body: "job",
+			Kind:   Resource,
+			Body:   "job",
+			Column: 4,
 		},
 		{
-			Kind: Operator,
-			Body: "and",
+			Kind:   Operator,
+			Body:   "and",
+			Column: 8,
 		},
 		{
-			Kind: Operator,
-			Body: "or",
+			Kind:   Operator,
+			Body:   "or",
+			Column: 12,
 		},
 		{
-			Kind: OpenParenthesis,
-			Body: "(",
+			Kind:   OpenParenthesis,
+			Body:   "(",
+			Column: 15,
 		},
 		{
-			Kind: Operator,
-			Body: "not",
+			Kind:   Operator,
+			Body:   "not",
+			Column: 16,
 		},
 		{
-			Kind: Pattern,
-			Body: "namespace/pod",
+			Kind:   Pattern,
+			Body:   "namespace/pod",
+			Column: 20,
 		},
 		{
-			Kind: CloseParenthesis,
-			Body: ")",
+			Kind:   CloseParenthesis,
+			Body:   ")",
+			Column: 33,
 		},
 		{
-			Kind: Namespace,
-			Body: "namespace",
+			Kind:   Namespace,
+			Body:   "namespace",
+			Column: 35,
 		},
 		{
-			Kind: Label,
-			Body: "label",
+			Kind:   Label,
+			Body:   "label",
+			Column: 45,
 		},
 		{
-			Kind: Pattern,
-			Body: "a",
+			Kind:   Pattern,
+			Body:   "a=b",
+			Column: 51,
 		},
 		{
-			Kind: Equal,
-			Body: "=",
-		},
-		{
-			Kind: Pattern,
-			Body: "b",
-		},
-		{
-			Kind: EOE,
+			Kind:   EOE,
+			Column: 54,
 		},
 	}
 	actual, err := tokenizer.Tokenize()

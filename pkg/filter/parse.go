@@ -40,7 +40,7 @@ func prefixTokens(tokens []token) []token {
 
 	for _, t := range tokens {
 		switch t.Kind {
-		case Pattern, Resource, Namespace, Label, Equal, EOE:
+		case Pattern, Resource, Namespace, Label, EOE:
 			prefix.push(t)
 		case Operator:
 			if opStack.len() == 0 {
@@ -83,6 +83,24 @@ func splitPattern(pattern string) (string, string) {
 	}
 
 	return split[0], split[1]
+}
+
+func splitLabelPattern(pattern string) (string, string, bool) {
+	if !strings.ContainsRune(pattern, '=') {
+		return "", "", false
+	}
+
+	split := strings.SplitN(pattern, "=", 2)
+
+	if len(split) == 1 {
+		if strings.Index(pattern, "=") == 0 {
+			return "", split[0], true
+		} else {
+			return split[0], "", true
+		}
+	}
+
+	return split[0], split[1], true
 }
 
 type parser struct {
@@ -211,78 +229,25 @@ func (p *parser) parseNamespaceExpression() (Expression, error) {
 	}, nil
 }
 
-// parseLabel parses a label from the next tokens, it returns the key, the value, whether a token was found, and an
-// error if one occurs.
-//
-// todo: won't handle situations where the value is a keyword
-func (p *parser) parseLabel() (key string, value string, found bool, err error) {
-	t := p.peekNextToken(0)
-
-	if t.Kind == EOE {
-		return "", "", false, nil
-	}
-
-	if t.Kind != Equal {
-		// key is non-empty
-		key = t.Body
-
-		t = p.peekNextToken(1)
-
-		if t.Kind != Equal {
-			return "", "", false, unexpectedTokenErr(*t)
-		}
-
-		t = p.peekNextToken(2)
-
-		if t.Kind != Pattern {
-			found = true
-
-			p.head += 2
-		} else {
-			value = t.Body
-			found = true
-
-			p.head += 3
-		}
-	} else {
-		// key is empty
-
-		t = p.peekNextToken(1)
-
-		if t.Kind == EOE {
-			found = true
-			p.head += 1
-
-			return
-		} else if t.Kind != Pattern {
-			return "", "", false, unexpectedTokenErr(*t)
-		}
-
-		value = t.Body
-		found = true
-
-		p.head += 2
-	}
-
-	return
-}
-
 func (p *parser) parseLabelExpression() (Expression, error) {
 	p.nextToken()
 	labels := make(map[string]string)
 
 	for {
-		key, value, found, err := p.parseLabel()
+		t := p.peekNextToken(0)
 
-		if err != nil {
-			return nil, err
-		}
-
-		if !found {
+		if t.Kind == EOE {
 			break
 		}
 
-		labels[key] = value
+		key, value, valid := splitLabelPattern(t.Body)
+
+		if valid {
+			labels[key] = value
+			p.nextToken()
+		} else {
+			break
+		}
 	}
 
 	return labelExpression{
