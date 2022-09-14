@@ -24,7 +24,7 @@ func TestTokenizeNextWithExcessWhitespace(t *testing.T) {
 }
 
 func TestTokenize(t *testing.T) {
-	s := "pod job and or (not namespace/pod) namespace label ="
+	s := "pod job and or (not namespace/pod) namespace label a=b"
 	tokenizer := newTokenizer(s)
 
 	expected := []token{
@@ -69,8 +69,16 @@ func TestTokenize(t *testing.T) {
 			Body: "label",
 		},
 		{
+			Kind: Pattern,
+			Body: "a",
+		},
+		{
 			Kind: Equal,
 			Body: "=",
+		},
+		{
+			Kind: Pattern,
+			Body: "b",
 		},
 		{
 			Kind: EOE,

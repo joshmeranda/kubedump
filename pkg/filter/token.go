@@ -85,7 +85,7 @@ func (tokenizer *tokenizer) Next() (token, error) {
 	}
 
 	nextHead := strings.IndexFunc(tokenizer.s[tokenizer.head:], func(r rune) bool {
-		return unicode.IsSpace(r) || r == '(' || r == ')'
+		return unicode.IsSpace(r) || r == '(' || r == ')' || r == '='
 	})
 
 	if nextHead == -1 {

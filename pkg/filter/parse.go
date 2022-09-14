@@ -9,6 +9,10 @@ var (
 	unexpectedEOE = fmt.Errorf("unexpected end-of-expressions (EOE)")
 )
 
+func unexpectedTokenErr(t token) error {
+	return fmt.Errorf("unexpected token '%s'", t.Body)
+}
+
 func operatorPrecedence(op string) int {
 	switch op {
 	case "not":
@@ -36,7 +40,7 @@ func prefixTokens(tokens []token) []token {
 
 	for _, t := range tokens {
 		switch t.Kind {
-		case Pattern, Resource, Namespace, EOE:
+		case Pattern, Resource, Namespace, Label, Equal, EOE:
 			prefix.push(t)
 		case Operator:
 			if opStack.len() == 0 {
@@ -86,7 +90,26 @@ type parser struct {
 	head   int
 }
 
+// nextToken returns the next token in the parser, or nil if there are non lefts
+func (p *parser) nextToken() *token {
+	if p.head >= len(p.tokens) {
+		return nil
+	}
+
+	p.head++
+	return &p.tokens[p.head-1]
+}
+
+func (p *parser) peekNextToken(offset int) *token {
+	if p.head+offset >= len(p.tokens) {
+		return nil
+	}
+
+	return &p.tokens[p.head+offset]
+}
+
 func (p *parser) parseExpression() (Expression, error) {
+	// todo: we should replace this with `p.nextToken`
 	switch p.tokens[p.head].Body {
 	case "and", "or":
 		return p.parseOperatorExpression()
@@ -96,9 +119,11 @@ func (p *parser) parseExpression() (Expression, error) {
 		return p.parseResourceExpression()
 	case "namespace":
 		return p.parseNamespaceExpression()
+	case "label":
+		return p.parseLabelExpression()
 	}
 
-	return nil, fmt.Errorf("unexpected token '%s'", p.tokens[p.head].Body)
+	return nil, unexpectedTokenErr(p.tokens[p.head])
 }
 
 func (p *parser) parseResourceExpression() (Expression, error) {
@@ -183,6 +208,85 @@ func (p *parser) parseNamespaceExpression() (Expression, error) {
 
 	return namespaceExpression{
 		NamespacePattern: pattern.Body,
+	}, nil
+}
+
+// parseLabel parses a label from the next tokens, it returns the key, the value, whether a token was found, and an
+// error if one occurs.
+//
+// todo: won't handle situations where the value is a keyword
+func (p *parser) parseLabel() (key string, value string, found bool, err error) {
+	t := p.peekNextToken(0)
+
+	if t.Kind == EOE {
+		return "", "", false, nil
+	}
+
+	if t.Kind != Equal {
+		// key is non-empty
+		key = t.Body
+
+		t = p.peekNextToken(1)
+
+		if t.Kind != Equal {
+			return "", "", false, unexpectedTokenErr(*t)
+		}
+
+		t = p.peekNextToken(2)
+
+		if t.Kind != Pattern {
+			found = true
+
+			p.head += 2
+		} else {
+			value = t.Body
+			found = true
+
+			p.head += 3
+		}
+	} else {
+		// key is empty
+
+		t = p.peekNextToken(1)
+
+		if t.Kind == EOE {
+			found = true
+			p.head += 1
+
+			return
+		} else if t.Kind != Pattern {
+			return "", "", false, unexpectedTokenErr(*t)
+		}
+
+		value = t.Body
+		found = true
+
+		p.head += 2
+	}
+
+	return
+}
+
+func (p *parser) parseLabelExpression() (Expression, error) {
+	p.nextToken()
+	labels := make(map[string]string)
+
+	for {
+		key, value, found, err := p.parseLabel()
+
+		if err != nil {
+			return nil, err
+		}
+
+		if !found {
+			break
+		}
+
+		labels[key] = value
+	}
+
+	return labelExpression{
+		labelPatterns: labels,
 	}, nil
 }
 
