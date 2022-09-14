@@ -19,6 +19,7 @@ const (
 	OpenParenthesis
 	CloseParenthesis
 
+	Label
 	Equal
 
 	// EOE is the End Of Expression
@@ -113,6 +114,11 @@ func (tokenizer *tokenizer) Next() (token, error) {
 		t = token{
 			Kind: Namespace,
 			Body: body,
+		}
+	case "label":
+		t = token{
+			Kind: Label,
+			Body: "label",
 		}
 	default:
 		t = token{
