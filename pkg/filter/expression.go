@@ -115,3 +115,33 @@ func (expr namespaceExpression) checkObject(obj apismetav1.Object) bool {
 		return false
 	}
 }
+
+type labelExpression struct {
+	labelPatterns map[string]string
+}
+
+func (expr labelExpression) Matches(v interface{}) bool {
+	var labels map[string]string
+
+	switch v.(type) {
+	case apicorev1.Pod:
+		labels = v.(apicorev1.Pod).Labels
+	case apibatchv1.Job:
+		labels = v.(apibatchv1.Job).Labels
+	default:
+		return false
+	}
+
+patternLoop:
+	for namePattern, valuePattern := range expr.labelPatterns {
+		for name, value := range labels {
+			if wildcard.MatchSimple(namePattern, name) && wildcard.MatchSimple(valuePattern, value) {
+				continue patternLoop
+			}
+		}
+
+		return false
+	}
+
+	return true
+}
