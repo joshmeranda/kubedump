@@ -5,32 +5,8 @@ import (
 	"testing"
 )
 
-func TestTokenizeNext(t *testing.T) {
-	tokenizer := newTokenizer("pod")
-
-	nextToken, err := tokenizer.Next()
-	assert.Equal(t, token{
-		Kind: Resource,
-		Body: "pod",
-	}, nextToken)
-	assert.NoError(t, err)
-}
-
-func TestTokenizeNextWhitespace(t *testing.T) {
-	tokenizer := newTokenizer("  pod    ")
-
-	nextToken, err := tokenizer.Next()
-	assert.NoError(t, err)
-	assert.Equal(t, token{
-		Kind: Resource,
-		Body: "pod",
-	}, nextToken)
-}
-
-func TestTokenizerNextExpectingPattern(t *testing.T) {
-	t.Skipf("low frequency and low impact bug")
-
-	tokenizer := newTokenizer("pod pod")
+func TestTokenizeNextWithExcessWhitespace(t *testing.T) {
+	tokenizer := newTokenizer("  pod    default/*")
 
 	nextToken, err := tokenizer.Next()
 	assert.NoError(t, err)
@@ -43,12 +19,12 @@ func TestTokenizerNextExpectingPattern(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, token{
 		Kind: Pattern,
-		Body: "pod",
+		Body: "default/*",
 	}, nextToken)
 }
 
-func TestTokenization(t *testing.T) {
-	s := "pod job and or (not namespace/pod) namespace"
+func TestTokenize(t *testing.T) {
+	s := "pod job and or (not namespace/pod) namespace ="
 	tokenizer := newTokenizer(s)
 
 	expected := []token{
@@ -87,6 +63,10 @@ func TestTokenization(t *testing.T) {
 		{
 			Kind: Namespace,
 			Body: "namespace",
+		},
+		{
+			Kind: Equal,
+			Body: "=",
 		},
 		{
 			Kind: EOE,

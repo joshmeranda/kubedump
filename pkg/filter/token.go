@@ -19,6 +19,8 @@ const (
 	OpenParenthesis
 	CloseParenthesis
 
+	Equal
+
 	// EOE is the End Of Expression
 	EOE
 )
@@ -71,6 +73,13 @@ func (tokenizer *tokenizer) Next() (token, error) {
 		return token{
 			Kind: CloseParenthesis,
 			Body: ")",
+		}, nil
+	} else if tokenizer.s[tokenizer.head] == '=' {
+		tokenizer.head++
+
+		return token{
+			Kind: Equal,
+			Body: "=",
 		}, nil
 	}
 
