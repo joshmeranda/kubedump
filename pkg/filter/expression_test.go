@@ -128,6 +128,23 @@ func TestLabel(t *testing.T) {
 		wcValue = MapPair{"simple-key", "*-wc-value"}
 	)
 
+	// should match anything
+	emptyExpr := labelExpression{}
+
+	assert.True(t, emptyExpr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Labels: map[string]string{},
+		},
+	}))
+
+	assert.True(t, emptyExpr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Labels: map[string]string{
+				"anything": "anything",
+			},
+		},
+	}))
+
 	simpleExpr := labelExpression{
 		labelPatterns: map[string]string{
 			simple.Key: simple.Value,
@@ -149,6 +166,15 @@ func TestLabel(t *testing.T) {
 		ObjectMeta: apismeta.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key: simple.Value,
+			},
+		},
+	}))
+
+	assert.True(t, simpleExpr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Labels: map[string]string{
+				simple.Key: simple.Value,
+				"extra":    "extra",
 			},
 		},
 	}))
@@ -253,6 +279,16 @@ func TestLabel(t *testing.T) {
 			Labels: map[string]string{
 				simple.Key:  simple.Value,
 				"other key": wcKey.Key,
+				wcValue.Key: wcValue.Value,
+			},
+		},
+	}))
+
+	// missing the simple
+	assert.False(t, union.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Labels: map[string]string{
+				wcKey.Key:   wcKey.Key,
 				wcValue.Key: wcValue.Value,
 			},
 		},

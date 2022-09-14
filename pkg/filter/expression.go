@@ -132,6 +132,10 @@ func (expr labelExpression) Matches(v interface{}) bool {
 		return false
 	}
 
+	if len(expr.labelPatterns) == 0 {
+		return true
+	}
+
 patternLoop:
 	for namePattern, valuePattern := range expr.labelPatterns {
 		for name, value := range labels {
