@@ -36,9 +36,10 @@ function set_version() {
 
   git tag "$1"
 
-  echo 'don'\'t' forget to make these steps:'
-  echo '  1) Update chart appVersion'
-  echo '  2) Push new docker image'
+  echo 'don'\'t' forget to:
+  1) Update chart appVersion
+  2) Push new docker image
+  3) Push the current git tag'
 }
 
 function bump() {

@@ -49,6 +49,12 @@ function check_git_clean() {
   fi
 }
 
+function check_remote_tag() {
+  if ! grep --quiet "$version" <<< "$(git ls-remote --tags origin)"; then
+    echo "no remote tag '$version' was found"
+  fi
+}
+
 check 'CLEAN WORKSPACE          ' 'check_git_clean'
 check 'GO BUILD KUBEDUMP        ' 'make kubedump'
 check 'GO BUILD KUBEDUMP-SERVER ' 'make kubedump'
@@ -57,6 +63,7 @@ check 'GO FMT                   ' 'check_gofmt'
 check 'HELM LINT                ' 'helm lint charts/kubedump-server'
 check 'HELM APP VERSION         ' 'check_app_version'
 check 'DOCKER IMAGE             ' "docker manifest inspect $docker_image"
+check 'REMOTE GIT VERSION TAG   ' 'check_remote_tag'
 
 echo -e "\nPASSED: $passed\tFAILED: $failed"
 
