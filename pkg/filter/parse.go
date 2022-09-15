@@ -9,6 +9,9 @@ var (
 	unexpectedEOE = fmt.Errorf("unexpected end-of-expressions (EOE)")
 )
 
+// todo: validate resource name patterns
+// todo: validate label patterns
+
 func unexpectedTokenErr(t token) error {
 	return fmt.Errorf("unexpected token '%s'", t.Body)
 }
@@ -243,6 +246,9 @@ func (p *parser) parseLabelExpression() (Expression, error) {
 		key, value, valid := splitLabelPattern(t.Body)
 
 		if valid {
+			if key == "" {
+				return nil, fmt.Errorf("label key can not be empty")
+			}
 			labels[key] = value
 			p.nextToken()
 		} else {

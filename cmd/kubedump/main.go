@@ -126,7 +126,9 @@ func create(ctx *cli.Context) error {
 }
 
 func start(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/start", nil)
+	u, err := serviceUrl(ctx, "/start", map[string]string{
+		"filter": ctx.String("filter"),
+	})
 
 	logrus.Infof("sending request to '%s'", u.String())
 
@@ -277,7 +279,7 @@ func main() {
 			},
 			{
 				Name:   "create",
-				Usage:  "create and expose a service for teh kubedump-server",
+				Usage:  "create and expose a service for the kubedump-server",
 				Action: create,
 				Flags: []cli.Flag{
 					&cli.PathFlag{
@@ -303,6 +305,13 @@ func main() {
 						Name:    "service-url",
 						Usage:   "the url of the kubedump-server service, if not defined kubedump will attempt to find it by inspecting the service",
 						EnvVars: []string{"KUBEDUMP_SERVICE_URL"},
+					},
+					&cli.StringFlag{
+						Name:    "filter",
+						Usage:   "the filter to use when collecting cluster resources",
+						Value:   "",
+						Aliases: []string{"f"},
+						EnvVars: []string{"KUBEDUMP_FILTER"},
 					},
 				},
 			},

@@ -54,7 +54,9 @@ func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.U
 
 	q := url.Values{}
 	for k, v := range queries {
-		q.Set(k, v)
+		if v != "" {
+			q.Set(k, v)
+		}
 	}
 
 	serviceUrl := url.URL{

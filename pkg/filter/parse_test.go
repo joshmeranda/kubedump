@@ -188,7 +188,7 @@ func TestParseBadExpression(t *testing.T) {
 }
 
 func TestParseLabelExpression(t *testing.T) {
-	expr, err := Parse("label app=kubedump *-wc-key=*-wc-pattern empty= =")
+	expr, err := Parse("label app=kubedump *-wc-key=*-wc-pattern empty=")
 
 	assert.NoError(t, err)
 	assert.Equal(t, labelExpression{
@@ -196,7 +196,6 @@ func TestParseLabelExpression(t *testing.T) {
 			"app":      "kubedump",
 			"*-wc-key": "*-wc-pattern",
 			"empty":    "",
-			"":         "",
 		},
 	}, expr)
 
@@ -214,4 +213,8 @@ func TestParseLabelExpression(t *testing.T) {
 			"resource": "pod",
 		},
 	}, expr)
+
+	expr, err = Parse("label =bad")
+	assert.Error(t, err)
+	assert.Nil(t, expr)
 }
