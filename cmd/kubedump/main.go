@@ -277,7 +277,7 @@ func main() {
 			},
 			{
 				Name:   "create",
-				Usage:  "create and expose a service for teh kubedump-server",
+				Usage:  "create and expose a service for the kubedump-server",
 				Action: create,
 				Flags: []cli.Flag{
 					&cli.PathFlag{
