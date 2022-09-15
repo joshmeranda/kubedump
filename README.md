@@ -58,7 +58,7 @@ There are several sub-commands that you will need to know before you can start t
 to allow you to re-use a previous installation of kubedump, but also to allow you to use kubedump with the privelages
 needed above as few times as possible if that is a concern for the cluster admin.
 
-## Installation
+## Building
 For now, you will need to clone and build kubedump manually. You can do this with the following commands:
 
 ```bash
