@@ -9,6 +9,10 @@ var (
 	unexpectedEOE = fmt.Errorf("unexpected end-of-expressions (EOE)")
 )
 
+func unexpectedTokenErr(t token) error {
+	return fmt.Errorf("unexpected token '%s'", t.Body)
+}
+
 func operatorPrecedence(op string) int {
 	switch op {
 	case "not":
@@ -36,7 +40,7 @@ func prefixTokens(tokens []token) []token {
 
 	for _, t := range tokens {
 		switch t.Kind {
-		case Pattern, Resource, Namespace, EOE:
+		case Pattern, Resource, Namespace, Label, EOE:
 			prefix.push(t)
 		case Operator:
 			if opStack.len() == 0 {
@@ -81,12 +85,49 @@ func splitPattern(pattern string) (string, string) {
 	return split[0], split[1]
 }
 
+func splitLabelPattern(pattern string) (string, string, bool) {
+	if !strings.ContainsRune(pattern, '=') {
+		return "", "", false
+	}
+
+	split := strings.SplitN(pattern, "=", 2)
+
+	if len(split) == 1 {
+		if strings.Index(pattern, "=") == 0 {
+			return "", split[0], true
+		} else {
+			return split[0], "", true
+		}
+	}
+
+	return split[0], split[1], true
+}
+
 type parser struct {
 	tokens []token
 	head   int
 }
 
+// nextToken returns the next token in the parser, or nil if there are non lefts
+func (p *parser) nextToken() *token {
+	if p.head >= len(p.tokens) {
+		return nil
+	}
+
+	p.head++
+	return &p.tokens[p.head-1]
+}
+
+func (p *parser) peekNextToken(offset int) *token {
+	if p.head+offset >= len(p.tokens) {
+		return nil
+	}
+
+	return &p.tokens[p.head+offset]
+}
+
 func (p *parser) parseExpression() (Expression, error) {
+	// todo: we should replace this with `p.nextToken`
 	switch p.tokens[p.head].Body {
 	case "and", "or":
 		return p.parseOperatorExpression()
@@ -96,9 +137,11 @@ func (p *parser) parseExpression() (Expression, error) {
 		return p.parseResourceExpression()
 	case "namespace":
 		return p.parseNamespaceExpression()
+	case "label":
+		return p.parseLabelExpression()
 	}
 
-	return nil, fmt.Errorf("unexpected token '%s'", p.tokens[p.head].Body)
+	return nil, unexpectedTokenErr(p.tokens[p.head])
 }
 
 func (p *parser) parseResourceExpression() (Expression, error) {
@@ -183,6 +226,32 @@ func (p *parser) parseNamespaceExpression() (Expression, error) {
 
 	return namespaceExpression{
 		NamespacePattern: pattern.Body,
+	}, nil
+}
+
+func (p *parser) parseLabelExpression() (Expression, error) {
+	p.nextToken()
+	labels := make(map[string]string)
+
+	for {
+		t := p.peekNextToken(0)
+
+		if t.Kind == EOE {
+			break
+		}
+
+		key, value, valid := splitLabelPattern(t.Body)
+
+		if valid {
+			labels[key] = value
+			p.nextToken()
+		} else {
+			break
+		}
+	}
+
+	return labelExpression{
+		labelPatterns: labels,
 	}, nil
 }
 

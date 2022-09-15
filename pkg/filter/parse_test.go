@@ -186,3 +186,32 @@ func TestParseBadExpression(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, expr)
 }
+
+func TestParseLabelExpression(t *testing.T) {
+	expr, err := Parse("label app=kubedump *-wc-key=*-wc-pattern empty= =")
+
+	assert.NoError(t, err)
+	assert.Equal(t, labelExpression{
+		labelPatterns: map[string]string{
+			"app":      "kubedump",
+			"*-wc-key": "*-wc-pattern",
+			"empty":    "",
+			"":         "",
+		},
+	}, expr)
+
+	expr, err = Parse("label")
+
+	assert.NoError(t, err)
+	assert.Equal(t, labelExpression{
+		labelPatterns: map[string]string{},
+	}, expr)
+
+	expr, err = Parse("label resource=pod")
+	assert.NoError(t, err)
+	assert.Equal(t, labelExpression{
+		labelPatterns: map[string]string{
+			"resource": "pod",
+		},
+	}, expr)
+}

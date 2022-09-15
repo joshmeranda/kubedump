@@ -19,13 +19,16 @@ const (
 	OpenParenthesis
 	CloseParenthesis
 
+	Label
+
 	// EOE is the End Of Expression
 	EOE
 )
 
 type token struct {
-	Kind tokenKind
-	Body string
+	Kind   tokenKind
+	Body   string
+	Column int
 }
 
 type tokenizer struct {
@@ -56,21 +59,24 @@ func (tokenizer *tokenizer) Next() (token, error) {
 
 	if tokenizer.head == len(tokenizer.s) {
 		return token{
-			Kind: EOE,
+			Kind:   EOE,
+			Column: tokenizer.head,
 		}, nil
 	} else if tokenizer.s[tokenizer.head] == '(' {
 		tokenizer.head++
 
 		return token{
-			Kind: OpenParenthesis,
-			Body: "(",
+			Kind:   OpenParenthesis,
+			Body:   "(",
+			Column: tokenizer.head - 1,
 		}, nil
 	} else if tokenizer.s[tokenizer.head] == ')' {
 		tokenizer.head++
 
 		return token{
-			Kind: CloseParenthesis,
-			Body: ")",
+			Kind:   CloseParenthesis,
+			Body:   ")",
+			Column: tokenizer.head - 1,
 		}, nil
 	}
 
@@ -85,6 +91,7 @@ func (tokenizer *tokenizer) Next() (token, error) {
 	}
 
 	body := tokenizer.s[tokenizer.head : nextHead+1]
+	column := tokenizer.head
 
 	tokenizer.head = nextHead + 1
 
@@ -92,23 +99,33 @@ func (tokenizer *tokenizer) Next() (token, error) {
 	switch body {
 	case "pod", "job":
 		t = token{
-			Kind: Resource,
-			Body: body,
+			Kind:   Resource,
+			Body:   body,
+			Column: column,
 		}
 	case "not", "and", "or":
 		t = token{
-			Kind: Operator,
-			Body: body,
+			Kind:   Operator,
+			Body:   body,
+			Column: column,
 		}
 	case "namespace":
 		t = token{
-			Kind: Namespace,
-			Body: body,
+			Kind:   Namespace,
+			Body:   body,
+			Column: column,
+		}
+	case "label":
+		t = token{
+			Kind:   Label,
+			Body:   "label",
+			Column: column,
 		}
 	default:
 		t = token{
-			Kind: Pattern,
-			Body: body,
+			Kind:   Pattern,
+			Body:   body,
+			Column: column,
 		}
 	}
 
