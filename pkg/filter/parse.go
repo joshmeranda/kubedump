@@ -222,5 +222,9 @@ func Parse(s string) (Expression, error) {
 		return nil, fmt.Errorf("could not parseExpression: %w", err)
 	}
 
+	if t := p.peekNextToken(0); t.Kind != EOE {
+		return nil, unexpectedTokenErr(*t)
+	}
+
 	return expr, nil
 }
