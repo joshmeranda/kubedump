@@ -206,6 +206,8 @@ func TestValidateLabelKey(t *testing.T) {
 	assert.Error(t, validateLabelKey(strings.Repeat("a", 253)+"/"+strings.Repeat("a", 64)))
 
 	assert.NoError(t, validateLabelKey("prefix.with.wildcard-*/name.with.wildcard-*"))
+
+	assert.Error(t, validateLabelKey(""))
 }
 
 func TestValidateLabelValue(t *testing.T) {
