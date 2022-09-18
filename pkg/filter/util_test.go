@@ -20,6 +20,8 @@ func TestValidateDnsSubdomain(t *testing.T) {
 
 	assert.NoError(t, validateDnsSubdomain("test", strings.Repeat("a", 253)))
 	assert.Error(t, validateDnsSubdomain("test", strings.Repeat("a", 254)))
+
+	assert.NoError(t, validateDnsSubdomain("test", "subdomain.with.wildcard-*"))
 }
 
 func TestValidateDnsLabelRfc1123(t *testing.T) {
@@ -35,6 +37,8 @@ func TestValidateDnsLabelRfc1123(t *testing.T) {
 
 	assert.NoError(t, validateDnsLabelRfc1123("test", strings.Repeat("a", 63)))
 	assert.Error(t, validateDnsLabelRfc1123("test", strings.Repeat("a", 64)))
+
+	assert.NoError(t, validateDnsLabelRfc1123("test", "name-with-wildcard-*"))
 }
 
 func TestValidateDnsLabelRfc1035(t *testing.T) {
@@ -50,10 +54,12 @@ func TestValidateDnsLabelRfc1035(t *testing.T) {
 
 	assert.NoError(t, validateDnsLabelRfc1035("test", strings.Repeat("a", 63)))
 	assert.Error(t, validateDnsLabelRfc1035("test", strings.Repeat("a", 64)))
+
+	assert.NoError(t, validateDnsLabelRfc1035("test", "name-with-wildcard-*"))
 }
 
 func TestValidateLabelKey(t *testing.T) {
-	assert.NoError(t, validateLabelKey("some.subdomain-0/some.label-value_0"))
+	assert.NoError(t, validateLabelKey("some.subdomain-0/some.label-name_0"))
 
 	assert.NoError(t, validateLabelKey(strings.Repeat("a", 63)))
 	assert.Error(t, validateLabelKey(strings.Repeat("a", 64)))
@@ -61,15 +67,16 @@ func TestValidateLabelKey(t *testing.T) {
 	assert.NoError(t, validateLabelKey(strings.Repeat("a", 253)+"/"+strings.Repeat("a", 63)))
 	assert.Error(t, validateLabelKey(strings.Repeat("a", 254)+"/"+strings.Repeat("a", 63)))
 	assert.Error(t, validateLabelKey(strings.Repeat("a", 253)+"/"+strings.Repeat("a", 64)))
+
+	assert.NoError(t, validateLabelKey("prefix.with.wildcard-*/name.with.wildcard-*"))
 }
 
 func TestValidateLabelValue(t *testing.T) {
-	assert.NoError(t, validateLabelKey("some.label-value_0"))
+	assert.NoError(t, validateLabelValue(""))
+	assert.NoError(t, validateLabelValue("some.label-value_0"))
 
-	assert.NoError(t, validateLabelKey(strings.Repeat("a", 63)))
-	assert.Error(t, validateLabelKey(strings.Repeat("a", 64)))
+	assert.NoError(t, validateLabelValue(strings.Repeat("a", 63)))
+	assert.Error(t, validateLabelValue(strings.Repeat("a", 64)))
 
-	assert.NoError(t, validateLabelKey(strings.Repeat("a", 253)+"/"+strings.Repeat("a", 63)))
-	assert.Error(t, validateLabelKey(strings.Repeat("a", 254)+"/"+strings.Repeat("a", 63)))
-	assert.Error(t, validateLabelKey(strings.Repeat("a", 253)+"/"+strings.Repeat("a", 64)))
+	assert.NoError(t, validateLabelValue("label.value.with.wildcard-*"))
 }
