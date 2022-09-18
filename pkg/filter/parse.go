@@ -2,7 +2,6 @@ package filter
 
 import (
 	"fmt"
-	"strings"
 )
 
 var (
@@ -16,94 +15,8 @@ func unexpectedTokenErr(t token) error {
 	return fmt.Errorf("unexpected token '%s'", t.Body)
 }
 
-func operatorPrecedence(op string) int {
-	switch op {
-	case "not":
-		return 2
-	case "and":
-		return 1
-	case "or":
-		return 0
-	default:
-		return -1
-	}
-}
-
-func reverseTokens(tokens []token) {
-	for i, j := 0, len(tokens)-1; i < j; i, j = i+1, j-1 {
-		tokens[i], tokens[j] = tokens[j], tokens[i]
-	}
-}
-
-func prefixTokens(tokens []token) []token {
-	reverseTokens(tokens)
-
-	opStack := stack{}
-	prefix := stack{}
-
-	for _, t := range tokens {
-		switch t.Kind {
-		case Pattern, Resource, Namespace, Label, EOE:
-			prefix.push(t)
-		case Operator:
-			if opStack.len() == 0 {
-				opStack.push(t)
-			} else if currentPrecedence, peekedPrecedence := operatorPrecedence(t.Body), operatorPrecedence(opStack.peek().Body); currentPrecedence >= peekedPrecedence {
-				opStack.push(t)
-			} else {
-				for ; currentPrecedence < peekedPrecedence; peekedPrecedence = operatorPrecedence(opStack.peek().Body) {
-					prefix.push(*opStack.pop())
-				}
-			}
-		case OpenParenthesis:
-			for t := opStack.pop(); t.Kind != CloseParenthesis; t = opStack.pop() {
-				prefix.push(*t)
-			}
-		case CloseParenthesis:
-			opStack.push(t)
-		}
-	}
-
-	for opStack.len() > 0 {
-		prefix.push(*opStack.pop())
-	}
-
-	innerPrefix := prefix.inner
-	reverseTokens(innerPrefix)
-
-	return innerPrefix
-}
-
-func splitPattern(pattern string) (string, string) {
-	if pattern == "" {
-		return "", ""
-	}
-
-	split := strings.SplitN(pattern, "/", 2)
-
-	if len(split) == 1 {
-		return "default", split[0]
-	}
-
-	return split[0], split[1]
-}
-
-func splitLabelPattern(pattern string) (string, string, bool) {
-	if !strings.ContainsRune(pattern, '=') {
-		return "", "", false
-	}
-
-	split := strings.SplitN(pattern, "=", 2)
-
-	if len(split) == 1 {
-		if strings.Index(pattern, "=") == 0 {
-			return "", split[0], true
-		} else {
-			return split[0], "", true
-		}
-	}
-
-	return split[0], split[1], true
+func couldNotParseErr(err error) error {
+	return fmt.Errorf("could not parse expression: %w", err)
 }
 
 type parser struct {
@@ -158,19 +71,31 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 
 	namespace, name := splitPattern(pattern.Body)
 
+	if err := validateNamespace(namespace); err != nil {
+		return nil, couldNotParseErr(err)
+	}
+
 	switch kind.Body {
 	case "pod":
+		if err := validatePodName(name); err != nil {
+			return nil, couldNotParseErr(err)
+		}
+
 		return podExpression{
 			NamePattern:      name,
 			NamespacePattern: namespace,
 		}, nil
 	case "job":
+		if err := validateJobName(name); err != nil {
+			return nil, couldNotParseErr(err)
+		}
+
 		return jobExpression{
 			NamePattern:      name,
 			NamespacePattern: namespace,
 		}, nil
 	default:
-		return nil, fmt.Errorf("unsupported resource type '%s", kind.Body)
+		return nil, couldNotParseErr(fmt.Errorf("unsupported resource type '%s", kind.Body))
 	}
 }
 
@@ -227,6 +152,10 @@ func (p *parser) parseNamespaceExpression() (Expression, error) {
 		return nil, unexpectedEOE
 	}
 
+	if err := validateNamespace(pattern.Body); err != nil {
+		return nil, couldNotParseErr(err)
+	}
+
 	return namespaceExpression{
 		NamespacePattern: pattern.Body,
 	}, nil
@@ -244,6 +173,14 @@ func (p *parser) parseLabelExpression() (Expression, error) {
 		}
 
 		key, value, valid := splitLabelPattern(t.Body)
+
+		if err := validateLabelKey(key); err != nil {
+			return nil, couldNotParseErr(err)
+		}
+
+		if err := validateLabelValue(value); err != nil {
+			return nil, couldNotParseErr(err)
+		}
 
 		if valid {
 			if key == "" {

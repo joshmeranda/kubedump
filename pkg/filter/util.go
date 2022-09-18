@@ -3,7 +3,146 @@ package filter
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
+
+type stack struct {
+	inner []token
+}
+
+func (s *stack) push(t token) {
+	s.inner = append(s.inner, t)
+}
+
+// pop will return and remove the last element on the stack or nil if the stack is empty.
+func (s *stack) pop() *token {
+	if len(s.inner) == 0 {
+		return nil
+	}
+
+	t := s.inner[len(s.inner)-1]
+
+	s.inner = s.inner[:len(s.inner)-1]
+
+	return &t
+}
+
+// peek will return the last element on the stack or nil if the stack is empty.
+func (s *stack) peek() *token {
+	if len(s.inner) == 0 {
+		return nil
+	}
+
+	return &s.inner[len(s.inner)-1]
+}
+
+func (s *stack) len() int {
+	return len(s.inner)
+}
+
+func (s *stack) String() string {
+	builder := strings.Builder{}
+
+	for i, t := range s.inner {
+		if i == len(s.inner)-1 {
+			builder.WriteString(t.Body)
+		} else {
+			builder.WriteString(t.Body + " ")
+		}
+	}
+
+	return builder.String()
+}
+
+func operatorPrecedence(op string) int {
+	switch op {
+	case "not":
+		return 2
+	case "and":
+		return 1
+	case "or":
+		return 0
+	default:
+		return -1
+	}
+}
+
+func reverseTokens(tokens []token) {
+	for i, j := 0, len(tokens)-1; i < j; i, j = i+1, j-1 {
+		tokens[i], tokens[j] = tokens[j], tokens[i]
+	}
+}
+
+func prefixTokens(tokens []token) []token {
+	reverseTokens(tokens)
+
+	opStack := stack{}
+	prefix := stack{}
+
+	for _, t := range tokens {
+		switch t.Kind {
+		case Pattern, Resource, Namespace, Label, EOE:
+			prefix.push(t)
+		case Operator:
+			if opStack.len() == 0 {
+				opStack.push(t)
+			} else if currentPrecedence, peekedPrecedence := operatorPrecedence(t.Body), operatorPrecedence(opStack.peek().Body); currentPrecedence >= peekedPrecedence {
+				opStack.push(t)
+			} else {
+				for ; currentPrecedence < peekedPrecedence; peekedPrecedence = operatorPrecedence(opStack.peek().Body) {
+					prefix.push(*opStack.pop())
+				}
+			}
+		case OpenParenthesis:
+			for t := opStack.pop(); t.Kind != CloseParenthesis; t = opStack.pop() {
+				prefix.push(*t)
+			}
+		case CloseParenthesis:
+			opStack.push(t)
+		}
+	}
+
+	for opStack.len() > 0 {
+		prefix.push(*opStack.pop())
+	}
+
+	innerPrefix := prefix.inner
+	reverseTokens(innerPrefix)
+
+	return innerPrefix
+}
+
+func splitPattern(pattern string) (string, string) {
+	if pattern == "" {
+		return "", ""
+	}
+
+	split := strings.SplitN(pattern, "/", 2)
+
+	if len(split) == 1 {
+		return "default", split[0]
+	}
+
+	return split[0], split[1]
+}
+
+func splitLabelPattern(pattern string) (string, string, bool) {
+	if !strings.ContainsRune(pattern, '=') {
+		return "", "", false
+	}
+
+	split := strings.SplitN(pattern, "=", 2)
+
+	if len(split) == 1 {
+		if strings.Index(pattern, "=") == 0 {
+			return "", split[0], true
+		} else {
+			return split[0], "", true
+		}
+	}
+
+	return split[0], split[1], true
+}
 
 const (
 	dnsLabelPatternFmt     = "[a-z0-9*]([a-z0-9\\-*]{0,61}[a-z0-9*])?"

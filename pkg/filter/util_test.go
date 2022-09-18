@@ -6,6 +6,143 @@ import (
 	"testing"
 )
 
+func TestPrefix(t *testing.T) {
+	// not pod */some-pod or (pod */another-pod or pod default/*)
+	// default/* pod */another-pod pod or */some-pod pod not or
+	// or not pod */some-pod or pod */another-pod pod default/*
+	tokens := []token{
+		{
+			Kind: Operator,
+			Body: "not",
+		},
+		{
+			Kind: Resource,
+			Body: "Pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "*/some-pod",
+		},
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: OpenParenthesis,
+			Body: "(",
+		},
+		{
+			Kind: Resource,
+			Body: "Pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "*/another-pod",
+		},
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: Resource,
+			Body: "Pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "default/*",
+		},
+		{
+			Kind: CloseParenthesis,
+			Body: ")",
+		},
+		{
+			Kind: EOE,
+			Body: "EOE",
+		},
+	}
+
+	expected := []token{
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: Operator,
+			Body: "not",
+		},
+		{
+			Kind: Resource,
+			Body: "Pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "*/some-pod",
+		},
+		{
+			Kind: Operator,
+			Body: "or",
+		},
+		{
+			Kind: Resource,
+			Body: "Pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "*/another-pod",
+		},
+		{
+			Kind: Resource,
+			Body: "Pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "default/*",
+		},
+		{
+			Kind: EOE,
+			Body: "EOE",
+		},
+	}
+	actual := prefixTokens(tokens)
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestSplitPattern(t *testing.T) {
+	namespace, name := splitPattern("namespace/name/name")
+	assert.Equal(t, "namespace", namespace)
+	assert.Equal(t, "name/name", name)
+
+	namespace, name = splitPattern("namespace/name")
+	assert.Equal(t, "namespace", namespace)
+	assert.Equal(t, "name", name)
+
+	namespace, name = splitPattern("name")
+	assert.Equal(t, "default", namespace)
+	assert.Equal(t, "name", name)
+
+	namespace, name = splitPattern("")
+	assert.Zero(t, namespace)
+	assert.Zero(t, name)
+}
+
+func TestSplitLabelPattern(t *testing.T) {
+	assertLabelSplit := func(pattern string, key string, value string, found bool) {
+		k, v, f := splitLabelPattern(pattern)
+
+		assert.Equal(t, key, k, "bad key '%s' for pattern '%s'", k, pattern)
+		assert.Equal(t, value, v, "bad value '%s' for pattern '%s'", v, pattern)
+		assert.Equal(t, found, f, "bad found '%s' for pattern '%s'", found, pattern)
+	}
+
+	assertLabelSplit("=", "", "", true)
+	assertLabelSplit("key=", "key", "", true)
+	assertLabelSplit("=value", "", "value", true)
+	assertLabelSplit("key=value", "key", "value", true)
+
+	assertLabelSplit("no-label", "", "", false)
+}
+
 func TestValidateDnsSubdomain(t *testing.T) {
 	assert.NoError(t, validateDnsSubdomain("test", "a"))
 	assert.NoError(t, validateDnsSubdomain("test", "0"))
