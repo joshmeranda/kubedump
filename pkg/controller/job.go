@@ -27,7 +27,7 @@ func (handler *JobHandler) dumpJobDescription(job *apibatchv1.Job) error {
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
-			return fmt.Errorf("error truncating pod yaml file '%s' : %w", yamlPath, err)
+			return fmt.Errorf("error truncating job yaml file '%s' : %w", yamlPath, err)
 		}
 	} else {
 		if err := createPathParents(yamlPath); err != nil {

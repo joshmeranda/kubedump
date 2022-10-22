@@ -40,9 +40,10 @@ type Controller struct {
 
 	podHandler *PodHandler
 
-	eventInformerSynced cache.InformerSynced
-	podInformerSynced   cache.InformerSynced
-	jobInformerSynced   cache.InformerSynced
+	eventInformerSynced      cache.InformerSynced
+	podInformerSynced        cache.InformerSynced
+	jobInformerSynced        cache.InformerSynced
+	deploymentInformerSynced cache.InformerSynced
 
 	podInformer informerscorev1.PodInformer
 
@@ -58,6 +59,7 @@ func NewController(
 	eventInformer := informerFactory.Events().V1().Events()
 	podInformer := informerFactory.Core().V1().Pods()
 	jobInformer := informerFactory.Batch().V1().Jobs()
+	deploymentInformer := informerFactory.Apps().V1().Deployments()
 
 	controller := &Controller{
 		opts:          opts,
@@ -66,9 +68,10 @@ func NewController(
 		informerFactory: informerFactory,
 		stopChan:        nil,
 
-		eventInformerSynced: eventInformer.Informer().HasSynced,
-		podInformerSynced:   podInformer.Informer().HasSynced,
-		jobInformerSynced:   jobInformer.Informer().HasSynced,
+		eventInformerSynced:      eventInformer.Informer().HasSynced,
+		podInformerSynced:        podInformer.Informer().HasSynced,
+		jobInformerSynced:        jobInformer.Informer().HasSynced,
+		deploymentInformerSynced: deploymentInformer.Informer().HasSynced,
 
 		podInformer: podInformer,
 
@@ -81,6 +84,7 @@ func NewController(
 	podInformer.Informer().AddEventHandler(controller.podHandler)
 
 	jobInformer.Informer().AddEventHandler(NewJobHandler(controller.opts, controller.workQueue))
+	deploymentInformer.Informer().AddEventHandler(NewDeploymentHandler(controller.opts, controller.workQueue))
 
 	return controller
 }

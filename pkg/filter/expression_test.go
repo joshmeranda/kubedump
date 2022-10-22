@@ -2,6 +2,7 @@ package filter
 
 import (
 	"github.com/stretchr/testify/assert"
+	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -74,6 +75,34 @@ func TestPod(t *testing.T) {
 		},
 	}))
 
+	assert.False(t, expr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-pod",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-pod-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-pod-postfix",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.True(t, expr.Matches(&apicorev1.Pod{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-pod",
+			Namespace: "default",
+		},
+	}))
+
 	assert.False(t, expr.Matches(&apicorev1.Pod{
 		ObjectMeta: apismeta.ObjectMeta{
 			Name:      "some-pod",
@@ -91,6 +120,69 @@ func TestPod(t *testing.T) {
 	assert.False(t, expr.Matches(&apicorev1.Pod{
 		ObjectMeta: apismeta.ObjectMeta{
 			Name:      "some-pod-postfix",
+			Namespace: "non-default",
+		},
+	}))
+}
+
+func TestJob(t *testing.T) {
+	expr := jobExpression{
+		NamePattern:      "*-job",
+		NamespacePattern: "default",
+	}
+
+	assert.True(t, expr.Matches(apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job-postfix",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.True(t, expr.Matches(&apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-job-postfix",
 			Namespace: "non-default",
 		},
 	}))

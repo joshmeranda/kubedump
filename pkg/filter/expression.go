@@ -59,6 +59,8 @@ type podExpression struct {
 func (expr podExpression) Matches(v interface{}) bool {
 	if pod, ok := v.(apicorev1.Pod); ok {
 		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
+	} else if pod, ok := v.(*apicorev1.Pod); ok {
+		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
 	} else {
 		return false
 	}
@@ -85,6 +87,12 @@ func (expr jobExpression) Matches(v interface{}) bool {
 		job := v.(apibatchv1.Job)
 
 		return wildcard.MatchSimple(expr.NamespacePattern, job.Namespace) && wildcard.MatchSimple(expr.NamePattern, job.Name)
+	case *apicorev1.Pod:
+		pod := v.(*apicorev1.Pod)
+		return expr.Matches(*pod)
+	case *apibatchv1.Job:
+		job := v.(*apibatchv1.Job)
+		return expr.Matches(*job)
 	default:
 		return false
 	}
@@ -100,9 +108,15 @@ func (expr namespaceExpression) Matches(v interface{}) bool {
 	case apicorev1.Pod:
 		obj := v.(apicorev1.Pod)
 		return expr.checkObject(&obj)
+	case *apicorev1.Pod:
+		obj := v.(*apicorev1.Pod)
+		return expr.checkObject(obj)
 	case apibatchv1.Job:
 		obj := v.(apibatchv1.Job)
 		return expr.checkObject(&obj)
+	case *apibatchv1.Job:
+		obj := v.(*apibatchv1.Job)
+		return expr.checkObject(obj)
 	default:
 		return false
 	}
@@ -126,8 +140,12 @@ func (expr labelExpression) Matches(v interface{}) bool {
 	switch v.(type) {
 	case apicorev1.Pod:
 		labels = v.(apicorev1.Pod).Labels
+	case *apicorev1.Pod:
+		labels = v.(*apicorev1.Pod).Labels
 	case apibatchv1.Job:
 		labels = v.(apibatchv1.Job).Labels
+	case *apibatchv1.Job:
+		labels = v.(*apibatchv1.Job).Labels
 	default:
 		return false
 	}
