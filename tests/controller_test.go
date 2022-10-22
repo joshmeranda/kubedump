@@ -1,4 +1,4 @@
-package controller
+package tests
 
 import (
 	"context"
@@ -8,13 +8,13 @@ import (
 	apibatchv1 "k8s.io/api/batch/v1"
 	apiscorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
-	testing2 "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
+	"kubedump/pkg/controller"
 	"kubedump/pkg/filter"
+	"kubedump/tests/deployer"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
@@ -126,40 +126,31 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apismeta
 	assert.Equal(t, obj.GetNamespace(), fsObj.GetNamespace())
 }
 
-func setup(t *testing.T, fakeClient bool) (client kubernetes.Interface, parentPath string) {
-	if fakeClient {
-		watcherStarted := make(chan struct{})
+func setup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, parentPath string) {
+	if found, err := exec.LookPath("kind"); err == nil {
+		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
-		fakeClient := fake.NewSimpleClientset()
-		fakeClient.PrependWatchReactor("*", func(action testing2.Action) (bool, watch.Interface, error) {
-			gvy := action.GetResource()
-			ns := action.GetNamespace()
-			watcher, err := fakeClient.Tracker().Watch(gvy, ns)
-
-			if err != nil {
-				t.Fatalf("error setting watch reactor")
-			}
-
-			close(watcherStarted)
-
-			return true, watcher, nil
-		})
-		<-watcherStarted
-
-		client = fakeClient
-
+		if d, err = deployer.NewKindDeployer("", ""); err != nil {
+			t.Fatalf("could not create kind deployer: %s", err)
+		}
 	} else {
-		config, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
+		t.Fatal("could not determine suitable k8s deployer")
+	}
 
-		if err != nil {
-			t.Fatalf("could not load config: %s", err)
-		}
+	if out, err := d.Up(); err != nil {
+		t.Fatalf("could not deployer cluster: %s\nOutput:\n%s", err, out)
+	}
 
-		client, err = kubernetes.NewForConfig(config)
+	config, err := clientcmd.BuildConfigFromFlags("", d.Kubeconfig())
 
-		if err != nil {
-			t.Fatalf("could not crete client: %s", err)
-		}
+	if err != nil {
+		t.Fatalf("could not load config: %s", err)
+	}
+
+	client, err = kubernetes.NewForConfig(config)
+
+	if err != nil {
+		t.Fatalf("could not crete client: %s", err)
 	}
 
 	if dir, err := os.MkdirTemp("", ""); err != nil {
@@ -168,25 +159,49 @@ func setup(t *testing.T, fakeClient bool) (client kubernetes.Interface, parentPa
 		parentPath = path.Join(dir, "kubedump-test")
 	}
 
+	for {
+		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apismetav1.GetOptions{})
+
+		if err == nil {
+			break
+		}
+
+		t.Log("cluster not yet ready")
+
+		time.Sleep(5 * time.Second)
+	}
+
+	t.Log("cluster is ready")
+
 	return
 }
 
-func teardown(t *testing.T, tempDir string) {
+func teardown(t *testing.T, d deployer.Deployer, tempDir string) {
 	if err := os.RemoveAll(tempDir); err != nil {
-		t.Logf("[WARNING] failed to delete temporary test directory '%s': %s", tempDir, err)
+		t.Errorf("failed to delete temporary test directory '%s': %s", tempDir, err)
+	}
+
+	if err := os.Remove(d.Kubeconfig()); err != nil {
+		t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
+	}
+
+	if out, err := d.Down(); err != nil {
+		t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
 	}
 }
 
 func TestController(t *testing.T) {
-	client, parentPath := setup(t, false)
-	defer teardown(t, parentPath)
+	d, client, parentPath := setup(t)
+	defer teardown(t, d, parentPath)
 
 	f, _ := filter.Parse("namespace default")
 
-	opts := Options{
+	opts := controller.Options{
 		ParentPath: parentPath,
 		Filter:     f,
 	}
+
+	time.Sleep(5 * time.Second)
 
 	// apply objects to cluster
 	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apismetav1.CreateOptions{})
@@ -196,12 +211,10 @@ func TestController(t *testing.T) {
 	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apismetav1.CreateOptions{})
 	defer client.BatchV1().Jobs("default").Delete(context.TODO(), SampleJob.Name, deleteOptions())
 
-	c := NewController(client, opts)
+	c := controller.NewController(client, opts)
 	assert.NoError(t, c.Start(5))
 	time.Sleep(5 * time.Second)
 	assert.NoError(t, c.Stop())
-
-	//displayTree(t, parentPath)
 
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
 	assertResourceFile(t, "Job", path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, SampleJob.Name+".yaml"), SampleJob.GetObjectMeta())
