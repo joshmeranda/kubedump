@@ -2,10 +2,10 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	apibatchv1 "k8s.io/api/batch/v1"
+	apisappsv1 "k8s.io/api/apps/v1"
+	apisbatchv1 "k8s.io/api/batch/v1"
 	apiscorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -42,18 +42,12 @@ var SamplePod = apiscorev1.Pod{
 	Spec: SamplePodSpec,
 }
 
-var SampleJob = apibatchv1.Job{
+var SampleJob = apisbatchv1.Job{
 	ObjectMeta: apismetav1.ObjectMeta{
 		Name:      "test-job",
 		Namespace: "default",
 	},
-	Spec: apibatchv1.JobSpec{
-		Parallelism:           nil,
-		Completions:           nil,
-		ActiveDeadlineSeconds: nil,
-		BackoffLimit:          nil,
-		Selector:              nil,
-		ManualSelector:        nil,
+	Spec: apisbatchv1.JobSpec{
 		Template: apiscorev1.PodTemplateSpec{
 			ObjectMeta: apismetav1.ObjectMeta{
 				Name:      "test-job-pod",
@@ -61,22 +55,58 @@ var SampleJob = apibatchv1.Job{
 			},
 			Spec: SamplePodSpec,
 		},
-		TTLSecondsAfterFinished: nil,
-		CompletionMode:          nil,
-		Suspend:                 nil,
+	},
+}
+
+var SampleDeployment = apisappsv1.Deployment{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-deployment",
+		Namespace: "default",
+		Labels: map[string]string{
+			"test-label-key": "test-label-value",
+		},
+	},
+	Spec: apisappsv1.DeploymentSpec{
+		Selector: &apismetav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"test-label-key": "test-label-value",
+			},
+			MatchExpressions: nil,
+		},
+		Template: apiscorev1.PodTemplateSpec{
+			ObjectMeta: apismetav1.ObjectMeta{
+				Name:      "test-job-pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					"test-label-key": "test-label-value",
+				},
+			},
+			Spec: apiscorev1.PodSpec{
+				Containers: []apiscorev1.Container{
+					{
+						Name:            "test-container",
+						Image:           "alpine:latest",
+						Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 5; done"},
+						ImagePullPolicy: "",
+					},
+				},
+			},
+		},
 	},
 }
 
 // displayTree is a just a utility function to make it easier to debug these tests
 func displayTree(t *testing.T, dir string) {
+	t.Log()
 	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println(path)
+			t.Log(path)
 			return nil
 		})
+	t.Log()
 
 	if err != nil {
 		t.Logf("error walking directory '%s': %s", dir, err)
@@ -113,9 +143,13 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apismeta
 		err = unmarshalFile(fileName, &pod)
 		fsObj = pod.ObjectMeta
 	case "Job":
-		var job apibatchv1.Job
+		var job apisbatchv1.Job
 		err = unmarshalFile(fileName, &job)
 		fsObj = job.ObjectMeta
+	case "Deployment":
+		var deployment apisappsv1.Deployment
+		err = unmarshalFile(fileName, &deployment)
+		fsObj = deployment.ObjectMeta
 	default:
 		t.Errorf("unsupported kind '%s' encountered", kind)
 	}
@@ -206,10 +240,21 @@ func TestController(t *testing.T) {
 	// apply objects to cluster
 	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apismetav1.CreateOptions{})
 	defer client.CoreV1().Pods("default").Delete(context.TODO(), SamplePod.Name, deleteOptions())
-	assert.NoError(t, err)
+	if err != nil {
+		t.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
+	}
 
 	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apismetav1.CreateOptions{})
 	defer client.BatchV1().Jobs("default").Delete(context.TODO(), SampleJob.Name, deleteOptions())
+	if err != nil {
+		t.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
+	}
+
+	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apismetav1.CreateOptions{})
+	defer client.AppsV1().Deployments("default").Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
+	if err != nil {
+		t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
+	}
 
 	c := controller.NewController(client, opts)
 	assert.NoError(t, c.Start(5))
@@ -218,4 +263,7 @@ func TestController(t *testing.T) {
 
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
 	assertResourceFile(t, "Job", path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, SampleJob.Name+".yaml"), SampleJob.GetObjectMeta())
+	assertResourceFile(t, "Deployment", path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, SampleDeployment.Name+".yaml"), SampleDeployment.GetObjectMeta())
+
+	displayTree(t, parentPath)
 }

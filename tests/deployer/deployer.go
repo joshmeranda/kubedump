@@ -1,5 +1,6 @@
 package deployer
 
+// todo: we probably want to provide a way to generate a random and unique postfix for deployment names
 type Deployer interface {
 	// Up will create a k8s cluster and return any output and errors that occurred while provisioning, or if there is already a running cluster.
 	Up() ([]byte, error)
