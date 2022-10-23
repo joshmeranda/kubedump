@@ -31,7 +31,7 @@ function check_gofmt() {
 }
 
 function check_app_version() {
-  app_version=$(yq '.appVersion' charts/kubedump-server/Chart.yaml | tr --delete '"')
+  app_version=$(yq eval '.appVersion' charts/kubedump-server/Chart.yaml | tr --delete '"')
 
   if [ "$app_version" != "$version" ]; then
     echo "$app_version != $version"
