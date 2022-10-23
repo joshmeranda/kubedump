@@ -22,7 +22,7 @@ func NewDeploymentHandler(opts Options, workQueue workqueue.RateLimitingInterfac
 }
 
 func (handler *DeploymentHandler) dumpDeploymentDescription(deployment *apiappsv1.Deployment) error {
-	yamlPath := resourceFilePath("Deployment", handler.opts.ParentPath, deployment, deployment.Name+"yaml")
+	yamlPath := resourceFilePath("Deployment", handler.opts.ParentPath, deployment, deployment.Name+".yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {

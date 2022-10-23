@@ -2,6 +2,7 @@ package filter
 
 import (
 	"github.com/stretchr/testify/assert"
+	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -202,6 +203,18 @@ func TestNamespace(t *testing.T) {
 	assert.False(t, expr.Matches(apicorev1.Pod{
 		ObjectMeta: apismeta.ObjectMeta{
 			Namespace: "sample-namespace",
+		},
+	}))
+
+	assert.True(t, expr.Matches(apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Namespace: "sample-ns",
+		},
+	}))
+
+	assert.True(t, expr.Matches(apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Namespace: "sample-ns",
 		},
 	}))
 

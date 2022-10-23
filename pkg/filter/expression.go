@@ -2,6 +2,7 @@ package filter
 
 import (
 	"github.com/IGLOU-EU/go-wildcard"
+	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -117,6 +118,12 @@ func (expr namespaceExpression) Matches(v interface{}) bool {
 	case *apibatchv1.Job:
 		obj := v.(*apibatchv1.Job)
 		return expr.checkObject(obj)
+	case apiappsv1.Deployment:
+		obj := v.(apiappsv1.Deployment)
+		return expr.checkObject(&obj)
+	case *apiappsv1.Deployment:
+		obj := v.(*apiappsv1.Deployment)
+		return expr.checkObject(obj)
 	default:
 		return false
 	}
@@ -146,6 +153,10 @@ func (expr labelExpression) Matches(v interface{}) bool {
 		labels = v.(apibatchv1.Job).Labels
 	case *apibatchv1.Job:
 		labels = v.(*apibatchv1.Job).Labels
+	case apiappsv1.Deployment:
+		labels = v.(apiappsv1.Deployment).Labels
+	case *apiappsv1.Deployment:
+		labels = v.(*apiappsv1.Deployment).Labels
 	default:
 		return false
 	}
