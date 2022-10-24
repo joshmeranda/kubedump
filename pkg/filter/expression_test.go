@@ -189,6 +189,69 @@ func TestJob(t *testing.T) {
 	}))
 }
 
+func TestDeployment(t *testing.T) {
+	expr := deploymentExpression{
+		NamePattern:      "*-deployment",
+		NamespacePattern: "default",
+	}
+
+	assert.True(t, expr.Matches(apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment-postfix",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.True(t, expr.Matches(&apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apiappsv1.Deployment{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-deployment-postfix",
+			Namespace: "non-default",
+		},
+	}))
+}
+
 func TestNamespace(t *testing.T) {
 	expr := namespaceExpression{
 		NamespacePattern: "*-ns",

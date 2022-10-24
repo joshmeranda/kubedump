@@ -99,6 +99,24 @@ func (expr jobExpression) Matches(v interface{}) bool {
 	}
 }
 
+type deploymentExpression struct {
+	NamePattern      string
+	NamespacePattern string
+}
+
+func (expr deploymentExpression) Matches(v interface{}) bool {
+	switch v.(type) {
+	case apiappsv1.Deployment:
+		deployment := v.(apiappsv1.Deployment)
+		return wildcard.MatchSimple(expr.NamespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.NamePattern, deployment.Name)
+	case *apiappsv1.Deployment:
+		deployment := v.(*apiappsv1.Deployment)
+		return wildcard.MatchSimple(expr.NamespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.NamePattern, deployment.Name)
+	default:
+		return false
+	}
+}
+
 // namespaceExpression evaluates to true only if the given value has a Namespace matching the specified pattern.
 type namespaceExpression struct {
 	NamespacePattern string

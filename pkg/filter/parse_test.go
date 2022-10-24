@@ -99,6 +99,25 @@ func TestParseResourceExpression(t *testing.T) {
 			Expr:         "job bad-name-",
 			ExpectsError: true,
 		},
+		{
+			Expr: "deployment */*",
+			ExpectedExpr: deploymentExpression{
+				NamePattern:      "*",
+				NamespacePattern: "*",
+			},
+		},
+		{
+			Expr:         "deployment",
+			ExpectsError: true,
+		},
+		{
+			Expr:         "deployment * *",
+			ExpectsError: true,
+		},
+		{
+			Expr:         "deployment bad-name-",
+			ExpectsError: true,
+		},
 	}
 
 	for _, c := range cases {

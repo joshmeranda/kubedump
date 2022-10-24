@@ -46,7 +46,7 @@ func (p *parser) parseExpression() (Expression, error) {
 		return p.parseOperatorExpression()
 	case "not":
 		return p.parseNotExpression()
-	case "pod", "job":
+	case "pod", "job", "deployment":
 		return p.parseResourceExpression()
 	case "namespace":
 		return p.parseNamespaceExpression()
@@ -88,6 +88,15 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 		}
 
 		return jobExpression{
+			NamePattern:      name,
+			NamespacePattern: namespace,
+		}, nil
+	case "deployment":
+		if err := validateDeploymentName(name); err != nil {
+			return nil, couldNotParseErr(err)
+		}
+
+		return deploymentExpression{
 			NamePattern:      name,
 			NamespacePattern: namespace,
 		}, nil

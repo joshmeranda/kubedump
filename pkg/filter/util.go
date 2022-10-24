@@ -229,3 +229,7 @@ func validatePodName(name string) error {
 func validateJobName(name string) error {
 	return validateDnsSubdomain("job", name)
 }
+
+func validateDeploymentName(name string) error {
+	return validateDnsSubdomain("job", name)
+}
