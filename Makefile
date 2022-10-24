@@ -15,7 +15,7 @@ HELM_PACKAGE=helm package
 # # # # # # # # # # # # # # # # # # # #
 GO_BUILD=go build
 GO_FMT=go fmt
-GO_TEST=go test -test.parallel 1
+GO_TEST=go test
 
 ifdef VERBOSE
 	GO_BUILD += -v

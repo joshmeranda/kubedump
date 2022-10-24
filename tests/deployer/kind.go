@@ -8,7 +8,7 @@ import (
 
 const (
 	kindExecutableName     = "kind"
-	kindClusterName        = "kubedump-test-kind"
+	kindClusterNameBase    = "kubedump-test-kind"
 	kindKubeconfigBasename = "kind-test-kubeconfig"
 )
 
@@ -28,14 +28,15 @@ type KindDeployer struct {
 
 // NewKindDeployer create and return a Deployer along with any errors encountered.
 func NewKindDeployer(config string, image string) (Deployer, error) {
-	kubeconfig, err := filepath.Abs(kindKubeconfigBasename)
+	name := fmt.Sprintf("%s-%s", kindClusterNameBase, randomPostfix(10))
+	kubeconfig, err := filepath.Abs("kubeconfig-" + name)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create kubeconfig path for kind deployer: %s", err)
 	}
 
 	return &KindDeployer{
-		name:       kindClusterName,
+		name:       name,
 		kubeconfig: kubeconfig,
 		config:     config,
 		image:      image,
@@ -78,11 +79,15 @@ func (deployer *KindDeployer) Down() ([]byte, error) {
 		return nil, clusterDown
 	}
 
-	cmd := exec.Command(kindExecutableName, "delete", "cluster", "--name="+kindClusterName)
+	cmd := exec.Command(kindExecutableName, "delete", "cluster", "--name="+deployer.Name())
 
 	return cmd.CombinedOutput()
 }
 
 func (deployer *KindDeployer) Kubeconfig() string {
 	return deployer.kubeconfig
+}
+
+func (deployer *KindDeployer) Name() string {
+	return deployer.name
 }

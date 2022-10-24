@@ -1,2 +1,2 @@
-# test cluster kubeconfigfs
-*-kubeconfig
+# test cluster kubeconfigs
+kubeconfig-*
