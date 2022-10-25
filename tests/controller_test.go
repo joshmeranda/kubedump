@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"testing"
 	"time"
@@ -93,24 +92,6 @@ var SampleDeployment = apisappsv1.Deployment{
 			},
 		},
 	},
-}
-
-// displayTree is a just a utility function to make it easier to debug these tests
-func displayTree(t *testing.T, dir string) {
-	t.Log()
-	err := filepath.Walk(dir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			t.Log(path)
-			return nil
-		})
-	t.Log()
-
-	if err != nil {
-		t.Logf("error walking directory '%s': %s", dir, err)
-	}
 }
 
 func deleteOptions() apismetav1.DeleteOptions {
@@ -266,4 +247,5 @@ func TestController(t *testing.T) {
 	assertResourceFile(t, "Deployment", path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, SampleDeployment.Name+".yaml"), SampleDeployment.GetObjectMeta())
 
 	displayTree(t, parentPath)
+	copyTree(t, parentPath, d.Name()+".dump")
 }

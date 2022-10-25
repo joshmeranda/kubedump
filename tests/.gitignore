@@ -1,2 +1,3 @@
 # test cluster kubeconfigs
 kubeconfig-*
+*.dump
