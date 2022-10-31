@@ -2,8 +2,9 @@ package tests
 
 import (
 	"context"
+	"fmt"
+	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	apisappsv1 "k8s.io/api/apps/v1"
 	apisbatchv1 "k8s.io/api/batch/v1"
 	apiscorev1 "k8s.io/api/core/v1"
@@ -16,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"sigs.k8s.io/yaml"
 	"testing"
 	"time"
 )
@@ -49,7 +49,6 @@ var SampleJob = apisbatchv1.Job{
 	Spec: apisbatchv1.JobSpec{
 		Template: apiscorev1.PodTemplateSpec{
 			ObjectMeta: apismetav1.ObjectMeta{
-				Name:      "test-job-pod",
 				Namespace: "default",
 			},
 			Spec: SamplePodSpec,
@@ -100,45 +99,6 @@ func deleteOptions() apismetav1.DeleteOptions {
 	return apismetav1.DeleteOptions{
 		PropagationPolicy: &policy,
 	}
-}
-
-func unmarshalFile(fileName string, obj interface{}) error {
-	data, err := ioutil.ReadFile(fileName)
-
-	if err != nil {
-		return err
-	}
-
-	err = yaml.Unmarshal(data, obj)
-
-	return err
-}
-
-func assertResourceFile(t *testing.T, kind string, fileName string, obj apismetav1.Object) {
-	var fsObj apismetav1.ObjectMeta
-	var err error
-
-	switch kind {
-	case "Pod":
-		var pod apiscorev1.Pod
-		err = unmarshalFile(fileName, &pod)
-		fsObj = pod.ObjectMeta
-	case "Job":
-		var job apisbatchv1.Job
-		err = unmarshalFile(fileName, &job)
-		fsObj = job.ObjectMeta
-	case "Deployment":
-		var deployment apisappsv1.Deployment
-		err = unmarshalFile(fileName, &deployment)
-		fsObj = deployment.ObjectMeta
-	default:
-		t.Errorf("unsupported kind '%s' encountered", kind)
-	}
-
-	assert.NoError(t, err)
-
-	assert.Equal(t, obj.GetName(), fsObj.GetName())
-	assert.Equal(t, obj.GetNamespace(), fsObj.GetNamespace())
 }
 
 func setup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, parentPath string) {
@@ -243,9 +203,13 @@ func TestController(t *testing.T) {
 	assert.NoError(t, c.Stop())
 
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
+
 	assertResourceFile(t, "Job", path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, SampleJob.Name+".yaml"), SampleJob.GetObjectMeta())
+	assertLinkGlob(t, path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
+
 	assertResourceFile(t, "Deployment", path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, SampleDeployment.Name+".yaml"), SampleDeployment.GetObjectMeta())
+	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	displayTree(t, parentPath)
-	copyTree(t, parentPath, d.Name()+".dump")
+	//copyTree(t, parentPath, d.Name()+".dump")
 }

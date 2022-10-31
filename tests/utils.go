@@ -19,7 +19,7 @@ import (
 
 // exists checks if a file exists.
 func exists(filePath string) bool {
-	_, err := os.Stat(filePath)
+	_, err := os.Lstat(filePath)
 
 	return !os.IsNotExist(err)
 }
@@ -145,4 +145,14 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(found))
+
+	for _, p := range found {
+		stat, err := os.Lstat(p)
+
+		if err != nil {
+			assert.NoError(t, err)
+		} else {
+			assert.Equal(t, os.ModeSymlink, stat.Mode())
+		}
+	}
 }

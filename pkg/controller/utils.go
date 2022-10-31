@@ -25,7 +25,7 @@ func createPathParents(filePath string) error {
 
 // exists checks if a file exists.
 func exists(filePath string) bool {
-	_, err := os.Stat(filePath)
+	_, err := os.Lstat(filePath)
 
 	return !os.IsNotExist(err)
 }
