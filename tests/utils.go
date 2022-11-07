@@ -154,7 +154,7 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 		if err != nil {
 			assert.NoError(t, err)
 		} else {
-			assert.Equal(t, os.ModeSymlink, stat.Mode())
+			assert.Equal(t, os.ModeSymlink, stat.Mode()&os.ModeSymlink)
 		}
 	}
 }
