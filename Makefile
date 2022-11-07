@@ -1,4 +1,4 @@
-SOURCES=./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
+SOURCES=./pkg/cmd/kubedump*/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
 TEST_PATHS=./pkg/filter/ ./pkg/controller ./tests
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
@@ -57,13 +57,13 @@ all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 
-bin/kubedump: go.mod ${SOURCES} cmd/kubedump/*.go
-	${GO_BUILD} -o $@ ./cmd/kubedump
+bin/kubedump: ${SOURCES}
+	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
 kubedump-server: bin/kubedump-server
 
-bin/kubedump-server: go.mod ${SOURCES} cmd/kubedump-server/*.go
-	${GO_BUILD} -o $@ ./cmd/kubedump-server
+bin/kubedump-server: ${SOURCES}
+	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #
 # Build docker images                 #
@@ -96,7 +96,7 @@ test: ${SOURCES}
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	${RM} --recursive kubedump-*.tar.gz kubedump
+	${RM} --recursive kubedump-*.tar.gz kubedump tests/kubedump-* tests/kubeconfig-*
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin

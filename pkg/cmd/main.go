@@ -1,4 +1,4 @@
-package main
+package kubedump
 
 // todo: use runtime.HandleError over logrus.Error
 
@@ -25,7 +25,7 @@ const (
 	CategoryChartReference = "Chart Reference"
 )
 
-func dump(ctx *cli.Context) error {
+func Dump(ctx *cli.Context) error {
 	if ctx.Bool("verbose") {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -57,19 +57,19 @@ func dump(ctx *cli.Context) error {
 	c := controller.NewController(client, opts)
 
 	if err = c.Start(5); err != nil {
-		return fmt.Errorf("could not start controller: %w", err)
+		return fmt.Errorf("could not Start controller: %w", err)
 	}
 
 	time.Sleep(time.Second * 5)
 
 	if err = c.Stop(); err != nil {
-		return fmt.Errorf("could not stop controller: %w", err)
+		return fmt.Errorf("could not Stop controller: %w", err)
 	}
 
 	return err
 }
 
-func create(ctx *cli.Context) error {
+func Create(ctx *cli.Context) error {
 	var chartPath string
 	var err error
 
@@ -98,15 +98,15 @@ func create(ctx *cli.Context) error {
 	}
 
 	getter := &RESTClientGetter{
-		namespace:  kubedump.Namespace,
-		restConfig: config,
+		Namespace:  kubedump.Namespace,
+		Restconfig: config,
 	}
 
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(getter, kubedump.Namespace, os.Getenv("HELM_DRIVER"), func(f string, v ...interface{}) {
 	}); err != nil {
-		logrus.Errorf("could not create action config: %s", err)
+		logrus.Errorf("could not Create action config: %s", err)
 	}
 
 	installAction := action.NewInstall(actionConfig)
@@ -125,8 +125,8 @@ func create(ctx *cli.Context) error {
 	return nil
 }
 
-func start(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/start", map[string]string{
+func Start(ctx *cli.Context) error {
+	u, err := serviceUrl(ctx, "/Start", map[string]string{
 		"filter": ctx.String("filter"),
 	})
 
@@ -140,18 +140,18 @@ func start(ctx *cli.Context) error {
 	response, err := httpClient.Get(u.String())
 
 	if err != nil {
-		return fmt.Errorf("could not start kubedump: %w", err)
+		return fmt.Errorf("could not Start kubedump: %w", err)
 	}
 
 	if msg := responseErrorMessage(response); msg != "" {
-		return fmt.Errorf("could not start kubedump: %s", msg)
+		return fmt.Errorf("could not Start kubedump: %s", msg)
 	}
 
 	return nil
 }
 
-func stop(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/stop", nil)
+func Stop(ctx *cli.Context) error {
+	u, err := serviceUrl(ctx, "/Stop", nil)
 
 	if err != nil {
 		return err
@@ -161,14 +161,14 @@ func stop(ctx *cli.Context) error {
 	_, err = httpClient.Get(u.String())
 
 	if err != nil {
-		return fmt.Errorf("could not stop kubedump: %w", err)
+		return fmt.Errorf("could not Stop kubedump: %w", err)
 	}
 
 	return nil
 
 }
 
-func pull(ctx *cli.Context) error {
+func Pull(ctx *cli.Context) error {
 	u, err := serviceUrl(ctx, "/tar", nil)
 
 	if err != nil {
@@ -186,7 +186,7 @@ func pull(ctx *cli.Context) error {
 	f, err := os.Create(fmt.Sprintf("kubedump-%d.tar.gz", time.Now().UTC().Unix()))
 
 	if err != nil {
-		return fmt.Errorf("could not create file: %w", err)
+		return fmt.Errorf("could not Create file: %w", err)
 	}
 	defer f.Close()
 
@@ -199,7 +199,7 @@ func pull(ctx *cli.Context) error {
 	return nil
 }
 
-func remove(ctx *cli.Context) error {
+func Remove(ctx *cli.Context) error {
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 
 	if err != nil {
@@ -209,19 +209,19 @@ func remove(ctx *cli.Context) error {
 	kubeClient, err := kubernetes.NewForConfig(config)
 
 	if err != nil {
-		return fmt.Errorf("could not create kubernetes client from config: %w", err)
+		return fmt.Errorf("could not Create kubernetes client from config: %w", err)
 	}
 
 	getter := &RESTClientGetter{
-		namespace:  kubedump.Namespace,
-		restConfig: config,
+		Namespace:  kubedump.Namespace,
+		Restconfig: config,
 	}
 
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(getter, kubedump.Namespace, os.Getenv("HELM_DRIVER"), func(f string, v ...interface{}) {
 	}); err != nil {
-		logrus.Errorf("could not create uninstallAction config: %s", err)
+		logrus.Errorf("could not Create uninstallAction config: %s", err)
 	}
 
 	uninstallAction := action.NewUninstall(actionConfig)
@@ -235,16 +235,16 @@ func remove(ctx *cli.Context) error {
 	logrus.Infof("uninstalled release '%s': %s", kubedump.HelmReleaseName, response.Info)
 
 	if err := kubeClient.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apismeta.DeleteOptions{}); err != nil {
-		return fmt.Errorf("could not delete namespace '%s': %w", kubedump.Namespace, err)
+		return fmt.Errorf("could not delete Namespace '%s': %w", kubedump.Namespace, err)
 	}
 
-	logrus.Infof("deleted namespace '%s'", kubedump.Namespace)
+	logrus.Infof("deleted Namespace '%s'", kubedump.Namespace)
 
 	return nil
 }
 
-func main() {
-	app := &cli.App{
+func NewKubedumpApp() *cli.App {
+	return &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
 		Version: "0.2.0",
@@ -252,7 +252,7 @@ func main() {
 			{
 				Name:   "dump",
 				Usage:  "collect cluster details to disk",
-				Action: dump,
+				Action: Dump,
 				Flags: []cli.Flag{
 					&cli.PathFlag{
 						Name:    "destination",
@@ -279,8 +279,8 @@ func main() {
 			},
 			{
 				Name:   "create",
-				Usage:  "create and expose a service for the kubedump-server",
-				Action: create,
+				Usage:  "Create and expose a service for the kubedump-server",
+				Action: Create,
 				Flags: []cli.Flag{
 					&cli.PathFlag{
 						Name:     "chart-path",
@@ -298,8 +298,8 @@ func main() {
 			},
 			{
 				Name:   "start",
-				Usage:  "start capturing",
-				Action: start,
+				Usage:  "Start capturing",
+				Action: Start,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "service-url",
@@ -317,8 +317,8 @@ func main() {
 			},
 			{
 				Name:   "stop",
-				Usage:  "stop capturing ",
-				Action: stop,
+				Usage:  "Stop capturing ",
+				Action: Stop,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "service-url",
@@ -329,8 +329,8 @@ func main() {
 			},
 			{
 				Name:   "pull",
-				Usage:  "pull the captured resources as a tar archive",
-				Action: pull,
+				Usage:  "Pull the captured resources as a tar archive",
+				Action: Pull,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "service-url",
@@ -341,8 +341,8 @@ func main() {
 			},
 			{
 				Name:   "remove",
-				Usage:  "remove the kubedump-serve service from the cluster",
-				Action: remove,
+				Usage:  "Remove the kubedump-serve service from the cluster",
+				Action: Remove,
 			},
 		},
 		Flags: []cli.Flag{
@@ -361,10 +361,5 @@ func main() {
 		},
 		CustomAppHelpTemplate:  "",
 		UseShortOptionHandling: true,
-	}
-
-	if err := app.Run(os.Args); err != nil {
-		fmt.Printf("Error: %s", err)
-		return
 	}
 }

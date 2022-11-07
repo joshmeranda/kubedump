@@ -2,14 +2,12 @@ package tests
 
 import (
 	"context"
-	"fmt"
-	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"kubedump/pkg/controller"
-	"kubedump/pkg/filter"
+	kubedump "kubedump/pkg/cmd"
 	"kubedump/tests/deployer"
 	"os"
 	"os/exec"
@@ -18,7 +16,9 @@ import (
 	"time"
 )
 
-func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, parentPath string) {
+var kubedumpChartPath = path.Join("..", "charts", "kubedump-server")
+
+func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, config *rest.Config, parentPath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -68,7 +68,7 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 	return
 }
 
-func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
+func helmTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 	if err := os.RemoveAll(tempDir); err != nil {
 		t.Errorf("failed to delete temporary test directory '%s': %s", tempDir, err)
 	}
@@ -82,37 +82,21 @@ func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 	}
 }
 
-func TestController(t *testing.T) {
-	d, client, parentPath := controllerSetup(t)
-	defer controllerTeardown(t, d, parentPath)
+func TestHelm(t *testing.T) {
+	d, client, config, parentPath := helmSetup(t)
+	defer helmTeardown(t, d, parentPath)
 
-	f, _ := filter.Parse("namespace default")
+	app := kubedump.NewKubedumpApp()
 
-	opts := controller.Options{
-		ParentPath: parentPath,
-		Filter:     f,
-	}
+	err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "create"})
+	assert.NoError(t, err)
 
-	time.Sleep(5 * time.Second)
-
-	// apply objects to cluster
 	deferred, err := createResources(t, client)
 	assert.NoError(t, err)
 	defer deferred()
 
-	c := controller.NewController(client, opts)
-	assert.NoError(t, c.Start(5))
-	time.Sleep(5 * time.Second)
-	assert.NoError(t, c.Stop())
+	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "remove"})
+	assert.NoError(t, err)
 
-	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
-
-	assertResourceFile(t, "Job", path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, SampleJob.Name+".yaml"), SampleJob.GetObjectMeta())
-	assertLinkGlob(t, path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
-
-	assertResourceFile(t, "Deployment", path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, SampleDeployment.Name+".yaml"), SampleDeployment.GetObjectMeta())
-	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
-
-	displayTree(t, parentPath)
-	//copyTree(t, parentPath, d.Name()+".dump")
+	_ = config
 }

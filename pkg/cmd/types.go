@@ -1,4 +1,4 @@
-package main
+package kubedump
 
 import (
 	"fmt"
@@ -11,18 +11,18 @@ import (
 )
 
 type RESTClientGetter struct {
-	namespace  string
-	kubeConfig []byte
-	restConfig *rest.Config
+	Namespace  string
+	Kubeconfig []byte
+	Restconfig *rest.Config
 }
 
 func (getter *RESTClientGetter) ToRESTConfig() (*rest.Config, error) {
-	if getter.restConfig != nil {
-		return getter.restConfig, nil
+	if getter.Restconfig != nil {
+		return getter.Restconfig, nil
 	}
 
-	if getter.kubeConfig != nil {
-		return clientcmd.RESTConfigFromKubeConfig(getter.kubeConfig)
+	if getter.Kubeconfig != nil {
+		return clientcmd.RESTConfigFromKubeConfig(getter.Kubeconfig)
 	}
 
 	return nil, fmt.Errorf("could not establish restconfig")
@@ -32,7 +32,7 @@ func (getter *RESTClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryIn
 	config, err := getter.ToRESTConfig()
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create discovery client: %w", err)
+		return nil, fmt.Errorf("could not Create discovery client: %w", err)
 	}
 
 	discoveryClient, _ := discovery.NewDiscoveryClientForConfig(config)
@@ -44,7 +44,7 @@ func (getter *RESTClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
 	discoveryClient, err := getter.ToDiscoveryClient()
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create rest mapper: %w", err)
+		return nil, fmt.Errorf("could not Create rest mapper: %w", err)
 	}
 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
@@ -60,7 +60,7 @@ func (getter *RESTClientGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 		ClusterDefaults: clientcmd.ClusterDefaults,
 	}
 
-	overrides.Context.Namespace = getter.namespace
+	overrides.Context.Namespace = getter.Namespace
 
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
 }

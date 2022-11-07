@@ -4,11 +4,6 @@ runtime to debug my k8s clusters. I thought it would be a lot easier to pull all
 it happens, and then look at it later. I also wanted to be able to filter those resources so I didn't have to look at a
 lot of unrelated pods or resources. This reminded me of `tcpdump` so I started working on `kubedump`.
 
-## What Resources are Collected?
-As of kubedump 0.3.4 the following resources can be collected and filtered:
-  - pod
-  - job
-
 ## How to Run
 There are two main ways to run kubedump, but both are availables using the `kubedump` binary.
 
@@ -67,3 +62,7 @@ make kubedump
 ```
 
 You will need to have `make` and `go` installed on your machine for the build to work as expected.
+
+## Testing
+
+Integration testing uses `kind` to deploy test clusters

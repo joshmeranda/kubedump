@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,7 @@ import (
 	apisbatchv1 "k8s.io/api/batch/v1"
 	apiscorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"os"
 	"path"
 	"path/filepath"
@@ -155,4 +157,121 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 			assert.Equal(t, os.ModeSymlink, stat.Mode())
 		}
 	}
+}
+
+var SamplePodSpec = apiscorev1.PodSpec{
+	Containers: []apiscorev1.Container{
+		{
+			Name:            "test-container",
+			Image:           "alpine:latest",
+			Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 5; done"},
+			ImagePullPolicy: "",
+		},
+	},
+	RestartPolicy: "Never",
+}
+
+var SamplePod = apiscorev1.Pod{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-pod",
+		Namespace: "default",
+	},
+	Spec: SamplePodSpec,
+}
+
+var SampleJob = apisbatchv1.Job{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-job",
+		Namespace: "default",
+	},
+	Spec: apisbatchv1.JobSpec{
+		Template: apiscorev1.PodTemplateSpec{
+			ObjectMeta: apismetav1.ObjectMeta{
+				Namespace: "default",
+			},
+			Spec: SamplePodSpec,
+		},
+	},
+}
+
+var SampleDeployment = apisappsv1.Deployment{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-deployment",
+		Namespace: "default",
+		Labels: map[string]string{
+			"test-label-key": "test-label-value",
+		},
+	},
+	Spec: apisappsv1.DeploymentSpec{
+		Selector: &apismetav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"test-label-key": "test-label-value",
+			},
+			MatchExpressions: nil,
+		},
+		Template: apiscorev1.PodTemplateSpec{
+			ObjectMeta: apismetav1.ObjectMeta{
+				Name:      "test-job-pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					"test-label-key": "test-label-value",
+				},
+			},
+			Spec: apiscorev1.PodSpec{
+				Containers: []apiscorev1.Container{
+					{
+						Name:            "test-container",
+						Image:           "alpine:latest",
+						Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 5; done"},
+						ImagePullPolicy: "",
+					},
+				},
+			},
+		},
+	},
+}
+
+func deleteOptions() apismetav1.DeleteOptions {
+	policy := apismetav1.DeletePropagationBackground
+
+	return apismetav1.DeleteOptions{
+		PropagationPolicy: &policy,
+	}
+}
+
+// createResources creates one of each target resource and returns a function that can be called to delete one of each
+func createResources(t *testing.T, client kubernetes.Interface) (func(), error) {
+	var aggregatedDefers []func() error
+
+	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apismetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().Pods("default").Delete(context.TODO(), SamplePod.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
+	}
+
+	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apismetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.BatchV1().Jobs("default").Delete(context.TODO(), SampleJob.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
+	}
+
+	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apismetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.AppsV1().Deployments("default").Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
+	}
+
+	return func() {
+		for _, deferred := range aggregatedDefers {
+			if err := deferred(); err != nil {
+				t.Errorf("error in deferred function: %s", err)
+			}
+		}
+	}, nil
 }

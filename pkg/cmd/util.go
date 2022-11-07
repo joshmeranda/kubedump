@@ -1,4 +1,4 @@
-package main
+package kubedump
 
 import (
 	"context"
@@ -129,7 +129,7 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 	}
 
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return "", fmt.Errorf("could not create parent directory for chart '%s': %w", dir, err)
+		return "", fmt.Errorf("could not Create parent directory for chart '%s': %w", dir, err)
 	}
 
 	fileName := path.Join(dir, filepath.Base(parsedUrl.Path))
@@ -137,13 +137,13 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 	logrus.Infof("getting chart from: %s", rawUrl)
 	resp, err := http.Get(rawUrl)
 	if err != nil {
-		return "", fmt.Errorf("could not pull chart tat '%s': %w", rawUrl, err)
+		return "", fmt.Errorf("could not Pull chart tat '%s': %w", rawUrl, err)
 	}
 	defer resp.Body.Close()
 
 	f, err := os.Create(fileName)
 	if err != nil {
-		return "", fmt.Errorf("could not create file '%s': %w", fileName, err)
+		return "", fmt.Errorf("could not Create file '%s': %w", fileName, err)
 	}
 	defer f.Close()
 
