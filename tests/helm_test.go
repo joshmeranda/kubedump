@@ -88,12 +88,23 @@ func TestHelm(t *testing.T) {
 
 	app := kubedump.NewKubedumpApp()
 
-	err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "create"})
+	err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "create", "--node-port", "30000", "--chart-path", kubedumpChartPath})
+	assert.NoError(t, err)
+
+	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "start"})
 	assert.NoError(t, err)
 
 	deferred, err := createResources(t, client)
 	assert.NoError(t, err)
 	defer deferred()
+
+	time.Sleep(5 * time.Second)
+
+	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "stop"})
+	assert.NoError(t, err)
+
+	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "pull"})
+	assert.NoError(t, err)
 
 	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "remove"})
 	assert.NoError(t, err)

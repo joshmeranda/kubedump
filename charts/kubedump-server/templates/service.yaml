@@ -7,9 +7,12 @@ metadata:
 spec:
   type: NodePort
   ports:
-    - port: {{ .Values.kubedump_server.port }}
+    - port: {{ .Values.kubedumpServer.port }}
       targetPort: http
       protocol: TCP
       name: http
+      {{- if .Values.kubedumpServer.nodePort }}
+      nodePort: {{ .Values.kubedumpServer.nodePort }}
+      {{ end }}
   selector:
     {{- include "kubedump.selectorLabels" . | nindent 4 }}

@@ -24,7 +24,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.kubedump_server.port }}
+              containerPort: {{ .Values.kubedumpServer.port }}
               protocol: TCP
           livenessProbe:
             httpGet:

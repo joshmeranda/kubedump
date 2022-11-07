@@ -1,6 +1,7 @@
 package kubedump
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -24,6 +26,8 @@ var (
 	appVersion   = "0.2.0"
 
 	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", appVersion, chartVersion)
+
+	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump")
 )
 
 func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.URL, error) {
@@ -170,4 +174,75 @@ func ensureDefaultChart() (string, error) {
 	}
 
 	return chartFile, nil
+}
+
+func errorResponse(w http.ResponseWriter, message string, statusCode int) {
+	logrus.Errorf(message)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	response := make(map[string]string)
+	response["message"] = message
+
+	jsonResponse, _ := json.Marshal(response)
+	w.Write(jsonResponse)
+}
+
+func getArchivePath(dir string, name string) string {
+	trimmed := strings.TrimPrefix(dir, ParentPath)
+	return path.Join(path.Base(ParentPath), trimmed, name)
+}
+
+func archiveTree(dir string, writer *tar.Writer) error {
+	entries, err := os.ReadDir(dir)
+
+	if err != nil {
+		return fmt.Errorf("could not read directory '%s': %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		entryPath := path.Join(dir, entry.Name())
+
+		if entry.IsDir() {
+			if err = archiveTree(entryPath, writer); err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		file, err := os.Open(entryPath)
+
+		if err != nil {
+			return fmt.Errorf("could not open file at '%s': %w", entryPath, err)
+		}
+
+		info, err := entry.Info()
+
+		if err != nil {
+			return fmt.Errorf("could not get file info for file '%s': %w", entryPath, err)
+		}
+
+		hdr, err := tar.FileInfoHeader(info, entry.Name())
+		hdr.Name = getArchivePath(dir, entry.Name())
+
+		if err != nil {
+			return fmt.Errorf("could not construct header for file '%s': %w", entryPath, err)
+		}
+
+		err = writer.WriteHeader(hdr)
+
+		if err != nil {
+			return fmt.Errorf("could not write header for file '%s': %w", entryPath, err)
+		}
+
+		_, err = io.Copy(writer, file)
+
+		if err != nil {
+			return fmt.Errorf("could not copy file '%s' to archive: %w", entryPath, err)
+		}
+	}
+
+	return nil
 }

@@ -51,16 +51,17 @@ func (deployer *KindDeployer) Up() ([]byte, error) {
 	args := []string{
 		"create",
 		"cluster",
-		"--name=" + deployer.name,
-		"--kubeconfig=" + deployer.kubeconfig,
+		"--name", deployer.name,
+		"--kubeconfig", deployer.kubeconfig,
+		"--config", "./configs/kind.yaml",
 	}
 
 	if deployer.config != "" {
-		args = append(args, "--config="+deployer.config)
+		args = append(args, "--config", deployer.config)
 	}
 
 	if deployer.image != "" {
-		args = append(args, "--image="+deployer.image)
+		args = append(args, "--image", deployer.image)
 	}
 
 	cmd := exec.Command(kindExecutableName, args...)

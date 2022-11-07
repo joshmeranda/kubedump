@@ -2,8 +2,13 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-kubedump_server:
+# todo: we probably want to add verbose values
+
+kubedumpServer:
   port: 9000
+
+  # uncomment to manually set the exposed node port for the kubedump-server service
+#  nodePort: 30000
 
 image:
   repository: joshmeranda/kubedump-server

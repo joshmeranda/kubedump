@@ -23,6 +23,7 @@ import (
 
 const (
 	CategoryChartReference = "Chart Reference"
+	CategoryChartValues    = "Chart Values"
 )
 
 func Dump(ctx *cli.Context) error {
@@ -85,6 +86,18 @@ func Create(ctx *cli.Context) error {
 		return err
 	}
 
+	chartValues := make(map[string]interface{})
+
+	if nodePort := ctx.Int("node-port"); nodePort > 0 {
+		if nodePort < 30000 || nodePort > 32767 {
+			return fmt.Errorf("node port value '%d' is not in the range 30000-32767")
+		}
+
+		logrus.Infof("using user provided node port '%d'", nodePort)
+
+		chartValues["kubedumpServer"] = map[string]interface{}{"nodePort": nodePort}
+	}
+
 	chart, err := loader.Load(chartPath)
 
 	if err != nil {
@@ -114,7 +127,7 @@ func Create(ctx *cli.Context) error {
 	installAction.ReleaseName = kubedump.ServiceName
 	installAction.CreateNamespace = true // todo: we might want this to be a flag
 
-	release, err := installAction.Run(chart, nil)
+	release, err := installAction.Run(chart, chartValues)
 
 	if err != nil {
 		return fmt.Errorf("could not install chart: %w", err)
@@ -293,6 +306,11 @@ func NewKubedumpApp() *cli.App {
 						Category: CategoryChartReference,
 						Usage:    "the url of the remote chart",
 						EnvVars:  []string{"KUBEDUMP_SERVER_CHAR_URL"},
+					},
+					&cli.IntFlag{
+						Name:     "node-port",
+						Category: CategoryChartValues,
+						Usage:    "set the kubedumpServer.nodePort chart value to the specified value",
 					},
 				},
 			},
