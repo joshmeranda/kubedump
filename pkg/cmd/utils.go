@@ -11,8 +11,10 @@ import (
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,30 +32,48 @@ var (
 	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump")
 )
 
-func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.URL, error) {
+func getClusterHostFromConfig(config *rest.Config) (string, error) {
+	clusterUrl, err := url.Parse(config.Host)
+	if err != nil {
+		return "", fmt.Errorf("could not extract host from config: %w", err)
+	}
+
+	host, _, err := net.SplitHostPort(clusterUrl.Host)
+	if err != nil {
+		return "", fmt.Errorf("could not extract host from cluster url '%s': %w", clusterUrl.Host, err)
+	}
+
+	return host, nil
+}
+
+func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (*url.URL, error) {
 	if endpoint := ctx.String("service-url"); endpoint != "" {
 		u, err := url.Parse(endpoint)
 		u.Path = path
 
-		return *u, err
+		return u, err
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	if err != nil {
+		return nil, fmt.Errorf("could not load kubeconfig: %w", err)
+	}
+
+	host, err := getClusterHostFromConfig(config)
 
 	if err != nil {
-		return url.URL{}, fmt.Errorf("could not load config: %w", err)
+		return nil, err
 	}
 
 	client, err := kubernetes.NewForConfig(config)
-
 	if err != nil {
-		return url.URL{}, fmt.Errorf("could not load kubeconfig: %w", err)
+		return nil, fmt.Errorf("could not creatte client: %w", err)
 	}
 
 	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
 
 	if err != nil {
-		return url.URL{}, fmt.Errorf("could not access service '%s': %w", kubedump.ServiceName, err)
+		return nil, fmt.Errorf("could not access service '%s': %w", kubedump.ServiceName, err)
 	}
 
 	q := url.Values{}
@@ -63,14 +83,16 @@ func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (url.U
 		}
 	}
 
+	// todo: if we add more ports we'll have to search through array for the correct node port, but for now we only have
+	//       one so this is fine
 	serviceUrl := url.URL{
 		Scheme:   "http",
-		Host:     fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port),
-		Path:     path,
+		Host:     fmt.Sprintf("%s:%d", host, service.Spec.Ports[0].NodePort),
 		RawQuery: q.Encode(),
+		Path:     path,
 	}
 
-	return serviceUrl, nil
+	return &serviceUrl, nil
 }
 
 func responseErrorMessage(response *http.Response) string {

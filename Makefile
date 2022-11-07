@@ -1,4 +1,4 @@
-SOURCES=./pkg/cmd/kubedump*/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
+SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump-server/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
 TEST_PATHS=./pkg/filter/ ./pkg/controller ./tests
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)

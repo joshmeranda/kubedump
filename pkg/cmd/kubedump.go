@@ -143,11 +143,11 @@ func Start(ctx *cli.Context) error {
 		"filter": ctx.String("filter"),
 	})
 
-	logrus.Infof("sending request to '%s'", u.String())
-
 	if err != nil {
 		return err
 	}
+
+	logrus.Infof("sending request to '%s'", u.String())
 
 	httpClient := &http.Client{}
 	response, err := httpClient.Get(u.String())
