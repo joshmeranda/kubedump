@@ -153,6 +153,8 @@ func (handler *Handler) handleTar(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errorResponse(w, fmt.Sprintf("could not copy archive to response: %s", err), http.StatusInternalServerError)
 		}
+
+		w.Header().Set("Content-Type", "application/tar")
 	default:
 		errorResponse(w, fmt.Sprintf("method is not supported: %s", r.Method), http.StatusMethodNotAllowed)
 	}

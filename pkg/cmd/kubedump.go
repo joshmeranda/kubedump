@@ -11,6 +11,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
 	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg"
@@ -139,7 +140,7 @@ func Create(ctx *cli.Context) error {
 }
 
 func Start(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/Start", map[string]string{
+	u, err := serviceUrl(ctx, "/start", map[string]string{
 		"filter": ctx.String("filter"),
 	})
 
@@ -147,24 +148,24 @@ func Start(ctx *cli.Context) error {
 		return err
 	}
 
-	logrus.Infof("sending request to '%s'", u.String())
-
 	httpClient := &http.Client{}
 	response, err := httpClient.Get(u.String())
 
 	if err != nil {
-		return fmt.Errorf("could not Start kubedump: %w", err)
+		return fmt.Errorf("could not start kubedump at '%s': %w", u.String(), err)
 	}
 
 	if msg := responseErrorMessage(response); msg != "" {
-		return fmt.Errorf("could not Start kubedump: %s", msg)
+		return fmt.Errorf("could not start kubedump at '%s': %s", u.String(), msg)
 	}
+
+	logrus.Infof("started remote kubedump at '%s'", u.String())
 
 	return nil
 }
 
 func Stop(ctx *cli.Context) error {
-	u, err := serviceUrl(ctx, "/Stop", nil)
+	u, err := serviceUrl(ctx, "/stop", nil)
 
 	if err != nil {
 		return err
@@ -174,11 +175,12 @@ func Stop(ctx *cli.Context) error {
 	_, err = httpClient.Get(u.String())
 
 	if err != nil {
-		return fmt.Errorf("could not Stop kubedump: %w", err)
+		return fmt.Errorf("could not stop kubedump at '%s': %w", u.String(), err)
 	}
 
-	return nil
+	logrus.Infof("stopped remote kubedump at '%s'", u.String())
 
+	return nil
 }
 
 func Pull(ctx *cli.Context) error {
@@ -188,6 +190,7 @@ func Pull(ctx *cli.Context) error {
 		return err
 	}
 
+	logrus.Infof("pulling kubedump tar from '%s'", u.String())
 	httpClient := &http.Client{}
 	response, err := httpClient.Get(u.String())
 
@@ -196,17 +199,36 @@ func Pull(ctx *cli.Context) error {
 	}
 	defer response.Body.Close()
 
-	f, err := os.Create(fmt.Sprintf("kubedump-%d.tar.gz", time.Now().UTC().Unix()))
+	switch contentType := response.Header.Get("Content-Type"); contentType {
+	case "application/json":
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("could not read respone body: %w", err)
+		}
 
-	if err != nil {
-		return fmt.Errorf("could not Create file: %w", err)
-	}
-	defer f.Close()
+		var data map[string]string
+		if err := json.Unmarshal(body, &data); err != nil {
+			return fmt.Errorf("could not marshal response body: %w", err)
+		}
 
-	_, err = io.Copy(f, response.Body)
+		return fmt.Errorf("could not pull archive: %s", data["message"])
+	case "application/tar":
+		tarPath := fmt.Sprintf("kubedump-%d.tar.gz", time.Now().UTC().Unix())
+		f, err := os.Create(tarPath)
 
-	if err != nil {
-		return fmt.Errorf("could not copy response body to file: %w", err)
+		if err != nil {
+			return fmt.Errorf("could not Create file: %w", err)
+		}
+		defer f.Close()
+
+		_, err = io.Copy(f, response.Body)
+
+		if err != nil {
+			return fmt.Errorf("could not copy response body to file: %w", err)
+		}
+		logrus.Infof("copied tar to '%s'", tarPath)
+	default:
+		return fmt.Errorf("unsupported Content-Type '%s'", contentType)
 	}
 
 	return nil
