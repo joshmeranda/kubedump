@@ -8,8 +8,7 @@ import (
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"kubedump/pkg/controller"
-	"kubedump/pkg/filter"
+	kubedump "kubedump/pkg/cmd"
 	"kubedump/tests/deployer"
 	"os"
 	"os/exec"
@@ -82,28 +81,25 @@ func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 	}
 }
 
-func TestController(t *testing.T) {
+func TestDump(t *testing.T) {
 	d, client, parentPath := controllerSetup(t)
 	defer controllerTeardown(t, d, parentPath)
 
-	f, _ := filter.Parse("namespace default")
+	stopChan := make(chan interface{})
 
-	opts := controller.Options{
-		ParentPath: parentPath,
-		Filter:     f,
-	}
+	go func() {
+		app := kubedump.NewKubedumpApp(stopChan)
 
-	time.Sleep(5 * time.Second)
+		err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--destination", parentPath, "--filter", "namespace default"})
+		assert.NoError(t, err)
+	}()
 
-	// apply objects to cluster
 	deferred, err := createResources(t, client)
 	assert.NoError(t, err)
 	defer deferred()
 
-	c := controller.NewController(client, opts)
-	assert.NoError(t, c.Start(5))
 	time.Sleep(5 * time.Second)
-	assert.NoError(t, c.Stop())
+	close(stopChan)
 
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
 
@@ -113,6 +109,6 @@ func TestController(t *testing.T) {
 	assertResourceFile(t, "Deployment", path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, SampleDeployment.Name+".yaml"), SampleDeployment.GetObjectMeta())
 	//assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	displayTree(t, parentPath)
-	//copyTree(t, parentPath, d.Name()+".dump")
+	//displayTree(t, parentPath)
+	copyTree(t, parentPath, d.Name()+".dump")
 }

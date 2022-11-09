@@ -27,7 +27,7 @@ const (
 	CategoryChartValues    = "Chart Values"
 )
 
-func Dump(ctx *cli.Context) error {
+func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	if ctx.Bool("verbose") {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -62,7 +62,7 @@ func Dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not Start controller: %w", err)
 	}
 
-	time.Sleep(time.Second * 5)
+	<-stopChan
 
 	if err = c.Stop(); err != nil {
 		return fmt.Errorf("could not Stop controller: %w", err)
@@ -278,16 +278,18 @@ func Remove(ctx *cli.Context) error {
 	return nil
 }
 
-func NewKubedumpApp() *cli.App {
+func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 	return &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
 		Version: "0.2.0",
 		Commands: []*cli.Command{
 			{
-				Name:   "dump",
-				Usage:  "collect cluster details to disk",
-				Action: Dump,
+				Name:  "dump",
+				Usage: "collect cluster details to disk",
+				Action: func(ctx *cli.Context) error {
+					return Dump(ctx, stopChan)
+				},
 				Flags: []cli.Flag{
 					&cli.PathFlag{
 						Name:    "destination",

@@ -3,7 +3,9 @@ package tests
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	apiscorev1 "k8s.io/api/core/v1"
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -51,19 +53,25 @@ func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, 
 		parentPath = path.Join(dir, "kubedump-test")
 	}
 
-	for {
-		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apismetav1.GetOptions{})
+	readyChan := make(chan struct{})
+	wait.Until(func() {
+		// todo: we should add a NodeName field to deployers, this will only work for kind as of now
+		node, err := client.CoreV1().Nodes().Get(context.TODO(), d.NodeName(), apismetav1.GetOptions{})
 
+		//if _, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apismetav1.GetOptions{}); err == nil {
 		if err == nil {
-			break
+			for _, condition := range node.Status.Conditions {
+				if condition.Type == apiscorev1.NodeReady && condition.Status == apiscorev1.ConditionTrue {
+					close(readyChan)
+				}
+			}
+			t.Logf("node '%s' not yet ready", d.Name())
+		} else {
+			t.Errorf("could not get node '%s': %s", d.Name(), err)
 		}
+	}, 5*time.Second, readyChan)
 
-		t.Log("cluster not yet ready")
-
-		time.Sleep(5 * time.Second)
-	}
-
-	t.Log("cluster is ready")
+	t.Log("node is ready")
 
 	return
 }
@@ -86,7 +94,7 @@ func TestHelm(t *testing.T) {
 	d, client, config, parentPath := helmSetup(t)
 	defer helmTeardown(t, d, parentPath)
 
-	app := kubedump.NewKubedumpApp()
+	app := kubedump.NewKubedumpApp(nil)
 
 	err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "create", "--node-port", "30000", "--chart-path", kubedumpChartPath})
 	assert.NoError(t, err)

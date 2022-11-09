@@ -92,3 +92,7 @@ func (deployer *KindDeployer) Kubeconfig() string {
 func (deployer *KindDeployer) Name() string {
 	return deployer.name
 }
+
+func (deployer *KindDeployer) NodeName() string {
+	return fmt.Sprintf("%s-control-plane", deployer.Name())
+}
