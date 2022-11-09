@@ -12,18 +12,22 @@ import (
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
-	"strings"
 	"testing"
 )
 
-// exists checks if a file exists.
-func exists(filePath string) bool {
-	_, err := os.Lstat(filePath)
+// isSymlink determines whether the given file path points to a symlink.
+func isSymlink(filePath string) (bool, error) {
+	info, err := os.Lstat(filePath)
 
-	return !os.IsNotExist(err)
+	if err != nil {
+		return false, fmt.Errorf("could not stat file '%s': %s", filePath, err)
+	}
+
+	return info.Mode()&os.ModeSymlink == os.ModeSymlink, nil
 }
 
 // displayTree will display the entire directory structure pointed to by dir.
@@ -46,40 +50,10 @@ func displayTree(t *testing.T, dir string) {
 
 // copyTree will copy the target directory to the destination directory.
 //
-// this is not necessarily the most optimized implementation but for a testing util it'll do.
+// this isn't an ideal implementation by any means at all, but it's simpler than doing  it all manually.
 func copyTree(t *testing.T, target string, destination string) {
-	target, _ = filepath.Abs(target)
-	destination, _ = filepath.Abs(destination)
-
-	if exists(destination) {
-		t.Errorf("directory '%s' already exists, not copying", destination)
-		return
-	}
-
-	err := filepath.Walk(target, func(path string, info os.FileInfo, err error) error {
-		newPath := filepath.Join(destination, strings.TrimPrefix(path, target))
-
-		if info.IsDir() {
-			if err = os.MkdirAll(newPath, info.Mode()); err != nil {
-				t.Errorf("could not copy directory '%s': %e", path, err)
-			}
-		} else {
-			data, err := ioutil.ReadFile(path)
-
-			if err != nil {
-				t.Errorf("could not copy file '%s': %s", path, err)
-			}
-
-			if err := ioutil.WriteFile(newPath, data, info.Mode()); err != nil {
-				t.Errorf("could not write to file '%s': %s", newPath, err)
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		t.Logf("error walking directory")
+	if err := exec.Command("cp", "--recursive", target, destination).Run(); err != nil {
+		t.Errorf("could not copy '%s' -> '%s': %s", target, destination, err)
 	}
 }
 
@@ -149,12 +123,12 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 	assert.Equal(t, 1, len(found))
 
 	for _, p := range found {
-		stat, err := os.Lstat(p)
-
 		if err != nil {
 			assert.NoError(t, err)
 		} else {
-			assert.Equal(t, os.ModeSymlink, stat.Mode()&os.ModeSymlink)
+			isLink, err := isSymlink(p)
+			assert.NoError(t, err)
+			assert.Truef(t, isLink, "file '%s' should be a symlink", p)
 		}
 	}
 }
