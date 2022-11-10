@@ -64,255 +64,247 @@ func TestOr(t *testing.T) {
 }
 
 func TestPod(t *testing.T) {
+	type Entry struct {
+		Pod         apicorev1.Pod
+		ShouldMatch bool
+	}
+
 	expr := podExpression{
 		NamePattern:      "*-pod",
 		NamespacePattern: "default",
 	}
 
-	assert.True(t, expr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod",
-			Namespace: "default",
+	cases := []Entry{
+		{
+			Pod: apicorev1.Pod{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-pod",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: true,
 		},
-	}))
+		{
+			Pod: apicorev1.Pod{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-pod",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Pod: apicorev1.Pod{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-pod-postfix",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Pod: apicorev1.Pod{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-pod-postfix",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+	}
 
-	assert.False(t, expr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod-postfix",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.True(t, expr.Matches(&apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-pod-postfix",
-			Namespace: "non-default",
-		},
-	}))
+	for _, entry := range cases {
+		if entry.ShouldMatch {
+			assert.True(t, expr.Matches(entry.Pod))
+			assert.True(t, expr.Matches(&entry.Pod))
+		} else {
+			assert.False(t, expr.Matches(entry.Pod))
+			assert.False(t, expr.Matches(&entry.Pod))
+		}
+	}
 }
 
 func TestJob(t *testing.T) {
+	type Entry struct {
+		Job         apibatchv1.Job
+		ShouldMatch bool
+	}
+
 	expr := jobExpression{
 		NamePattern:      "*-job",
 		NamespacePattern: "default",
 	}
 
-	assert.True(t, expr.Matches(apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job",
-			Namespace: "default",
+	cases := []Entry{
+		{
+			Job: apibatchv1.Job{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-job",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: true,
 		},
-	}))
+		{
+			Job: apibatchv1.Job{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-job",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Job: apibatchv1.Job{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-job-postfix",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Job: apibatchv1.Job{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-job-postfix",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+	}
 
-	assert.False(t, expr.Matches(apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job-postfix",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.True(t, expr.Matches(&apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-job-postfix",
-			Namespace: "non-default",
-		},
-	}))
+	for _, entry := range cases {
+		if entry.ShouldMatch {
+			assert.True(t, expr.Matches(entry.Job))
+			assert.True(t, expr.Matches(&entry.Job))
+		} else {
+			assert.False(t, expr.Matches(entry.Job))
+			assert.False(t, expr.Matches(&entry.Job))
+		}
+	}
 }
 
 func TestReplicaset(t *testing.T) {
+	type Entry struct {
+		Set         apiappsv1.ReplicaSet
+		ShouldMatch bool
+	}
+
 	expr := replicasetExpression{
 		NamePattern:      "*-replicaset",
 		NamespacePattern: "default",
 	}
 
-	assert.True(t, expr.Matches(apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset",
-			Namespace: "default",
+	cases := []Entry{
+		{
+			Set: apiappsv1.ReplicaSet{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-replicaset",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: true,
 		},
-	}))
+		{
+			Set: apiappsv1.ReplicaSet{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-replicaset",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Set: apiappsv1.ReplicaSet{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-replicaset-postfix",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Set: apiappsv1.ReplicaSet{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-replicaset-postfix",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+	}
 
-	assert.False(t, expr.Matches(apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset-postfix",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.True(t, expr.Matches(&apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-replicaset-postfix",
-			Namespace: "non-default",
-		},
-	}))
+	for _, entry := range cases {
+		if entry.ShouldMatch {
+			assert.True(t, expr.Matches(entry.Set))
+			assert.True(t, expr.Matches(&entry.Set))
+		} else {
+			assert.False(t, expr.Matches(entry.Set))
+			assert.False(t, expr.Matches(&entry.Set))
+		}
+	}
 }
 
 func TestDeployment(t *testing.T) {
+	type Entry struct {
+		Deployment  apiappsv1.Deployment
+		ShouldMatch bool
+	}
+
 	expr := deploymentExpression{
 		NamePattern:      "*-deployment",
 		NamespacePattern: "default",
 	}
 
-	assert.True(t, expr.Matches(apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment",
-			Namespace: "default",
+	cases := []Entry{
+		{
+			Deployment: apiappsv1.Deployment{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-deployment",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: true,
 		},
-	}))
+		{
+			Deployment: apiappsv1.Deployment{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-deployment",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Deployment: apiappsv1.Deployment{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-deployment-postfix",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Deployment: apiappsv1.Deployment{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-deployment-postfix",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+	}
 
-	assert.False(t, expr.Matches(apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment-postfix",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.True(t, expr.Matches(&apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment-postfix",
-			Namespace: "default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment",
-			Namespace: "non-default",
-		},
-	}))
-
-	assert.False(t, expr.Matches(&apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
-			Name:      "some-deployment-postfix",
-			Namespace: "non-default",
-		},
-	}))
+	for _, entry := range cases {
+		if entry.ShouldMatch {
+			assert.True(t, expr.Matches(entry.Deployment))
+			assert.True(t, expr.Matches(&entry.Deployment))
+		} else {
+			assert.False(t, expr.Matches(entry.Deployment))
+			assert.False(t, expr.Matches(&entry.Deployment))
+		}
+	}
 }
 
 func TestNamespace(t *testing.T) {
