@@ -1,5 +1,8 @@
 SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump-server/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
-TEST_PATHS=./pkg/filter/ ./pkg/controller ./tests
+
+UNIT_TEST_PATHS=./pkg/filter ./pkg/controller
+INTEGRATION_TEST_PATHS=./tests
+TEST_PATHS=${UNIT_TEST_PATHS} ${INTEGRATION_TEST_PATHS}
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
 IMAGE_TAG=joshmeranda/kubedump-server:${KUBEDUMP_VERSION}
@@ -86,6 +89,12 @@ charts:
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
 # # # # # # # # # # # # # # # # # # # #
+unit:
+	${GO_TEST} ${UNIT_TEST_PATHS}
+
+integration:
+	${GO_TEST} ${INTEGRATION_TEST_PATHS}
+
 test: ${SOURCES}
 	${GO_TEST} ${TEST_PATHS}
 

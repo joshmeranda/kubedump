@@ -99,6 +99,24 @@ func (expr jobExpression) Matches(v interface{}) bool {
 	}
 }
 
+type replicasetExpression struct {
+	NamePattern      string
+	NamespacePattern string
+}
+
+func (expr replicasetExpression) Matches(v interface{}) bool {
+	switch v.(type) {
+	case apiappsv1.ReplicaSet:
+		set := v.(apiappsv1.ReplicaSet)
+		return wildcard.MatchSimple(expr.NamespacePattern, set.Namespace) && wildcard.MatchSimple(expr.NamePattern, set.Name)
+	case *apiappsv1.ReplicaSet:
+		set := v.(*apiappsv1.ReplicaSet)
+		return wildcard.MatchSimple(expr.NamespacePattern, set.Namespace) && wildcard.MatchSimple(expr.NamePattern, set.Name)
+	}
+
+	return false
+}
+
 type deploymentExpression struct {
 	NamePattern      string
 	NamespacePattern string
@@ -135,6 +153,12 @@ func (expr namespaceExpression) Matches(v interface{}) bool {
 		return expr.checkObject(&obj)
 	case *apibatchv1.Job:
 		obj := v.(*apibatchv1.Job)
+		return expr.checkObject(obj)
+	case apiappsv1.ReplicaSet:
+		obj := v.(apiappsv1.ReplicaSet)
+		return expr.checkObject(&obj)
+	case *apiappsv1.ReplicaSet:
+		obj := v.(*apiappsv1.ReplicaSet)
 		return expr.checkObject(obj)
 	case apiappsv1.Deployment:
 		obj := v.(apiappsv1.Deployment)

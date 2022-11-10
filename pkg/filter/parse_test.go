@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestParseEmpty(t *testing.T) {
 }
 
 func TestComplex(t *testing.T) {
-	expr, err := Parse("not pod */pod-name and (pod another-pod or job namespace/some-job)")
+	expr, err := Parse("not pod */pod-name and (pod another-pod or job namespace/some-job or replicaset *)")
 
 	assert.NoError(t, err)
 	assert.Equal(t, andExpression{
@@ -24,13 +25,19 @@ func TestComplex(t *testing.T) {
 			},
 		},
 		Right: orExpression{
-			Left: podExpression{
-				NamePattern:      "another-pod",
-				NamespacePattern: "default",
+			Left: orExpression{
+				Left: podExpression{
+					NamePattern:      "another-pod",
+					NamespacePattern: "default",
+				},
+				Right: jobExpression{
+					NamePattern:      "some-job",
+					NamespacePattern: "namespace",
+				},
 			},
-			Right: jobExpression{
-				NamePattern:      "some-job",
-				NamespacePattern: "namespace",
+			Right: replicasetExpression{
+				NamePattern:      "*",
+				NamespacePattern: "default",
 			},
 		},
 	}, expr)
@@ -43,8 +50,8 @@ func TestParseResourceExpression(t *testing.T) {
 		ExpectsError bool
 	}
 
+	// since all resource expressions are parsed the same way, we only need to make sure it works for one of them
 	cases := []Case{
-		// pod
 		{
 			Expr: "pod */*",
 			ExpectedExpr: podExpression{
@@ -69,53 +76,6 @@ func TestParseResourceExpression(t *testing.T) {
 		},
 		{
 			Expr:         "pod bad-name-",
-			ExpectsError: true,
-		},
-
-		// job
-		{
-			Expr: "job */*",
-			ExpectedExpr: jobExpression{
-				NamespacePattern: "*",
-				NamePattern:      "*",
-			},
-		},
-		{
-			Expr: "job *",
-			ExpectedExpr: jobExpression{
-				NamespacePattern: "default",
-				NamePattern:      "*",
-			},
-		},
-		{
-			Expr:         "job",
-			ExpectsError: true,
-		},
-		{
-			Expr:         "job * *",
-			ExpectsError: true,
-		},
-		{
-			Expr:         "job bad-name-",
-			ExpectsError: true,
-		},
-		{
-			Expr: "deployment */*",
-			ExpectedExpr: deploymentExpression{
-				NamePattern:      "*",
-				NamespacePattern: "*",
-			},
-		},
-		{
-			Expr:         "deployment",
-			ExpectsError: true,
-		},
-		{
-			Expr:         "deployment * *",
-			ExpectsError: true,
-		},
-		{
-			Expr:         "deployment bad-name-",
 			ExpectsError: true,
 		},
 	}
@@ -167,6 +127,32 @@ func TestParseOperatorExpression(t *testing.T) {
 	expr, err = Parse("pod * or")
 	assert.Error(t, err)
 	assert.Nil(t, expr)
+}
+
+func TestParsedChainedOperatorExpression(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+
+	expr, err := Parse("pod a and pod b and pod c")
+	assert.NoError(t, err)
+
+	expected := andExpression{
+		Left: andExpression{
+			Left: podExpression{
+				NamePattern:      "a",
+				NamespacePattern: "default",
+			},
+			Right: podExpression{
+				NamePattern:      "b",
+				NamespacePattern: "default",
+			},
+		},
+		Right: podExpression{
+			NamePattern:      "c",
+			NamespacePattern: "default",
+		},
+	}
+
+	assert.Equal(t, expected, expr)
 }
 
 func TestParseNotExpression(t *testing.T) {

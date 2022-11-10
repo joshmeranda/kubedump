@@ -7,9 +7,7 @@ import (
 )
 
 func TestPrefix(t *testing.T) {
-	// not pod */some-pod or (pod */another-pod or pod default/*)
-	// default/* pod */another-pod pod or */some-pod pod not or
-	// or not pod */some-pod or pod */another-pod pod default/*
+	// not pod a and (pod b or pod c)
 	tokens := []token{
 		{
 			Kind: Operator,
@@ -17,15 +15,15 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: "Pod",
+			Body: "pod",
 		},
 		{
 			Kind: Pattern,
-			Body: "*/some-pod",
+			Body: "a",
 		},
 		{
 			Kind: Operator,
-			Body: "or",
+			Body: "and",
 		},
 		{
 			Kind: OpenParenthesis,
@@ -33,11 +31,11 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: "Pod",
+			Body: "pod",
 		},
 		{
 			Kind: Pattern,
-			Body: "*/another-pod",
+			Body: "b",
 		},
 		{
 			Kind: Operator,
@@ -45,11 +43,11 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: "Pod",
+			Body: "pod",
 		},
 		{
 			Kind: Pattern,
-			Body: "default/*",
+			Body: "c",
 		},
 		{
 			Kind: CloseParenthesis,
@@ -61,10 +59,11 @@ func TestPrefix(t *testing.T) {
 		},
 	}
 
+	// and not pod a or pod b pod c
 	expected := []token{
 		{
 			Kind: Operator,
-			Body: "or",
+			Body: "and",
 		},
 		{
 			Kind: Operator,
@@ -72,11 +71,11 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: "Pod",
+			Body: "pod",
 		},
 		{
 			Kind: Pattern,
-			Body: "*/some-pod",
+			Body: "a",
 		},
 		{
 			Kind: Operator,
@@ -84,19 +83,19 @@ func TestPrefix(t *testing.T) {
 		},
 		{
 			Kind: Resource,
-			Body: "Pod",
+			Body: "pod",
 		},
 		{
 			Kind: Pattern,
-			Body: "*/another-pod",
+			Body: "b",
 		},
 		{
 			Kind: Resource,
-			Body: "Pod",
+			Body: "pod",
 		},
 		{
 			Kind: Pattern,
-			Body: "default/*",
+			Body: "c",
 		},
 		{
 			Kind: EOE,
@@ -104,6 +103,91 @@ func TestPrefix(t *testing.T) {
 		},
 	}
 	actual := prefixTokens(tokens)
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestChainedPrefix(t *testing.T) {
+	// pod a and pod b and pod c EOE
+	tokens := []token{
+		{
+			Kind: Resource,
+			Body: "pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "a",
+		},
+		{
+			Kind: Operator,
+			Body: "and",
+		},
+		{
+			Kind: Resource,
+			Body: "pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "b",
+		},
+		{
+			Kind: Operator,
+			Body: "and",
+		},
+		{
+			Kind: Resource,
+			Body: "pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "c",
+		},
+		{
+			Kind: EOE,
+			Body: "EOE",
+		},
+	}
+
+	// and and pod a pod b pod c
+	actual := prefixTokens(tokens)
+	expected := []token{
+		{
+			Kind: Operator,
+			Body: "and",
+		},
+		{
+			Kind: Operator,
+			Body: "and",
+		},
+		{
+			Kind: Resource,
+			Body: "pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "a",
+		},
+		{
+			Kind: Resource,
+			Body: "pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "b",
+		},
+		{
+			Kind: Resource,
+			Body: "pod",
+		},
+		{
+			Kind: Pattern,
+			Body: "c",
+		},
+		{
+			Kind: EOE,
+			Body: "EOE",
+		},
+	}
 
 	assert.Equal(t, expected, actual)
 }

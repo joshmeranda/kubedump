@@ -189,6 +189,69 @@ func TestJob(t *testing.T) {
 	}))
 }
 
+func TestReplicaset(t *testing.T) {
+	expr := replicasetExpression{
+		NamePattern:      "*-replicaset",
+		NamespacePattern: "default",
+	}
+
+	assert.True(t, expr.Matches(apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset-postfix",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.True(t, expr.Matches(&apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset-postfix",
+			Namespace: "default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset",
+			Namespace: "non-default",
+		},
+	}))
+
+	assert.False(t, expr.Matches(&apiappsv1.ReplicaSet{
+		ObjectMeta: apismeta.ObjectMeta{
+			Name:      "some-replicaset-postfix",
+			Namespace: "non-default",
+		},
+	}))
+}
+
 func TestDeployment(t *testing.T) {
 	expr := deploymentExpression{
 		NamePattern:      "*-deployment",
@@ -270,6 +333,12 @@ func TestNamespace(t *testing.T) {
 	}))
 
 	assert.True(t, expr.Matches(apibatchv1.Job{
+		ObjectMeta: apismeta.ObjectMeta{
+			Namespace: "sample-ns",
+		},
+	}))
+
+	assert.True(t, expr.Matches(apiappsv1.ReplicaSet{
 		ObjectMeta: apismeta.ObjectMeta{
 			Namespace: "sample-ns",
 		},

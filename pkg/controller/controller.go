@@ -43,6 +43,7 @@ type Controller struct {
 	eventInformerSynced      cache.InformerSynced
 	podInformerSynced        cache.InformerSynced
 	jobInformerSynced        cache.InformerSynced
+	replicasetInformerSynced cache.InformerSynced
 	deploymentInformerSynced cache.InformerSynced
 
 	podInformer informerscorev1.PodInformer
@@ -59,6 +60,7 @@ func NewController(
 	eventInformer := informerFactory.Events().V1().Events()
 	podInformer := informerFactory.Core().V1().Pods()
 	jobInformer := informerFactory.Batch().V1().Jobs()
+	replicasetInformer := informerFactory.Apps().V1().ReplicaSets()
 	deploymentInformer := informerFactory.Apps().V1().Deployments()
 
 	controller := &Controller{
@@ -71,6 +73,7 @@ func NewController(
 		eventInformerSynced:      eventInformer.Informer().HasSynced,
 		podInformerSynced:        podInformer.Informer().HasSynced,
 		jobInformerSynced:        jobInformer.Informer().HasSynced,
+		replicasetInformerSynced: replicasetInformer.Informer().HasSynced,
 		deploymentInformerSynced: deploymentInformer.Informer().HasSynced,
 
 		podInformer: podInformer,
@@ -84,6 +87,8 @@ func NewController(
 	podInformer.Informer().AddEventHandler(controller.podHandler)
 
 	jobInformer.Informer().AddEventHandler(NewJobHandler(controller.opts, controller.workQueue))
+
+	replicasetInformer.Informer().AddEventHandler(NewReplicasetHandler(opts, controller.workQueue))
 	deploymentInformer.Informer().AddEventHandler(NewDeploymentHandler(controller.opts, controller.workQueue))
 
 	return controller

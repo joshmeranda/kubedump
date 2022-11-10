@@ -92,7 +92,7 @@ func (tokenizer *tokenizer) Next() (token, error) {
 
 	var t token
 	switch body {
-	case "pod", "job", "deployment":
+	case "pod", "job", "deployment", "replicaset":
 		t = token{
 			Kind: Resource,
 			Body: body,

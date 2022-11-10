@@ -24,7 +24,7 @@ func TestTokenizeNextWithExcessWhitespace(t *testing.T) {
 }
 
 func TestTokenize(t *testing.T) {
-	s := "pod job deployment and or (not namespace/pod) namespace label a=b"
+	s := "pod job deployment replicaset and or (not namespace/pod) namespace label a=b"
 	tokenizer := newTokenizer(s)
 
 	expected := []token{
@@ -39,6 +39,10 @@ func TestTokenize(t *testing.T) {
 		{
 			Kind: Resource,
 			Body: "deployment",
+		},
+		{
+			Kind: Resource,
+			Body: "replicaset",
 		},
 		{
 			Kind: Operator,

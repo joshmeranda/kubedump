@@ -40,7 +40,7 @@ func (s *stack) len() int {
 	return len(s.inner)
 }
 
-func (s *stack) String() string {
+func (s stack) String() string {
 	builder := strings.Builder{}
 
 	for i, t := range s.inner {
@@ -63,9 +63,31 @@ func operatorPrecedence(op string) int {
 	case "or":
 		return 0
 	default:
-		return -1
+		panic("unsupported operator '" + op + "'")
 	}
 }
+
+//func tokenPrecedence(t *token) int {
+//	switch t.Kind {
+//	case Operator:
+//		switch t.Body {
+//		case "not":
+//			return 4
+//		case "and":
+//			return 3
+//		case "or":
+//			return 2
+//		default:
+//			panic("unsupported operator '" + t.Body + "'")
+//		}
+//	case Resource:
+//		return 1
+//	case EOE:
+//		return -1
+//	default:
+//		return 0
+//	}
+//}
 
 func reverseTokens(tokens []token) {
 	for i, j := 0, len(tokens)-1; i < j; i, j = i+1, j-1 {
@@ -74,6 +96,7 @@ func reverseTokens(tokens []token) {
 }
 
 func prefixTokens(tokens []token) []token {
+	// todo: do we really need to reverse the tokens first
 	reverseTokens(tokens)
 
 	opStack := stack{}
@@ -81,24 +104,31 @@ func prefixTokens(tokens []token) []token {
 
 	for _, t := range tokens {
 		switch t.Kind {
-		case Pattern, Resource, Namespace, Label, EOE:
-			prefix.push(t)
 		case Operator:
-			if opStack.len() == 0 {
-				opStack.push(t)
-			} else if currentPrecedence, peekedPrecedence := operatorPrecedence(t.Body), operatorPrecedence(opStack.peek().Body); currentPrecedence >= peekedPrecedence {
+			peekedOperator := opStack.peek()
+
+			if opStack.len() == 0 || peekedOperator.Kind == CloseParenthesis {
 				opStack.push(t)
 			} else {
-				for ; currentPrecedence < peekedPrecedence; peekedPrecedence = operatorPrecedence(opStack.peek().Body) {
-					prefix.push(*opStack.pop())
+				currentPrecendence := operatorPrecedence(t.Body)
+				peekedPrecendence := operatorPrecedence(peekedOperator.Body)
+
+				if currentPrecendence >= peekedPrecendence {
+					opStack.push(t)
+				} else if currentPrecendence < peekedPrecendence {
+					for ; currentPrecendence < peekedPrecendence; peekedPrecendence = operatorPrecedence(opStack.peek().Body) {
+						prefix.push(*opStack.pop())
+					}
 				}
-			}
-		case OpenParenthesis:
-			for t := opStack.pop(); t.Kind != CloseParenthesis; t = opStack.pop() {
-				prefix.push(*t)
 			}
 		case CloseParenthesis:
 			opStack.push(t)
+		case OpenParenthesis:
+			for popped := opStack.pop(); popped != nil && popped.Kind != CloseParenthesis; popped = opStack.pop() {
+				prefix.push(*popped)
+			}
+		default:
+			prefix.push(t)
 		}
 	}
 
@@ -232,4 +262,8 @@ func validateJobName(name string) error {
 
 func validateDeploymentName(name string) error {
 	return validateDnsSubdomain("job", name)
+}
+
+func validateReplicasetName(name string) error {
+	return validateDnsSubdomain("replicaset", name)
 }
