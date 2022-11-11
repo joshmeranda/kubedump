@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-usage="Usage: $(basename $0) <CMD>
+usage="Usage: $(basename $0) [-h] <CMD>
+
+args:
+  -h,--help     show this help text
 
 Commands:
   get           get the current git numbers tag
@@ -94,6 +97,10 @@ function bump() {
 }
 
 case "$1" in
+  -h|--help)
+    echo "$usage"
+    exit
+    ;;
   get)
     get_version
     ;;

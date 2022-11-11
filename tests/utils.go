@@ -102,6 +102,10 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apismeta
 		var job apisbatchv1.Job
 		err = unmarshalFile(fileName, &job)
 		fsObj = job.ObjectMeta
+	case "ReplicaSet":
+		var set apisappsv1.ReplicaSet
+		err = unmarshalFile(fileName, &set)
+		fsObj = set.ObjectMeta
 	case "Deployment":
 		var deployment apisappsv1.Deployment
 		err = unmarshalFile(fileName, &deployment)
@@ -168,27 +172,59 @@ var SampleJob = apisbatchv1.Job{
 	},
 }
 
-var SampleDeployment = apisappsv1.Deployment{
+var SampleReplicaSet = apisappsv1.ReplicaSet{
 	ObjectMeta: apismetav1.ObjectMeta{
-		Name:      "test-deployment",
+		Name:      "test-replicaset",
 		Namespace: "default",
-		Labels: map[string]string{
-			"test-label-key": "test-label-value",
-		},
 	},
-	Spec: apisappsv1.DeploymentSpec{
+	Spec: apisappsv1.ReplicaSetSpec{
 		Selector: &apismetav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"test-label-key": "test-label-value",
+				"app": "test-replicaset",
 			},
 			MatchExpressions: nil,
 		},
 		Template: apiscorev1.PodTemplateSpec{
 			ObjectMeta: apismetav1.ObjectMeta{
-				Name:      "test-job-pod",
 				Namespace: "default",
 				Labels: map[string]string{
-					"test-label-key": "test-label-value",
+					"app": "test-replicaset",
+				},
+			},
+			Spec: apiscorev1.PodSpec{
+				Containers: []apiscorev1.Container{
+					{
+						Name:            "test-container",
+						Image:           "alpine:latest",
+						Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 5; done"},
+						ImagePullPolicy: "",
+					},
+				},
+			},
+		},
+	},
+}
+
+var SampleDeployment = apisappsv1.Deployment{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-deployment",
+		Namespace: "default",
+		Labels: map[string]string{
+			"app": "test-deployment",
+		},
+	},
+	Spec: apisappsv1.DeploymentSpec{
+		Selector: &apismetav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app": "test-deployment",
+			},
+			MatchExpressions: nil,
+		},
+		Template: apiscorev1.PodTemplateSpec{
+			ObjectMeta: apismetav1.ObjectMeta{
+				Namespace: "default",
+				Labels: map[string]string{
+					"app": "test-deployment",
 				},
 			},
 			Spec: apiscorev1.PodSpec{
@@ -231,6 +267,14 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 	})
 	if err != nil {
 		t.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
+	}
+
+	_, err = client.AppsV1().ReplicaSets("default").Create(context.TODO(), &SampleReplicaSet, apismetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.AppsV1().ReplicaSets("default").Delete(context.TODO(), SampleReplicaSet.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
 	}
 
 	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apismetav1.CreateOptions{})
