@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+usage="Usage: $(basename "$0") [-h] [-s <check>]
+
+args:
+  -h,--help           show this help text
+  -s,--skip <check>   skip this check (whitespace will be removed from given check)
+"
+
 log_file=/tmp/kubedump-verify.log
 version="$(tools/version.bash get)"
 docker_image="joshmeranda/kubedump-server:$version"
@@ -7,9 +14,41 @@ docker_image="joshmeranda/kubedump-server:$version"
 passed=0
 failed=0
 
+skipped=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      echo "$usage"
+      exit
+      ;;
+    -s|--skip)
+      skipped=("$2")
+      shift
+      ;;
+  esac
+
+  shift
+done
+
+function should_skip() {
+  local check_name="$(echo "$1" | xargs)"
+
+  for i in "${skipped[@]}"; do
+    if [ "$i" == "$check_name" ]; then
+      return
+    fi
+  done
+
+  return 1
+}
+
 function check() {
   echo -n "$1:  "
-  if ! eval "$2" &> "$log_file"; then
+
+  if should_skip "$1"; then
+    echo "SKIPPED"
+  elif ! eval "$2" &> "$log_file"; then
     echo "ERROR"
     ((failed++))
 

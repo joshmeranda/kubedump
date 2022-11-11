@@ -7,7 +7,8 @@ import (
 )
 
 func main() {
-	app := kubedump.NewKubedumpApp()
+	// todo: handle ctrl-c
+	app := kubedump.NewKubedumpApp(nil)
 
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("%s", err)
