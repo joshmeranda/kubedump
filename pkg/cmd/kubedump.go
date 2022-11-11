@@ -294,7 +294,7 @@ func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 					&cli.PathFlag{
 						Name:    "destination",
 						Usage:   "the directory path where the collected data will be stored",
-						Value:   "kubedump",
+						Value:   "kubedump.dump",
 						Aliases: []string{"d"},
 						EnvVars: []string{"KUBEDUMP_DESTINATION"},
 					},

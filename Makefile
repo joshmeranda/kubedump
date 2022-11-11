@@ -105,7 +105,7 @@ test: ${SOURCES}
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	${RM} --recursive kubedump-*.tar.gz kubedump tests/kubedump-* tests/kubeconfig-*
+	${RM} --recursive kubedump-*.tar.gz *.dump tests/kubedump-* tests/kubeconfig-*
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin

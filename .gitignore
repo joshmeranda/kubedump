@@ -33,3 +33,4 @@ go.work
 bin/
 artifacts
 kubedump-*.tar.gz
+*.dump

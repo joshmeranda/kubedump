@@ -29,7 +29,7 @@ var (
 
 	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", appVersion, chartVersion)
 
-	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump")
+	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
 )
 
 func getClusterHostFromConfig(config *rest.Config) (string, error) {
