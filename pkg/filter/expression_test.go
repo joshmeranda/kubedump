@@ -63,6 +63,47 @@ func TestOr(t *testing.T) {
 	}.Matches(0))
 }
 
+func TestCheckOwners(t *testing.T) {
+	type Entry struct {
+		Owners      []apismeta.OwnerReference
+		ShouldMatch bool
+	}
+
+	expr := jobExpression{
+		namePattern:      "*-job",
+		namespacePattern: "default",
+	}
+
+	entries := []Entry{
+		{
+			Owners: []apismeta.OwnerReference{
+				{
+					Kind: "Job",
+					Name: "test-job",
+				},
+			},
+			ShouldMatch: true,
+		},
+		{
+			Owners: []apismeta.OwnerReference{
+				{
+					Kind: "Job",
+					Name: "test-job-postfix",
+				},
+			},
+			ShouldMatch: false,
+		},
+	}
+
+	for _, entry := range entries {
+		if entry.ShouldMatch {
+			assert.True(t, checkOwners(expr, entry.Owners, "Job", "default"))
+		} else {
+			assert.False(t, checkOwners(expr, entry.Owners, "Job", "default"))
+		}
+	}
+}
+
 func TestPod(t *testing.T) {
 	type Entry struct {
 		Pod         apicorev1.Pod
@@ -70,8 +111,8 @@ func TestPod(t *testing.T) {
 	}
 
 	expr := podExpression{
-		NamePattern:      "*-pod",
-		NamespacePattern: "default",
+		namePattern:      "*-pod",
+		namespacePattern: "default",
 	}
 
 	cases := []Entry{
@@ -131,8 +172,8 @@ func TestJob(t *testing.T) {
 	}
 
 	expr := jobExpression{
-		NamePattern:      "*-job",
-		NamespacePattern: "default",
+		namePattern:      "*-job",
+		namespacePattern: "default",
 	}
 
 	cases := []Entry{
@@ -192,8 +233,8 @@ func TestReplicaset(t *testing.T) {
 	}
 
 	expr := replicasetExpression{
-		NamePattern:      "*-replicaset",
-		NamespacePattern: "default",
+		namePattern:      "*-replicaset",
+		namespacePattern: "default",
 	}
 
 	cases := []Entry{
@@ -253,8 +294,8 @@ func TestDeployment(t *testing.T) {
 	}
 
 	expr := deploymentExpression{
-		NamePattern:      "*-deployment",
-		NamespacePattern: "default",
+		namePattern:      "*-deployment",
+		namespacePattern: "default",
 	}
 
 	cases := []Entry{

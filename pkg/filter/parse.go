@@ -79,8 +79,8 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 		}
 
 		return podExpression{
-			NamePattern:      name,
-			NamespacePattern: namespace,
+			namePattern:      name,
+			namespacePattern: namespace,
 		}, nil
 	case "job":
 		if err := validateJobName(name); err != nil {
@@ -88,8 +88,8 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 		}
 
 		return jobExpression{
-			NamePattern:      name,
-			NamespacePattern: namespace,
+			namePattern:      name,
+			namespacePattern: namespace,
 		}, nil
 	case "deployment":
 		if err := validateDeploymentName(name); err != nil {
@@ -97,8 +97,8 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 		}
 
 		return deploymentExpression{
-			NamePattern:      name,
-			NamespacePattern: namespace,
+			namePattern:      name,
+			namespacePattern: namespace,
 		}, nil
 	case "replicaset":
 		if err := validateReplicasetName(name); err != nil {
@@ -106,8 +106,8 @@ func (p *parser) parseResourceExpression() (Expression, error) {
 		}
 
 		return replicasetExpression{
-			NamePattern:      name,
-			NamespacePattern: namespace,
+			namePattern:      name,
+			namespacePattern: namespace,
 		}, nil
 	default:
 		return nil, couldNotParseErr(fmt.Errorf("unsupported resource type '%s", kind.Body))
