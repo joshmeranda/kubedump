@@ -8,9 +8,30 @@ import (
 	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// todo: this will not work recursively
+func checkOwners(expr ResourceExpression, owners []apismetav1.OwnerReference, parentKind string, namespace string) bool {
+	if wildcard.MatchSimple(expr.NamespacePattern(), namespace) {
+		for _, owner := range owners {
+			if owner.Kind == parentKind && wildcard.MatchSimple(expr.NamePattern(), owner.Name) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 type Expression interface {
 	// Matches should return true if the given value is of the correct type, and satisfies the expression's conditions.
 	Matches(v interface{}) bool
+}
+
+type ResourceExpression interface {
+	Expression
+
+	NamePattern() string
+
+	NamespacePattern() string
 }
 
 type falsyExpression struct{}
@@ -53,86 +74,125 @@ func (expr orExpression) Matches(v interface{}) bool {
 
 // podExpression evaluates to true if the pod Name and Namespace match the specified patterns.
 type podExpression struct {
-	NamePattern      string
-	NamespacePattern string
+	namePattern      string
+	namespacePattern string
 }
 
 func (expr podExpression) Matches(v interface{}) bool {
 	if pod, ok := v.(apicorev1.Pod); ok {
-		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
+		return wildcard.MatchSimple(expr.namespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.namePattern, pod.Name)
 	} else if pod, ok := v.(*apicorev1.Pod); ok {
-		return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, pod.Name)
+		return wildcard.MatchSimple(expr.namespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.namePattern, pod.Name)
 	} else {
 		return false
 	}
 }
 
+func (expr podExpression) NamePattern() string {
+	return expr.namePattern
+}
+
+func (expr podExpression) NamespacePattern() string {
+	return expr.namespacePattern
+}
+
 // jobExpression evaluates to true if the pod is associated with a job whose Name and Namespace match the specified patterns.
 type jobExpression struct {
-	NamePattern      string
-	NamespacePattern string
+	namePattern      string
+	namespacePattern string
 }
 
 func (expr jobExpression) Matches(v interface{}) bool {
 	switch v.(type) {
 	case apicorev1.Pod:
 		pod := v.(apicorev1.Pod)
-
-		// todo: we probably want to search through owners instead?
-		if jobName, ok := pod.Labels["job-name"]; ok {
-			return wildcard.MatchSimple(expr.NamespacePattern, pod.Namespace) && wildcard.MatchSimple(expr.NamePattern, jobName)
-		} else {
-			return false
-		}
-	case apibatchv1.Job:
-		job := v.(apibatchv1.Job)
-
-		return wildcard.MatchSimple(expr.NamespacePattern, job.Namespace) && wildcard.MatchSimple(expr.NamePattern, job.Name)
+		return checkOwners(expr, pod.OwnerReferences, "Job", pod.Namespace)
 	case *apicorev1.Pod:
 		pod := v.(*apicorev1.Pod)
-		return expr.Matches(*pod)
+		return checkOwners(expr, pod.OwnerReferences, "Job", pod.Namespace)
+	case apibatchv1.Job:
+		job := v.(apibatchv1.Job)
+		return wildcard.MatchSimple(expr.namespacePattern, job.Namespace) && wildcard.MatchSimple(expr.namePattern, job.Name)
 	case *apibatchv1.Job:
 		job := v.(*apibatchv1.Job)
-		return expr.Matches(*job)
+		return wildcard.MatchSimple(expr.namespacePattern, job.Namespace) && wildcard.MatchSimple(expr.namePattern, job.Name)
 	default:
 		return false
 	}
 }
 
+func (expr jobExpression) NamePattern() string {
+	return expr.namePattern
+}
+
+func (expr jobExpression) NamespacePattern() string {
+	return expr.namespacePattern
+}
+
+// replicasetExpression evaluates to true if the pod is associated with a replicaset whose Name and Namespace match the specified patterns.
 type replicasetExpression struct {
-	NamePattern      string
-	NamespacePattern string
+	namePattern      string
+	namespacePattern string
 }
 
 func (expr replicasetExpression) Matches(v interface{}) bool {
 	switch v.(type) {
+	case apicorev1.Pod:
+		pod := v.(apicorev1.Pod)
+		return checkOwners(expr, pod.OwnerReferences, "ReplicaSet", pod.Namespace)
+	case *apicorev1.Pod:
+		pod := v.(*apicorev1.Pod)
+		return checkOwners(expr, pod.OwnerReferences, "ReplicaSet", pod.Namespace)
 	case apiappsv1.ReplicaSet:
 		set := v.(apiappsv1.ReplicaSet)
-		return wildcard.MatchSimple(expr.NamespacePattern, set.Namespace) && wildcard.MatchSimple(expr.NamePattern, set.Name)
+		return wildcard.MatchSimple(expr.namespacePattern, set.Namespace) && wildcard.MatchSimple(expr.namePattern, set.Name)
 	case *apiappsv1.ReplicaSet:
 		set := v.(*apiappsv1.ReplicaSet)
-		return wildcard.MatchSimple(expr.NamespacePattern, set.Namespace) && wildcard.MatchSimple(expr.NamePattern, set.Name)
+		return wildcard.MatchSimple(expr.namespacePattern, set.Namespace) && wildcard.MatchSimple(expr.namePattern, set.Name)
 	}
 
 	return false
 }
 
+func (expr replicasetExpression) NamePattern() string {
+	return expr.namePattern
+}
+
+func (expr replicasetExpression) NamespacePattern() string {
+	return expr.namespacePattern
+}
+
+// deploymentExpression evaluates to true if the pod is associated with a deployment whose Name and Namespace match the specified patterns.
 type deploymentExpression struct {
-	NamePattern      string
-	NamespacePattern string
+	namePattern      string
+	namespacePattern string
 }
 
 func (expr deploymentExpression) Matches(v interface{}) bool {
 	switch v.(type) {
+	case apiappsv1.ReplicaSet:
+		set := v.(apiappsv1.ReplicaSet)
+		return checkOwners(expr, set.OwnerReferences, "Deployment", set.Namespace)
+	case *apiappsv1.ReplicaSet:
+		set := v.(*apiappsv1.ReplicaSet)
+		return checkOwners(expr, set.OwnerReferences, "Deployment", set.Namespace)
 	case apiappsv1.Deployment:
 		deployment := v.(apiappsv1.Deployment)
-		return wildcard.MatchSimple(expr.NamespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.NamePattern, deployment.Name)
+		return wildcard.MatchSimple(expr.namespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.namePattern, deployment.Name)
 	case *apiappsv1.Deployment:
 		deployment := v.(*apiappsv1.Deployment)
-		return wildcard.MatchSimple(expr.NamespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.NamePattern, deployment.Name)
+		return wildcard.MatchSimple(expr.namespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.namePattern, deployment.Name)
 	default:
 		return false
 	}
+}
+
+func (expr deploymentExpression) NamePattern() string {
+	return expr.namePattern
+}
+
+func (expr deploymentExpression) NamespacePattern() string {
+	return expr.namespacePattern
 }
 
 // namespaceExpression evaluates to true only if the given value has a Namespace matching the specified pattern.

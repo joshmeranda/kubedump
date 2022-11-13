@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sigs.k8s.io/yaml"
 	"strings"
 )
 
@@ -147,4 +148,38 @@ func resourceFields(objs ...interface{}) logrus.Fields {
 	}
 
 	return fields
+}
+
+func dumpResourceDescription(obj apismetav1.Object, kind string, parentPath string) error {
+	yamlPath := resourceFilePath(kind, parentPath, obj, obj.GetName()+".yaml")
+
+	if exists(yamlPath) {
+		if err := os.Truncate(yamlPath, 0); err != nil {
+			return fmt.Errorf("error truncating obj yaml file '%s' : %w", yamlPath, err)
+		}
+	} else {
+		if err := createPathParents(yamlPath); err != nil {
+			return fmt.Errorf("error creating parents for obj file '%s': %s", yamlPath, err)
+		}
+	}
+
+	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
+
+	if err != nil {
+		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
+	}
+
+	jobYaml, err := yaml.Marshal(obj)
+
+	if err != nil {
+		return fmt.Errorf("could not marshal %s: %w", kind, err)
+	}
+
+	_, err = f.Write(jobYaml)
+
+	if err != nil {
+		return fmt.Errorf("could not write %s to file '%s': %w", kind, yamlPath, err)
+	}
+
+	return nil
 }

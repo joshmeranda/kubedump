@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
 	apicorev1 "k8s.io/api/core/v1"
@@ -10,7 +9,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"os"
 	"path"
-	"sigs.k8s.io/yaml"
 	"sync"
 	"time"
 )
@@ -47,39 +45,39 @@ func (handler *PodHandler) containerLogPath(pod *apicorev1.Pod, containerName st
 	return path.Join(resourceDirPath("Pod", handler.opts.ParentPath, pod), containerName+".log")
 }
 
-func (handler *PodHandler) dumpPodDescription(pod *apicorev1.Pod) error {
-	yamlPath := handler.podFileWithExt(pod, "yaml")
-
-	if exists(yamlPath) {
-		if err := os.Truncate(yamlPath, 0); err != nil {
-			return fmt.Errorf("error truncating pod yaml file '%s' : %w", yamlPath, err)
-		}
-	} else {
-		if err := createPathParents(yamlPath); err != nil {
-			return fmt.Errorf("error creating parents for job file '%s': %s", yamlPath, err)
-		}
-	}
-
-	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
-
-	if err != nil {
-		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
-	}
-
-	podYaml, err := yaml.Marshal(pod)
-
-	if err != nil {
-		return fmt.Errorf("could not marshal pod: %w", err)
-	}
-
-	_, err = f.Write(podYaml)
-
-	if err != nil {
-		return fmt.Errorf("could not write to file '%s': %w", yamlPath, err)
-	}
-
-	return nil
-}
+//func (handler *PodHandler) dumpPodDescription(pod *apicorev1.Pod) error {
+//	yamlPath := handler.podFileWithExt(pod, "yaml")
+//
+//	if exists(yamlPath) {
+//		if err := os.Truncate(yamlPath, 0); err != nil {
+//			return fmt.Errorf("error truncating pod yaml file '%s' : %w", yamlPath, err)
+//		}
+//	} else {
+//		if err := createPathParents(yamlPath); err != nil {
+//			return fmt.Errorf("error creating parents for job file '%s': %s", yamlPath, err)
+//		}
+//	}
+//
+//	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
+//
+//	if err != nil {
+//		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
+//	}
+//
+//	podYaml, err := yaml.Marshal(pod)
+//
+//	if err != nil {
+//		return fmt.Errorf("could not marshal pod: %w", err)
+//	}
+//
+//	_, err = f.Write(podYaml)
+//
+//	if err != nil {
+//		return fmt.Errorf("could not write to file '%s': %w", yamlPath, err)
+//	}
+//
+//	return nil
+//}
 
 func (handler *PodHandler) addContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
 	logFilePath := handler.containerLogPath(pod, container.Name)
@@ -177,7 +175,7 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := handler.dumpPodDescription(pod); err != nil {
+		if err := dumpResourceDescription(pod, "Pod", handler.opts.ParentPath); err != nil {
 			logrus.WithFields(resourceFields(pod)).Errorf("could not dump pod description: %s", err)
 		}
 	}))
@@ -202,7 +200,7 @@ func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := handler.dumpPodDescription(pod); err != nil {
+		if err := dumpResourceDescription(pod, "Pod", handler.opts.ParentPath); err != nil {
 			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
 		}
 	}))
