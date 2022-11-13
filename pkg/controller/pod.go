@@ -26,7 +26,7 @@ type PodHandler struct {
 }
 
 func NewPodHandler(opts Options, workQueue workqueue.RateLimitingInterface, kubeclientset kubernetes.Interface) *PodHandler {
-	return &PodHandler{
+	handler := PodHandler{
 		opts:          opts,
 		workQueue:     workQueue,
 		kubeclientset: kubeclientset,
@@ -34,6 +34,10 @@ func NewPodHandler(opts Options, workQueue workqueue.RateLimitingInterface, kube
 		streamMapLock: &sync.RWMutex{},
 		logBuffer:     make([]byte, 4096),
 	}
+
+	handler.syncLogStreams()
+
+	return &handler
 }
 
 // podFileWithExt returns the file path of a pad with the given extension excluding the '.' (ex 'yaml', 'log', etc)
@@ -44,40 +48,6 @@ func (handler *PodHandler) podFileWithExt(pod *apicorev1.Pod, ext string) string
 func (handler *PodHandler) containerLogPath(pod *apicorev1.Pod, containerName string) string {
 	return path.Join(resourceDirPath("Pod", handler.opts.ParentPath, pod), containerName+".log")
 }
-
-//func (handler *PodHandler) dumpPodDescription(pod *apicorev1.Pod) error {
-//	yamlPath := handler.podFileWithExt(pod, "yaml")
-//
-//	if exists(yamlPath) {
-//		if err := os.Truncate(yamlPath, 0); err != nil {
-//			return fmt.Errorf("error truncating pod yaml file '%s' : %w", yamlPath, err)
-//		}
-//	} else {
-//		if err := createPathParents(yamlPath); err != nil {
-//			return fmt.Errorf("error creating parents for job file '%s': %s", yamlPath, err)
-//		}
-//	}
-//
-//	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
-//
-//	if err != nil {
-//		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
-//	}
-//
-//	podYaml, err := yaml.Marshal(pod)
-//
-//	if err != nil {
-//		return fmt.Errorf("could not marshal pod: %w", err)
-//	}
-//
-//	_, err = f.Write(podYaml)
-//
-//	if err != nil {
-//		return fmt.Errorf("could not write to file '%s': %w", yamlPath, err)
-//	}
-//
-//	return nil
-//}
 
 func (handler *PodHandler) addContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
 	logFilePath := handler.containerLogPath(pod, container.Name)
