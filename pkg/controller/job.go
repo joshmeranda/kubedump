@@ -1,12 +1,9 @@
 package controller
 
 import (
-	"fmt"
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	"k8s.io/client-go/util/workqueue"
-	"os"
-	"sigs.k8s.io/yaml"
 )
 
 type JobHandler struct {
@@ -20,40 +17,6 @@ func NewJobHandler(opts Options, workQueue workqueue.RateLimitingInterface) *Job
 		opts:      opts,
 		workQueue: workQueue,
 	}
-}
-
-func (handler *JobHandler) dumpJobDescription(job *apibatchv1.Job) error {
-	yamlPath := resourceFilePath("Job", handler.opts.ParentPath, job, job.Name+".yaml")
-
-	if exists(yamlPath) {
-		if err := os.Truncate(yamlPath, 0); err != nil {
-			return fmt.Errorf("error truncating job yaml file '%s' : %w", yamlPath, err)
-		}
-	} else {
-		if err := createPathParents(yamlPath); err != nil {
-			return fmt.Errorf("error creating parents for job file '%s': %s", yamlPath, err)
-		}
-	}
-
-	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
-
-	if err != nil {
-		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
-	}
-
-	jobYaml, err := yaml.Marshal(job)
-
-	if err != nil {
-		return fmt.Errorf("could not marshal pod: %w", err)
-	}
-
-	_, err = f.Write(jobYaml)
-
-	if err != nil {
-		return fmt.Errorf("could not write to file '%s': %w", yamlPath, err)
-	}
-
-	return nil
 }
 
 func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
@@ -77,7 +40,7 @@ func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := handler.dumpJobDescription(job); err != nil {
+		if err := dumpResourceDescription(job, "Job", handler.opts.ParentPath); err != nil {
 			logrus.WithFields(resourceFields(job)).Errorf("could not dump job description: %s", err)
 		}
 	}))
