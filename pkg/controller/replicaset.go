@@ -32,11 +32,7 @@ func (handler *ReplicasetHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	if isAdd {
-		for _, ownerRef := range set.OwnerReferences {
-			if err := linkToOwner(handler.opts.ParentPath, ownerRef, "ReplicaSet", set); err != nil {
-				logrus.Errorf("could not link replicaset '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
-			}
-		}
+		linkResourceOwners(handler.opts.ParentPath, "ReplicaSet", set)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {

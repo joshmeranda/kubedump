@@ -267,3 +267,7 @@ func validateDeploymentName(name string) error {
 func validateReplicasetName(name string) error {
 	return validateDnsSubdomain("replicaset", name)
 }
+
+func validateServiceName(name string) error {
+	return validateDnsSubdomain("replicaset", name)
+}

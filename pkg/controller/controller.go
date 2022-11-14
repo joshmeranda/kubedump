@@ -50,6 +50,7 @@ func NewController(
 
 	eventInformer := informerFactory.Events().V1().Events()
 	podInformer := informerFactory.Core().V1().Pods()
+	serviceInformer := informerFactory.Core().V1().Services()
 	jobInformer := informerFactory.Batch().V1().Jobs()
 	replicasetInformer := informerFactory.Apps().V1().ReplicaSets()
 	deploymentInformer := informerFactory.Apps().V1().Deployments()
@@ -57,6 +58,7 @@ func NewController(
 	informersSynced := []cache.InformerSynced{
 		eventInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
+		serviceInformer.Informer().HasSynced,
 		jobInformer.Informer().HasSynced,
 		replicasetInformer.Informer().HasSynced,
 		deploymentInformer.Informer().HasSynced,
@@ -77,6 +79,7 @@ func NewController(
 	eventInformer.Informer().AddEventHandler(NewEventHandler(opts, controller.workQueue, podInformer, jobInformer))
 
 	podInformer.Informer().AddEventHandler(NewPodHandler(opts, controller.workQueue, kubeclientset))
+	serviceInformer.Informer().AddEventHandler(NewServiceHandler(opts, controller.workQueue))
 
 	jobInformer.Informer().AddEventHandler(NewJobHandler(opts, controller.workQueue))
 

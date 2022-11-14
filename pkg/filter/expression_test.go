@@ -348,6 +348,67 @@ func TestDeployment(t *testing.T) {
 	}
 }
 
+func TestService(t *testing.T) {
+	type Entry struct {
+		Service     apicorev1.Service
+		ShouldMatch bool
+	}
+
+	expr := serviceExpression{
+		namePattern:      "*-service",
+		namespacePattern: "default",
+	}
+
+	cases := []Entry{
+		{
+			Service: apicorev1.Service{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-service",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: true,
+		},
+		{
+			Service: apicorev1.Service{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-srvice",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Service: apicorev1.Service{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-service-postfix",
+					Namespace: "default",
+				},
+			},
+			ShouldMatch: false,
+		},
+		{
+			Service: apicorev1.Service{
+				ObjectMeta: apismeta.ObjectMeta{
+					Name:      "some-service-postfix",
+					Namespace: "non-default",
+				},
+			},
+			ShouldMatch: false,
+		},
+	}
+
+	for _, entry := range cases {
+		if entry.ShouldMatch {
+			assert.True(t, expr.Matches(entry.Service), "should have matched: %s/%s", entry.Service.Namespace, entry.Service.Name)
+			assert.True(t, expr.Matches(&entry.Service), "should have matched: %s/%s", entry.Service.Namespace, entry.Service.Name)
+		} else {
+			assert.False(t, expr.Matches(entry.Service), "should have matched: %s/%s", entry.Service.Namespace, entry.Service.Name)
+			assert.False(t, expr.Matches(&entry.Service), "should have matched: %s/%s", entry.Service.Namespace, entry.Service.Name)
+		}
+	}
+}
+
 func TestNamespace(t *testing.T) {
 	expr := namespaceExpression{
 		NamespacePattern: "*-ns",

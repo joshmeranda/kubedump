@@ -31,11 +31,7 @@ func (handler *DeploymentHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	if isAdd {
-		for _, ownerRef := range deployment.OwnerReferences {
-			if err := linkToOwner(handler.opts.ParentPath, ownerRef, "Depoyment", deployment); err != nil {
-				logrus.Errorf("could not link deployment to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
-			}
-		}
+		linkResourceOwners(handler.opts.ParentPath, "Deployment", deployment)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {

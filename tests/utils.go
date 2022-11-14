@@ -62,7 +62,7 @@ func unmarshalFile(fileName string, obj interface{}) error {
 	data, err := ioutil.ReadFile(fileName)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not unmarshal file '%s': %w", fileName, err)
 	}
 
 	err = yaml.Unmarshal(data, obj)
@@ -110,6 +110,10 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apismeta
 		var deployment apisappsv1.Deployment
 		err = unmarshalFile(fileName, &deployment)
 		fsObj = deployment.ObjectMeta
+	case "Service":
+		var service apiscorev1.Service
+		err = unmarshalFile(fileName, &service)
+		fsObj = service.ObjectMeta
 	default:
 		t.Errorf("unsupported kind '%s' encountered", kind)
 	}
@@ -241,6 +245,38 @@ var SampleDeployment = apisappsv1.Deployment{
 	},
 }
 
+var SampleServicePod = apiscorev1.Pod{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-service-pod",
+		Namespace: "default",
+		Labels: map[string]string{
+			"app": "test-service",
+		},
+	},
+	Spec: SamplePodSpec,
+}
+
+var SampleService = apiscorev1.Service{
+	ObjectMeta: apismetav1.ObjectMeta{
+		Name:      "test-service",
+		Namespace: "default",
+		Labels: map[string]string{
+			"app": "test-service",
+		},
+	},
+	Spec: apiscorev1.ServiceSpec{
+		Ports: []apiscorev1.ServicePort{
+			{
+				Protocol: "TCP",
+				Port:     80,
+			},
+		},
+		Selector: map[string]string{
+			"app": "test-service",
+		},
+	},
+}
+
 func deleteOptions() apismetav1.DeleteOptions {
 	policy := apismetav1.DeletePropagationBackground
 
@@ -283,6 +319,22 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 	})
 	if err != nil {
 		t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
+	}
+
+	_, err = client.CoreV1().Pods("default").Create(context.TODO(), &SampleServicePod, apismetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().Pods("default").Delete(context.TODO(), SampleServicePod.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
+	}
+
+	_, err = client.CoreV1().Services("default").Create(context.TODO(), &SampleService, apismetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().Services("default").Delete(context.TODO(), SampleService.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
 	}
 
 	return func() {

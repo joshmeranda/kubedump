@@ -32,11 +32,7 @@ func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	if isAdd {
-		for _, ownerRef := range job.OwnerReferences {
-			if err := linkToOwner(handler.opts.ParentPath, ownerRef, "Job", job); err != nil {
-				logrus.Errorf("could not link job to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
-			}
-		}
+		linkResourceOwners(handler.opts.ParentPath, "Service", job)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {

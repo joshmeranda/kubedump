@@ -138,11 +138,7 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 		return
 	}
 
-	for _, ownerRef := range pod.OwnerReferences {
-		if err := linkToOwner(handler.opts.ParentPath, ownerRef, "Pod", pod); err != nil {
-			logrus.Errorf("could not link pod to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
-		}
-	}
+	linkResourceOwners(handler.opts.ParentPath, "Pod", pod)
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
 		if err := dumpResourceDescription(pod, "Pod", handler.opts.ParentPath); err != nil {

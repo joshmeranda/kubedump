@@ -76,15 +76,15 @@ func resourceFilePath(resourceKind string, parent string, obj apismetav1.Object,
 	return path.Join(resourceDirPath(resourceKind, parent, obj), name)
 }
 
-func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind string, obj apismetav1.Object) error {
+func linkToOwner(parent string, owner apismetav1.OwnerReference, kind string, obj apismetav1.Object) error {
 	ownerPath := resourceDirPath(owner.Kind, parent, &apismetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
 		Namespace: obj.GetNamespace(),
 	})
-	ownerResourcePath := path.Join(ownerPath, strings.ToLower(resourceKind))
-	objPath := resourceDirPath(resourceKind, parent, obj)
+	ownerResourcePath := path.Join(ownerPath, strings.ToLower(kind))
+	objPath := resourceDirPath(kind, parent, obj)
 
 	relPath, err := filepath.Rel(ownerResourcePath, objPath)
 
@@ -101,7 +101,7 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind st
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
 		Namespace: obj.GetNamespace(),
-	}), strings.ToLower(resourceKind), obj.GetName())
+	}), strings.ToLower(kind), obj.GetName())
 
 	if err := createPathParents(symlinkPath); err != nil {
 		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
@@ -112,6 +112,14 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind st
 	}
 
 	return nil
+}
+
+func linkResourceOwners(parent string, kind string, obj apismetav1.Object) {
+	for _, owner := range obj.GetOwnerReferences() {
+		if err := linkToOwner(parent, owner, kind, obj); err != nil {
+			logrus.Errorf("could not link %s to owners '%s/%s/%s'", kind, owner.Kind, obj.GetNamespace(), owner.Name)
+		}
+	}
 }
 
 func resourceFields(objs ...interface{}) logrus.Fields {
