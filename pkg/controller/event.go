@@ -44,7 +44,7 @@ func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
 		return nil
 	}
 
-	podDir := resourceDirPath("Pod", handler.opts.ParentPath, pod)
+	podDir := resourceDirPath(handler.opts.ParentPath, handler.opts.ParentPath, pod)
 
 	eventFilePath := path.Join(podDir, podEvent.Regarding.Name+".events")
 
@@ -78,7 +78,7 @@ func (handler *EventHandler) handleJobEvent(jobEvent *eventsv1.Event) error {
 		return nil
 	}
 
-	jobDir := resourceDirPath("Job", handler.opts.ParentPath, job)
+	jobDir := resourceDirPath(handler.opts.ParentPath, "Job", job)
 
 	eventFilePath := path.Join(jobDir, jobEvent.Regarding.Name+".events")
 

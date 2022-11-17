@@ -36,7 +36,7 @@ func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(job, "Job", handler.opts.ParentPath); err != nil {
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Job", job); err != nil {
 			logrus.WithFields(resourceFields(job)).Errorf("could not dump job description: %s", err)
 		}
 	}))

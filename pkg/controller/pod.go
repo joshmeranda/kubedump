@@ -42,11 +42,11 @@ func NewPodHandler(opts Options, workQueue workqueue.RateLimitingInterface, kube
 
 // podFileWithExt returns the file path of a pad with the given extension excluding the '.' (ex 'yaml', 'log', etc)
 func (handler *PodHandler) podFileWithExt(pod *apicorev1.Pod, ext string) string {
-	return path.Join(resourceDirPath("Pod", handler.opts.ParentPath, pod), pod.Name+"."+ext)
+	return path.Join(resourceDirPath(handler.opts.ParentPath, "Pod", pod), pod.Name+"."+ext)
 }
 
 func (handler *PodHandler) containerLogPath(pod *apicorev1.Pod, containerName string) string {
-	return path.Join(resourceDirPath("Pod", handler.opts.ParentPath, pod), containerName+".log")
+	return path.Join(resourceDirPath(handler.opts.ParentPath, "Pod", pod), containerName+".log")
 }
 
 func (handler *PodHandler) addContainerStream(pod *apicorev1.Pod, container *apicorev1.Container) {
@@ -141,7 +141,7 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 	linkResourceOwners(handler.opts.ParentPath, "Pod", pod)
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(pod, "Pod", handler.opts.ParentPath); err != nil {
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Pod", pod); err != nil {
 			logrus.WithFields(resourceFields(pod)).Errorf("could not dump pod description: %s", err)
 		}
 	}))
@@ -166,7 +166,7 @@ func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(pod, "Pod", handler.opts.ParentPath); err != nil {
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Pod", pod); err != nil {
 			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
 		}
 	}))

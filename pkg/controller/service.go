@@ -40,7 +40,7 @@ func (handler *ServiceHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(service, "Service", handler.opts.ParentPath); err != nil {
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Service", service); err != nil {
 			logrus.WithFields(resourceFields(service)).Errorf("could not dump service description")
 		}
 	}))
