@@ -96,6 +96,33 @@ func (expr podExpression) NamespacePattern() string {
 	return expr.namespacePattern
 }
 
+// serviceExpression evaluates to true if the service Name and Namespace match the specified patterns.
+type serviceExpression struct {
+	namePattern      string
+	namespacePattern string
+}
+
+func (expr serviceExpression) Matches(v interface{}) bool {
+	switch v.(type) {
+	case apicorev1.Service:
+		service := v.(apicorev1.Service)
+		return wildcard.MatchSimple(expr.NamespacePattern(), service.Namespace) && wildcard.MatchSimple(expr.NamePattern(), service.Name)
+	case *apicorev1.Service:
+		service := v.(*apicorev1.Service)
+		return wildcard.MatchSimple(expr.NamespacePattern(), service.Namespace) && wildcard.MatchSimple(expr.NamePattern(), service.Name)
+	default:
+		return false
+	}
+}
+
+func (expr serviceExpression) NamePattern() string {
+	return expr.namePattern
+}
+
+func (expr serviceExpression) NamespacePattern() string {
+	return expr.namespacePattern
+}
+
 // jobExpression evaluates to true if the pod is associated with a job whose Name and Namespace match the specified patterns.
 type jobExpression struct {
 	namePattern      string
@@ -172,10 +199,10 @@ func (expr deploymentExpression) Matches(v interface{}) bool {
 	switch v.(type) {
 	case apiappsv1.ReplicaSet:
 		set := v.(apiappsv1.ReplicaSet)
-		return checkOwners(expr, set.OwnerReferences, "Deployment", set.Namespace)
+		return checkOwners(expr, set.OwnerReferences, "Service", set.Namespace)
 	case *apiappsv1.ReplicaSet:
 		set := v.(*apiappsv1.ReplicaSet)
-		return checkOwners(expr, set.OwnerReferences, "Deployment", set.Namespace)
+		return checkOwners(expr, set.OwnerReferences, "Service", set.Namespace)
 	case apiappsv1.Deployment:
 		deployment := v.(apiappsv1.Deployment)
 		return wildcard.MatchSimple(expr.namespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.namePattern, deployment.Name)
@@ -226,6 +253,12 @@ func (expr namespaceExpression) Matches(v interface{}) bool {
 	case *apiappsv1.Deployment:
 		obj := v.(*apiappsv1.Deployment)
 		return expr.checkObject(obj)
+	case apicorev1.Service:
+		obj := v.(apicorev1.Service)
+		return expr.checkObject(&obj)
+	case *apicorev1.Service:
+		obj := v.(*apicorev1.Service)
+		return expr.checkObject(obj)
 	default:
 		return false
 	}
@@ -255,10 +288,18 @@ func (expr labelExpression) Matches(v interface{}) bool {
 		labels = v.(apibatchv1.Job).Labels
 	case *apibatchv1.Job:
 		labels = v.(*apibatchv1.Job).Labels
+	case apiappsv1.ReplicaSet:
+		labels = v.(apiappsv1.ReplicaSet).Labels
+	case *apiappsv1.ReplicaSet:
+		labels = v.(*apiappsv1.ReplicaSet).Labels
 	case apiappsv1.Deployment:
 		labels = v.(apiappsv1.Deployment).Labels
 	case *apiappsv1.Deployment:
 		labels = v.(*apiappsv1.Deployment).Labels
+	case apicorev1.Service:
+		labels = v.(apicorev1.Service).Labels
+	case *apicorev1.Service:
+		labels = v.(*apicorev1.Service).Labels
 	default:
 		return false
 	}

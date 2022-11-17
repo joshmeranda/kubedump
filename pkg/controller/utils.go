@@ -114,6 +114,14 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, objKind string,
 	return nil
 }
 
+func linkResourceOwners(parent string, kind string, obj apismetav1.Object) {
+	for _, owner := range obj.GetOwnerReferences() {
+		if err := linkToOwner(parent, owner, kind, obj); err != nil {
+			logrus.Errorf("could not link %s to owners '%s/%s/%s'", kind, owner.Kind, obj.GetNamespace(), owner.Name)
+		}
+	}
+}
+
 func resourceFields(objs ...interface{}) logrus.Fields {
 	fields := logrus.Fields{}
 

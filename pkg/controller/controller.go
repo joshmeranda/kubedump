@@ -6,7 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
-	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -38,15 +37,7 @@ type Controller struct {
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
 
-	podHandler *PodHandler
-
-	eventInformerSynced      cache.InformerSynced
-	podInformerSynced        cache.InformerSynced
-	jobInformerSynced        cache.InformerSynced
-	replicasetInformerSynced cache.InformerSynced
-	deploymentInformerSynced cache.InformerSynced
-
-	podInformer informerscorev1.PodInformer
+	informersSynced []cache.InformerSynced
 
 	workQueue workqueue.RateLimitingInterface
 }
@@ -59,9 +50,19 @@ func NewController(
 
 	eventInformer := informerFactory.Events().V1().Events()
 	podInformer := informerFactory.Core().V1().Pods()
+	serviceInformer := informerFactory.Core().V1().Services()
 	jobInformer := informerFactory.Batch().V1().Jobs()
 	replicasetInformer := informerFactory.Apps().V1().ReplicaSets()
 	deploymentInformer := informerFactory.Apps().V1().Deployments()
+
+	informersSynced := []cache.InformerSynced{
+		eventInformer.Informer().HasSynced,
+		podInformer.Informer().HasSynced,
+		serviceInformer.Informer().HasSynced,
+		jobInformer.Informer().HasSynced,
+		replicasetInformer.Informer().HasSynced,
+		deploymentInformer.Informer().HasSynced,
+	}
 
 	controller := &Controller{
 		opts:          opts,
@@ -70,26 +71,20 @@ func NewController(
 		informerFactory: informerFactory,
 		stopChan:        nil,
 
-		eventInformerSynced:      eventInformer.Informer().HasSynced,
-		podInformerSynced:        podInformer.Informer().HasSynced,
-		jobInformerSynced:        jobInformer.Informer().HasSynced,
-		replicasetInformerSynced: replicasetInformer.Informer().HasSynced,
-		deploymentInformerSynced: deploymentInformer.Informer().HasSynced,
-
-		podInformer: podInformer,
+		informersSynced: informersSynced,
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	eventInformer.Informer().AddEventHandler(NewEventHandler(controller.opts, controller.workQueue, podInformer, jobInformer))
+	eventInformer.Informer().AddEventHandler(NewEventHandler(opts, controller.workQueue, podInformer, jobInformer))
 
-	controller.podHandler = NewPodHandler(controller.opts, controller.workQueue, controller.kubeclientset)
-	podInformer.Informer().AddEventHandler(controller.podHandler)
+	podInformer.Informer().AddEventHandler(NewPodHandler(opts, controller.workQueue, kubeclientset))
+	serviceInformer.Informer().AddEventHandler(NewServiceHandler(opts, controller.workQueue))
 
-	jobInformer.Informer().AddEventHandler(NewJobHandler(controller.opts, controller.workQueue))
+	jobInformer.Informer().AddEventHandler(NewJobHandler(opts, controller.workQueue))
 
 	replicasetInformer.Informer().AddEventHandler(NewReplicasetHandler(opts, controller.workQueue))
-	deploymentInformer.Informer().AddEventHandler(NewDeploymentHandler(controller.opts, controller.workQueue))
+	deploymentInformer.Informer().AddEventHandler(NewDeploymentHandler(opts, controller.workQueue))
 
 	return controller
 }
@@ -133,7 +128,7 @@ func (controller *Controller) Start(nWorkers int) error {
 	controller.informerFactory.Start(controller.stopChan)
 
 	logrus.Infof("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(controller.stopChan, controller.eventInformerSynced, controller.podInformerSynced); !ok {
+	if ok := cache.WaitForCacheSync(controller.stopChan, controller.informersSynced...); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
@@ -147,8 +142,6 @@ func (controller *Controller) Start(nWorkers int) error {
 			}
 		}()
 	}
-
-	controller.workQueue.AddRateLimited(NewJob(controller.podHandler.syncLogStreams))
 
 	logrus.Infof("Started controller")
 
