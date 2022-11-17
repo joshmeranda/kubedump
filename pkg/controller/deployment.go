@@ -39,7 +39,7 @@ func (handler *DeploymentHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(deployment, "Deployment", handler.opts.ParentPath); err != nil {
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Deployment", deployment); err != nil {
 			logrus.WithFields(resourceFields(deployment)).Errorf("could not dump deployment description: %s", err)
 		}
 	}))

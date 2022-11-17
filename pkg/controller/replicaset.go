@@ -40,7 +40,7 @@ func (handler *ReplicasetHandler) handleFunc(obj interface{}, isAdd bool) {
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(set, "ReplicaSet", handler.opts.ParentPath); err != nil {
+		if err := dumpResourceDescription(handler.opts.ParentPath, "ReplicaSet", set); err != nil {
 			logrus.WithFields(resourceFields(set)).Errorf("could not dump job description: %s", err)
 		}
 	}))

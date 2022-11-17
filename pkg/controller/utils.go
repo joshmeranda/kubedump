@@ -64,27 +64,27 @@ func isNamespaced(resourceKind string) bool {
 	}
 }
 
-func resourceDirPath(resourceKind string, parent string, obj apismetav1.Object) string {
-	if isNamespaced(resourceKind) {
-		return path.Join(parent, obj.GetNamespace(), strings.ToLower(resourceKind), obj.GetName())
+func resourceDirPath(parent string, objKind string, obj apismetav1.Object) string {
+	if isNamespaced(objKind) {
+		return path.Join(parent, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
 	} else {
-		return path.Join(parent, strings.ToLower(resourceKind), obj.GetName())
+		return path.Join(parent, strings.ToLower(objKind), obj.GetName())
 	}
 }
 
-func resourceFilePath(resourceKind string, parent string, obj apismetav1.Object, name string) string {
-	return path.Join(resourceDirPath(resourceKind, parent, obj), name)
+func resourceFilePath(parent string, objKind string, obj apismetav1.Object, fileName string) string {
+	return path.Join(resourceDirPath(parent, objKind, obj), fileName)
 }
 
-func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind string, obj apismetav1.Object) error {
-	ownerPath := resourceDirPath(owner.Kind, parent, &apismetav1.ObjectMeta{
+func linkToOwner(parent string, owner apismetav1.OwnerReference, objKind string, obj apismetav1.Object) error {
+	ownerPath := resourceDirPath(parent, owner.Kind, &apismetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
 		Namespace: obj.GetNamespace(),
 	})
-	ownerResourcePath := path.Join(ownerPath, strings.ToLower(resourceKind))
-	objPath := resourceDirPath(resourceKind, parent, obj)
+	ownerResourcePath := path.Join(ownerPath, strings.ToLower(objKind))
+	objPath := resourceDirPath(parent, objKind, obj)
 
 	relPath, err := filepath.Rel(ownerResourcePath, objPath)
 
@@ -96,12 +96,12 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, resourceKind st
 		return err
 	}
 
-	symlinkPath := path.Join(resourceDirPath(owner.Kind, parent, &apismetav1.ObjectMeta{
+	symlinkPath := path.Join(resourceDirPath(parent, owner.Kind, &apismetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
 		Namespace: obj.GetNamespace(),
-	}), strings.ToLower(resourceKind), obj.GetName())
+	}), strings.ToLower(objKind), obj.GetName())
 
 	if err := createPathParents(symlinkPath); err != nil {
 		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
@@ -150,8 +150,8 @@ func resourceFields(objs ...interface{}) logrus.Fields {
 	return fields
 }
 
-func dumpResourceDescription(obj apismetav1.Object, kind string, parentPath string) error {
-	yamlPath := resourceFilePath(kind, parentPath, obj, obj.GetName()+".yaml")
+func dumpResourceDescription(parentPath string, objKind string, obj apismetav1.Object) error {
+	yamlPath := resourceFilePath(parentPath, objKind, obj, obj.GetName()+".yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -172,13 +172,13 @@ func dumpResourceDescription(obj apismetav1.Object, kind string, parentPath stri
 	jobYaml, err := yaml.Marshal(obj)
 
 	if err != nil {
-		return fmt.Errorf("could not marshal %s: %w", kind, err)
+		return fmt.Errorf("could not marshal %s: %w", objKind, err)
 	}
 
 	_, err = f.Write(jobYaml)
 
 	if err != nil {
-		return fmt.Errorf("could not write %s to file '%s': %w", kind, yamlPath, err)
+		return fmt.Errorf("could not write %s to file '%s': %w", objKind, yamlPath, err)
 	}
 
 	return nil

@@ -112,5 +112,5 @@ func TestDump(t *testing.T) {
 	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	//displayTree(t, parentPath)
-	//copyTree(t, parentPath, d.Name()+".dump")
+	copyTree(t, parentPath, d.Name()+".dump")
 }

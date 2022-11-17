@@ -67,28 +67,6 @@ func operatorPrecedence(op string) int {
 	}
 }
 
-//func tokenPrecedence(t *token) int {
-//	switch t.Kind {
-//	case Operator:
-//		switch t.Body {
-//		case "not":
-//			return 4
-//		case "and":
-//			return 3
-//		case "or":
-//			return 2
-//		default:
-//			panic("unsupported operator '" + t.Body + "'")
-//		}
-//	case Resource:
-//		return 1
-//	case EOE:
-//		return -1
-//	default:
-//		return 0
-//	}
-//}
-
 func reverseTokens(tokens []token) {
 	for i, j := 0, len(tokens)-1; i < j; i, j = i+1, j-1 {
 		tokens[i], tokens[j] = tokens[j], tokens[i]
