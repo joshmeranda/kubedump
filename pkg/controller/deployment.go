@@ -4,7 +4,26 @@ import (
 	"github.com/sirupsen/logrus"
 	apiappsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/util/workqueue"
+	"time"
 )
+
+func mostRecentDeploymentConditionTime(conditions []apiappsv1.DeploymentCondition) time.Time {
+	if len(conditions) == 0 {
+		// if there are no conditions we'd rather take it than not
+		return time.Now().UTC()
+	}
+
+	var t time.Time
+
+	for _, condition := range conditions {
+
+		if utc := condition.LastTransitionTime.UTC(); utc.After(t) {
+			t = utc
+		}
+	}
+
+	return t
+}
 
 type DeploymentHandler struct {
 	opts      Options
@@ -26,7 +45,7 @@ func (handler *DeploymentHandler) handleFunc(obj interface{}, isAdd bool) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(deployment) {
+	if !handler.opts.Filter.Matches(deployment) || handler.opts.StartTime.After(mostRecentDeploymentConditionTime(deployment.Status.Conditions)) {
 		return
 	}
 

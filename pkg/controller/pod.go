@@ -13,6 +13,24 @@ import (
 	"time"
 )
 
+func mostRecentPodConditionTime(conditions []apicorev1.PodCondition) time.Time {
+	if len(conditions) == 0 {
+		// if there are no conditions we'd rather take it than not
+		return time.Now().UTC()
+	}
+
+	var t time.Time
+
+	for _, condition := range conditions {
+
+		if utc := condition.LastTransitionTime.UTC(); utc.After(t) {
+			t = utc
+		}
+	}
+
+	return t
+}
+
 type PodHandler struct {
 	// will be inherited from parent controller
 	opts          Options
@@ -126,6 +144,8 @@ func (handler *PodHandler) syncLogStreams() {
 	}
 }
 
+// todo: handle isAdd like other handlers
+
 func (handler *PodHandler) OnAdd(obj interface{}) {
 	pod, ok := obj.(*apicorev1.Pod)
 
@@ -134,7 +154,7 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(*pod) {
+	if !handler.opts.Filter.Matches(*pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
 		return
 	}
 
@@ -154,6 +174,10 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 }
 
 func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
+	if handler.opts.StartTime.After(time.Now()) {
+		return
+	}
+
 	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
@@ -161,7 +185,7 @@ func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(*pod) {
+	if !handler.opts.Filter.Matches(*pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
 		return
 	}
 
@@ -173,6 +197,10 @@ func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
 }
 
 func (handler *PodHandler) OnDelete(obj interface{}) {
+	if handler.opts.StartTime.After(time.Now()) {
+		return
+	}
+
 	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
@@ -180,7 +208,7 @@ func (handler *PodHandler) OnDelete(obj interface{}) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(*pod) {
+	if !handler.opts.Filter.Matches(*pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
 		return
 	}
 
