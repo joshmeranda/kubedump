@@ -144,9 +144,7 @@ func (handler *PodHandler) syncLogStreams() {
 	}
 }
 
-// todo: handle isAdd like other handlers
-
-func (handler *PodHandler) OnAdd(obj interface{}) {
+func (handler *PodHandler) handleFunc(obj interface{}, isAdd bool, isDelete bool) {
 	pod, ok := obj.(*apicorev1.Pod)
 
 	if !ok {
@@ -154,67 +152,41 @@ func (handler *PodHandler) OnAdd(obj interface{}) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(*pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
+	if !handler.opts.Filter.Matches(pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
 		return
 	}
 
-	linkResourceOwners(handler.opts.ParentPath, "Pod", pod)
+	if isAdd {
+		linkResourceOwners(handler.opts.ParentPath, "Pod", pod)
+
+		for _, container := range pod.Spec.Containers {
+			handler.workQueue.AddRateLimited(NewJob(func() {
+				handler.addContainerStream(pod, &container)
+			}))
+		}
+	} else if isDelete {
+		for _, container := range pod.Spec.Containers {
+			handler.workQueue.AddRateLimited(NewJob(func() {
+				handler.removeContainerStream(pod, &container)
+			}))
+		}
+	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
 		if err := dumpResourceDescription(handler.opts.ParentPath, "Pod", pod); err != nil {
 			logrus.WithFields(resourceFields(pod)).Errorf("could not dump pod description: %s", err)
 		}
 	}))
+}
 
-	for _, container := range pod.Spec.Containers {
-		handler.workQueue.AddRateLimited(NewJob(func() {
-			handler.addContainerStream(pod, &container)
-		}))
-	}
+func (handler *PodHandler) OnAdd(obj interface{}) {
+	handler.handleFunc(obj, true, false)
 }
 
 func (handler *PodHandler) OnUpdate(_ interface{}, obj interface{}) {
-	if handler.opts.StartTime.After(time.Now()) {
-		return
-	}
-
-	pod, ok := obj.(*apicorev1.Pod)
-
-	if !ok {
-		logrus.Errorf("could not coerce object to pod")
-		return
-	}
-
-	if !handler.opts.Filter.Matches(*pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
-		return
-	}
-
-	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(handler.opts.ParentPath, "Pod", pod); err != nil {
-			logrus.Errorf("could not dump pod '%s/%s': %s", pod.Namespace, pod.Name, err)
-		}
-	}))
+	handler.handleFunc(obj, false, false)
 }
 
 func (handler *PodHandler) OnDelete(obj interface{}) {
-	if handler.opts.StartTime.After(time.Now()) {
-		return
-	}
-
-	pod, ok := obj.(*apicorev1.Pod)
-
-	if !ok {
-		logrus.Errorf("could not coerce object to pod")
-		return
-	}
-
-	if !handler.opts.Filter.Matches(*pod) || handler.opts.StartTime.After(mostRecentPodConditionTime(pod.Status.Conditions)) {
-		return
-	}
-
-	for _, container := range pod.Spec.Containers {
-		handler.workQueue.AddRateLimited(NewJob(func() {
-			handler.removeContainerStream(pod, &container)
-		}))
-	}
+	handler.handleFunc(obj, false, true)
 }
