@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
-	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg/cmd"
@@ -51,7 +51,7 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 	}
 
 	for {
-		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apismetav1.GetOptions{})
+		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apimetav1.GetOptions{})
 
 		if err == nil {
 			break

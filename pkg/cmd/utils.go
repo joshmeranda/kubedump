@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
-	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -70,7 +70,7 @@ func serviceUrl(ctx *cli.Context, path string, queries map[string]string) (*url.
 		return nil, fmt.Errorf("could not creatte client: %w", err)
 	}
 
-	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apismeta.GetOptions{})
+	service, err := client.CoreV1().Services(kubedump.Namespace).Get(context.TODO(), kubedump.ServiceName, apimetav1.GetOptions{})
 
 	if err != nil {
 		return nil, fmt.Errorf("could not access service '%s': %w", kubedump.ServiceName, err)

@@ -6,10 +6,10 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	apisappsv1 "k8s.io/api/apps/v1"
-	apisbatchv1 "k8s.io/api/batch/v1"
-	apiscorev1 "k8s.io/api/core/v1"
-	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiappsv1 "k8s.io/api/apps/v1"
+	apibatchv1 "k8s.io/api/batch/v1"
+	apicorev1 "k8s.io/api/core/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
 	"os/exec"
@@ -89,29 +89,29 @@ func findGlobsIn(parent string, pattern glob.Glob) ([]string, error) {
 }
 
 // assertResourceFile will assert if the expected iven object matches the file as stored to the filesystem.
-func assertResourceFile(t *testing.T, kind string, fileName string, obj apismetav1.Object) {
-	var fsObj apismetav1.ObjectMeta
+func assertResourceFile(t *testing.T, kind string, fileName string, obj apimetav1.Object) {
+	var fsObj apimetav1.ObjectMeta
 	var err error
 
 	switch kind {
 	case "Pod":
-		var pod apiscorev1.Pod
+		var pod apicorev1.Pod
 		err = unmarshalFile(fileName, &pod)
 		fsObj = pod.ObjectMeta
 	case "Job":
-		var job apisbatchv1.Job
+		var job apibatchv1.Job
 		err = unmarshalFile(fileName, &job)
 		fsObj = job.ObjectMeta
 	case "ReplicaSet":
-		var set apisappsv1.ReplicaSet
+		var set apiappsv1.ReplicaSet
 		err = unmarshalFile(fileName, &set)
 		fsObj = set.ObjectMeta
 	case "Deployment":
-		var deployment apisappsv1.Deployment
+		var deployment apiappsv1.Deployment
 		err = unmarshalFile(fileName, &deployment)
 		fsObj = deployment.ObjectMeta
 	case "Service":
-		var service apiscorev1.Service
+		var service apicorev1.Service
 		err = unmarshalFile(fileName, &service)
 		fsObj = service.ObjectMeta
 	default:
@@ -141,8 +141,8 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 	}
 }
 
-var SamplePodSpec = apiscorev1.PodSpec{
-	Containers: []apiscorev1.Container{
+var SamplePodSpec = apicorev1.PodSpec{
+	Containers: []apicorev1.Container{
 		{
 			Name:            "test-container",
 			Image:           "alpine:latest",
@@ -153,22 +153,22 @@ var SamplePodSpec = apiscorev1.PodSpec{
 	RestartPolicy: "Never",
 }
 
-var SamplePod = apiscorev1.Pod{
-	ObjectMeta: apismetav1.ObjectMeta{
+var SamplePod = apicorev1.Pod{
+	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-pod",
 		Namespace: "default",
 	},
 	Spec: SamplePodSpec,
 }
 
-var SampleJob = apisbatchv1.Job{
-	ObjectMeta: apismetav1.ObjectMeta{
+var SampleJob = apibatchv1.Job{
+	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-job",
 		Namespace: "default",
 	},
-	Spec: apisbatchv1.JobSpec{
-		Template: apiscorev1.PodTemplateSpec{
-			ObjectMeta: apismetav1.ObjectMeta{
+	Spec: apibatchv1.JobSpec{
+		Template: apicorev1.PodTemplateSpec{
+			ObjectMeta: apimetav1.ObjectMeta{
 				Namespace: "default",
 			},
 			Spec: SamplePodSpec,
@@ -176,27 +176,27 @@ var SampleJob = apisbatchv1.Job{
 	},
 }
 
-var SampleReplicaSet = apisappsv1.ReplicaSet{
-	ObjectMeta: apismetav1.ObjectMeta{
+var SampleReplicaSet = apiappsv1.ReplicaSet{
+	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-replicaset",
 		Namespace: "default",
 	},
-	Spec: apisappsv1.ReplicaSetSpec{
-		Selector: &apismetav1.LabelSelector{
+	Spec: apiappsv1.ReplicaSetSpec{
+		Selector: &apimetav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app": "test-replicaset",
 			},
 			MatchExpressions: nil,
 		},
-		Template: apiscorev1.PodTemplateSpec{
-			ObjectMeta: apismetav1.ObjectMeta{
+		Template: apicorev1.PodTemplateSpec{
+			ObjectMeta: apimetav1.ObjectMeta{
 				Namespace: "default",
 				Labels: map[string]string{
 					"app": "test-replicaset",
 				},
 			},
-			Spec: apiscorev1.PodSpec{
-				Containers: []apiscorev1.Container{
+			Spec: apicorev1.PodSpec{
+				Containers: []apicorev1.Container{
 					{
 						Name:            "test-container",
 						Image:           "alpine:latest",
@@ -209,30 +209,30 @@ var SampleReplicaSet = apisappsv1.ReplicaSet{
 	},
 }
 
-var SampleDeployment = apisappsv1.Deployment{
-	ObjectMeta: apismetav1.ObjectMeta{
+var SampleDeployment = apiappsv1.Deployment{
+	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-deployment",
 		Namespace: "default",
 		Labels: map[string]string{
 			"app": "test-deployment",
 		},
 	},
-	Spec: apisappsv1.DeploymentSpec{
-		Selector: &apismetav1.LabelSelector{
+	Spec: apiappsv1.DeploymentSpec{
+		Selector: &apimetav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app": "test-deployment",
 			},
 			MatchExpressions: nil,
 		},
-		Template: apiscorev1.PodTemplateSpec{
-			ObjectMeta: apismetav1.ObjectMeta{
+		Template: apicorev1.PodTemplateSpec{
+			ObjectMeta: apimetav1.ObjectMeta{
 				Namespace: "default",
 				Labels: map[string]string{
 					"app": "test-deployment",
 				},
 			},
-			Spec: apiscorev1.PodSpec{
-				Containers: []apiscorev1.Container{
+			Spec: apicorev1.PodSpec{
+				Containers: []apicorev1.Container{
 					{
 						Name:            "test-container",
 						Image:           "alpine:latest",
@@ -245,8 +245,8 @@ var SampleDeployment = apisappsv1.Deployment{
 	},
 }
 
-var SampleServicePod = apiscorev1.Pod{
-	ObjectMeta: apismetav1.ObjectMeta{
+var SampleServicePod = apicorev1.Pod{
+	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-service-pod",
 		Namespace: "default",
 		Labels: map[string]string{
@@ -256,16 +256,16 @@ var SampleServicePod = apiscorev1.Pod{
 	Spec: SamplePodSpec,
 }
 
-var SampleService = apiscorev1.Service{
-	ObjectMeta: apismetav1.ObjectMeta{
+var SampleService = apicorev1.Service{
+	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-service",
 		Namespace: "default",
 		Labels: map[string]string{
 			"app": "test-service",
 		},
 	},
-	Spec: apiscorev1.ServiceSpec{
-		Ports: []apiscorev1.ServicePort{
+	Spec: apicorev1.ServiceSpec{
+		Ports: []apicorev1.ServicePort{
 			{
 				Protocol: "TCP",
 				Port:     80,
@@ -277,10 +277,10 @@ var SampleService = apiscorev1.Service{
 	},
 }
 
-func deleteOptions() apismetav1.DeleteOptions {
-	policy := apismetav1.DeletePropagationBackground
+func deleteOptions() apimetav1.DeleteOptions {
+	policy := apimetav1.DeletePropagationBackground
 
-	return apismetav1.DeleteOptions{
+	return apimetav1.DeleteOptions{
 		PropagationPolicy: &policy,
 	}
 }
@@ -289,7 +289,7 @@ func deleteOptions() apismetav1.DeleteOptions {
 func createResources(t *testing.T, client kubernetes.Interface) (func(), error) {
 	var aggregatedDefers []func() error
 
-	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apismetav1.CreateOptions{})
+	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.CoreV1().Pods("default").Delete(context.TODO(), SamplePod.Name, deleteOptions())
 	})
@@ -297,7 +297,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		t.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
 	}
 
-	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apismetav1.CreateOptions{})
+	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.BatchV1().Jobs("default").Delete(context.TODO(), SampleJob.Name, deleteOptions())
 	})
@@ -305,7 +305,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		t.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
 	}
 
-	_, err = client.AppsV1().ReplicaSets("default").Create(context.TODO(), &SampleReplicaSet, apismetav1.CreateOptions{})
+	_, err = client.AppsV1().ReplicaSets("default").Create(context.TODO(), &SampleReplicaSet, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.AppsV1().ReplicaSets("default").Delete(context.TODO(), SampleReplicaSet.Name, deleteOptions())
 	})
@@ -313,7 +313,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		t.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
 	}
 
-	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apismetav1.CreateOptions{})
+	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.AppsV1().Deployments("default").Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
 	})
@@ -321,7 +321,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
 	}
 
-	_, err = client.CoreV1().Pods("default").Create(context.TODO(), &SampleServicePod, apismetav1.CreateOptions{})
+	_, err = client.CoreV1().Pods("default").Create(context.TODO(), &SampleServicePod, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.CoreV1().Pods("default").Delete(context.TODO(), SampleServicePod.Name, deleteOptions())
 	})
@@ -329,7 +329,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		t.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
 	}
 
-	_, err = client.CoreV1().Services("default").Create(context.TODO(), &SampleService, apismetav1.CreateOptions{})
+	_, err = client.CoreV1().Services("default").Create(context.TODO(), &SampleService, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.CoreV1().Services("default").Delete(context.TODO(), SampleService.Name, deleteOptions())
 	})

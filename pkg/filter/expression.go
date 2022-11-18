@@ -5,11 +5,11 @@ import (
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // todo: this will not work recursively
-func checkOwners(expr ResourceExpression, owners []apismetav1.OwnerReference, parentKind string, namespace string) bool {
+func checkOwners(expr ResourceExpression, owners []apimetav1.OwnerReference, parentKind string, namespace string) bool {
 	if wildcard.MatchSimple(expr.NamespacePattern(), namespace) {
 		for _, owner := range owners {
 			if owner.Kind == parentKind && wildcard.MatchSimple(expr.NamePattern(), owner.Name) {
@@ -264,7 +264,7 @@ func (expr namespaceExpression) Matches(v interface{}) bool {
 	}
 }
 
-func (expr namespaceExpression) checkObject(obj apismetav1.Object) bool {
+func (expr namespaceExpression) checkObject(obj apimetav1.Object) bool {
 	if wildcard.MatchSimple(expr.NamespacePattern, obj.GetNamespace()) {
 		return true
 	} else {

@@ -3,8 +3,8 @@ package tests
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	apiscorev1 "k8s.io/api/core/v1"
-	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apicorev1 "k8s.io/api/core/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -56,12 +56,11 @@ func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, 
 	readyChan := make(chan struct{})
 	wait.Until(func() {
 		// todo: we should add a NodeName field to deployers, this will only work for kind as of now
-		node, err := client.CoreV1().Nodes().Get(context.TODO(), d.NodeName(), apismetav1.GetOptions{})
+		node, err := client.CoreV1().Nodes().Get(context.TODO(), d.NodeName(), apimetav1.GetOptions{})
 
-		//if _, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apismetav1.GetOptions{}); err == nil {
 		if err == nil {
 			for _, condition := range node.Status.Conditions {
-				if condition.Type == apiscorev1.NodeReady && condition.Status == apiscorev1.ConditionTrue {
+				if condition.Type == apicorev1.NodeReady && condition.Status == apicorev1.ConditionTrue {
 					close(readyChan)
 				}
 			}

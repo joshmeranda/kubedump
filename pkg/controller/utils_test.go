@@ -2,13 +2,13 @@ package controller
 
 import (
 	"github.com/stretchr/testify/assert"
-	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
 func TestResourceDirPathNamespaced(t *testing.T) {
 	expected := "parent/test/pod/some-pod"
-	actual := resourceDirPath("parent", "Pod", &apismetav1.ObjectMeta{
+	actual := resourceDirPath("parent", "Pod", &apimetav1.ObjectMeta{
 		Name:      "some-pod",
 		Namespace: "test",
 	})
@@ -16,10 +16,10 @@ func TestResourceDirPathNamespaced(t *testing.T) {
 	assert.Equal(t, expected, actual)
 
 	// the owner should be ignored
-	actual = resourceDirPath("parent", "Pod", &apismetav1.ObjectMeta{
+	actual = resourceDirPath("parent", "Pod", &apimetav1.ObjectMeta{
 		Name:      "some-pod",
 		Namespace: "test",
-		OwnerReferences: []apismetav1.OwnerReference{
+		OwnerReferences: []apimetav1.OwnerReference{
 			{
 				Name: "owner-job",
 				Kind: "Job",
@@ -30,7 +30,7 @@ func TestResourceDirPathNamespaced(t *testing.T) {
 	assert.Equal(t, expected, actual)
 
 	expected = "parent/test/job/some-job"
-	actual = resourceDirPath("parent", "Job", &apismetav1.ObjectMeta{
+	actual = resourceDirPath("parent", "Job", &apimetav1.ObjectMeta{
 		Name:      "some-job",
 		Namespace: "test",
 	})
@@ -40,7 +40,7 @@ func TestResourceDirPathNamespaced(t *testing.T) {
 
 func TestResourceDirPathNonNamespaced(t *testing.T) {
 	expected := "parent/node/some-node"
-	actual := resourceDirPath("parent", "Node", &apismetav1.ObjectMeta{
+	actual := resourceDirPath("parent", "Node", &apimetav1.ObjectMeta{
 		Name: "some-node",
 	})
 

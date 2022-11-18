@@ -5,7 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path"
 	"path/filepath"
@@ -64,7 +64,7 @@ func isNamespaced(resourceKind string) bool {
 	}
 }
 
-func resourceDirPath(parent string, objKind string, obj apismetav1.Object) string {
+func resourceDirPath(parent string, objKind string, obj apimetav1.Object) string {
 	if isNamespaced(objKind) {
 		return path.Join(parent, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
 	} else {
@@ -72,12 +72,12 @@ func resourceDirPath(parent string, objKind string, obj apismetav1.Object) strin
 	}
 }
 
-func resourceFilePath(parent string, objKind string, obj apismetav1.Object, fileName string) string {
+func resourceFilePath(parent string, objKind string, obj apimetav1.Object, fileName string) string {
 	return path.Join(resourceDirPath(parent, objKind, obj), fileName)
 }
 
-func linkToOwner(parent string, owner apismetav1.OwnerReference, objKind string, obj apismetav1.Object) error {
-	ownerPath := resourceDirPath(parent, owner.Kind, &apismetav1.ObjectMeta{
+func linkToOwner(parent string, owner apimetav1.OwnerReference, objKind string, obj apimetav1.Object) error {
+	ownerPath := resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
@@ -96,7 +96,7 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, objKind string,
 		return err
 	}
 
-	symlinkPath := path.Join(resourceDirPath(parent, owner.Kind, &apismetav1.ObjectMeta{
+	symlinkPath := path.Join(resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
 		Name: owner.Name,
 
 		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
@@ -114,7 +114,7 @@ func linkToOwner(parent string, owner apismetav1.OwnerReference, objKind string,
 	return nil
 }
 
-func linkResourceOwners(parent string, kind string, obj apismetav1.Object) {
+func linkResourceOwners(parent string, kind string, obj apimetav1.Object) {
 	for _, owner := range obj.GetOwnerReferences() {
 		if err := linkToOwner(parent, owner, kind, obj); err != nil {
 			logrus.Errorf("could not link %s to owners '%s/%s/%s'", kind, owner.Kind, obj.GetNamespace(), owner.Name)
@@ -158,7 +158,7 @@ func resourceFields(objs ...interface{}) logrus.Fields {
 	return fields
 }
 
-func dumpResourceDescription(parentPath string, objKind string, obj apismetav1.Object) error {
+func dumpResourceDescription(parentPath string, objKind string, obj apimetav1.Object) error {
 	yamlPath := resourceFilePath(parentPath, objKind, obj, obj.GetName()+".yaml")
 
 	if exists(yamlPath) {

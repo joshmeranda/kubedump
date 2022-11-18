@@ -5,7 +5,7 @@ import (
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
@@ -65,7 +65,7 @@ func TestOr(t *testing.T) {
 
 func TestCheckOwners(t *testing.T) {
 	type Entry struct {
-		Owners      []apismeta.OwnerReference
+		Owners      []apimeta.OwnerReference
 		ShouldMatch bool
 	}
 
@@ -76,7 +76,7 @@ func TestCheckOwners(t *testing.T) {
 
 	entries := []Entry{
 		{
-			Owners: []apismeta.OwnerReference{
+			Owners: []apimeta.OwnerReference{
 				{
 					Kind: "Job",
 					Name: "test-job",
@@ -85,7 +85,7 @@ func TestCheckOwners(t *testing.T) {
 			ShouldMatch: true,
 		},
 		{
-			Owners: []apismeta.OwnerReference{
+			Owners: []apimeta.OwnerReference{
 				{
 					Kind: "Job",
 					Name: "test-job-postfix",
@@ -118,7 +118,7 @@ func TestPod(t *testing.T) {
 	cases := []Entry{
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "default",
 				},
@@ -127,7 +127,7 @@ func TestPod(t *testing.T) {
 		},
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "non-default",
 				},
@@ -136,7 +136,7 @@ func TestPod(t *testing.T) {
 		},
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-pod-postfix",
 					Namespace: "default",
 				},
@@ -145,7 +145,7 @@ func TestPod(t *testing.T) {
 		},
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-pod-postfix",
 					Namespace: "non-default",
 				},
@@ -179,7 +179,7 @@ func TestJob(t *testing.T) {
 	cases := []Entry{
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-job",
 					Namespace: "default",
 				},
@@ -188,7 +188,7 @@ func TestJob(t *testing.T) {
 		},
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-job",
 					Namespace: "non-default",
 				},
@@ -197,7 +197,7 @@ func TestJob(t *testing.T) {
 		},
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-job-postfix",
 					Namespace: "default",
 				},
@@ -206,7 +206,7 @@ func TestJob(t *testing.T) {
 		},
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-job-postfix",
 					Namespace: "non-default",
 				},
@@ -240,7 +240,7 @@ func TestReplicaset(t *testing.T) {
 	cases := []Entry{
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-replicaset",
 					Namespace: "default",
 				},
@@ -249,7 +249,7 @@ func TestReplicaset(t *testing.T) {
 		},
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-replicaset",
 					Namespace: "non-default",
 				},
@@ -258,7 +258,7 @@ func TestReplicaset(t *testing.T) {
 		},
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-replicaset-postfix",
 					Namespace: "default",
 				},
@@ -267,7 +267,7 @@ func TestReplicaset(t *testing.T) {
 		},
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-replicaset-postfix",
 					Namespace: "non-default",
 				},
@@ -301,7 +301,7 @@ func TestDeployment(t *testing.T) {
 	cases := []Entry{
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-deployment",
 					Namespace: "default",
 				},
@@ -310,7 +310,7 @@ func TestDeployment(t *testing.T) {
 		},
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-deployment",
 					Namespace: "non-default",
 				},
@@ -319,7 +319,7 @@ func TestDeployment(t *testing.T) {
 		},
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-deployment-postfix",
 					Namespace: "default",
 				},
@@ -328,7 +328,7 @@ func TestDeployment(t *testing.T) {
 		},
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-deployment-postfix",
 					Namespace: "non-default",
 				},
@@ -362,7 +362,7 @@ func TestService(t *testing.T) {
 	cases := []Entry{
 		{
 			Service: apicorev1.Service{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimeta.ObjectMeta{
 					Name:      "some-service",
 					Namespace: "default",
 				},

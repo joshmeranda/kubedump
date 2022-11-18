@@ -10,7 +10,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
-	apismeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -270,7 +270,7 @@ func Remove(ctx *cli.Context) error {
 
 	logrus.Infof("uninstalled release '%s': %s", kubedump.HelmReleaseName, response.Info)
 
-	if err := kubeClient.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apismeta.DeleteOptions{}); err != nil {
+	if err := kubeClient.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apimeta.DeleteOptions{}); err != nil {
 		return fmt.Errorf("could not delete Namespace '%s': %w", kubedump.Namespace, err)
 	}
 
