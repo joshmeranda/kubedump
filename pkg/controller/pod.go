@@ -15,7 +15,8 @@ import (
 
 func mostRecentPodConditionTime(conditions []apicorev1.PodCondition) time.Time {
 	if len(conditions) == 0 {
-		logrus.Warnf("encountered job with no conditions")
+		// if there are no conditions we'd rather take it than not
+		return time.Now().UTC()
 	}
 
 	var t time.Time
