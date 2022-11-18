@@ -58,15 +58,18 @@ help:
 
 all: docker charts kubedump
 
-kubedump: bin/kubedump go.mod
+kubedump: generate bin/kubedump go.mod
 
 bin/kubedump: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
-kubedump-server: bin/kubedump-server
+kubedump-server: generate bin/kubedump-server go.mod
 
 bin/kubedump-server: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
+
+generate:
+	go generate ./pkg/controller
 
 # # # # # # # # # # # # # # # # # # # #
 # Build docker images                 #

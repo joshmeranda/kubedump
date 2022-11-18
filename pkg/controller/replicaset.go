@@ -1,3 +1,5 @@
+// The code in this file was generated using ./pkg/codegen, do not modify it directly
+
 package controller
 
 import (
@@ -7,8 +9,7 @@ import (
 	"time"
 )
 
-// we have got to be able to generate this
-func mostRecentReplicasetConditionTime(conditions []apiappsv1.ReplicaSetCondition) time.Time {
+func mostRecentReplicaSetConditionTime(conditions []apiappsv1.ReplicaSetCondition) time.Time {
 	if len(conditions) == 0 {
 		// if there are no conditions we'd rather take it than not
 		return time.Now().UTC()
@@ -26,50 +27,50 @@ func mostRecentReplicasetConditionTime(conditions []apiappsv1.ReplicaSetConditio
 	return t
 }
 
-type ReplicasetHandler struct {
+type ReplicaSetHandler struct {
 	// will be inherited from parent controller
 	opts      Options
 	workQueue workqueue.RateLimitingInterface
 }
 
-func NewReplicasetHandler(opts Options, workQueue workqueue.RateLimitingInterface) *ReplicasetHandler {
-	return &ReplicasetHandler{
+func NewReplicaSetHandler(opts Options, workQueue workqueue.RateLimitingInterface) *ReplicaSetHandler {
+	return &ReplicaSetHandler{
 		opts:      opts,
 		workQueue: workQueue,
 	}
 }
 
-func (handler *ReplicasetHandler) handleFunc(obj interface{}, isAdd bool) {
-	set, ok := obj.(*apiappsv1.ReplicaSet)
+func (handler *ReplicaSetHandler) handleFunc(obj interface{}, isAdd bool) {
+	resource, ok := obj.(*apiappsv1.ReplicaSet)
 
 	if !ok {
-		logrus.Errorf("could not coerce object to replicaset")
+		logrus.Errorf("could not coerce object to ReplicaSet")
 		return
 	}
 
-	if !handler.opts.Filter.Matches(set) || handler.opts.StartTime.After(mostRecentReplicasetConditionTime(set.Status.Conditions)) {
+	if !handler.opts.Filter.Matches(resource) || handler.opts.StartTime.After(mostRecentReplicaSetConditionTime(resource.Status.Conditions)) {
 		return
 	}
 
 	if isAdd {
-		linkResourceOwners(handler.opts.ParentPath, "ReplicaSet", set)
+		linkResourceOwners(handler.opts.ParentPath, "ReplicaSet", resource)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(handler.opts.ParentPath, "ReplicaSet", set); err != nil {
-			logrus.WithFields(resourceFields(set)).Errorf("could not dump job description: %s", err)
+		if err := dumpResourceDescription(handler.opts.ParentPath, "ReplicaSet", resource); err != nil {
+			logrus.WithFields(resourceFields(resource)).Errorf("could not dump ReplicaSet description: %s", err)
 		}
 	}))
 }
 
-func (handler *ReplicasetHandler) OnAdd(obj interface{}) {
+func (handler *ReplicaSetHandler) OnAdd(obj interface{}) {
 	handler.handleFunc(obj, true)
 }
 
-func (handler *ReplicasetHandler) OnUpdate(_ interface{}, obj interface{}) {
+func (handler *ReplicaSetHandler) OnUpdate(_ interface{}, obj interface{}) {
 	handler.handleFunc(obj, false)
 }
 
-func (handler *ReplicasetHandler) OnDelete(obj interface{}) {
+func (handler *ReplicaSetHandler) OnDelete(obj interface{}) {
 	handler.handleFunc(obj, false)
 }

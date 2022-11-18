@@ -1,3 +1,5 @@
+// The code in this file was generated using ./pkg/codegen, do not modify it directly
+
 package controller
 
 import (
@@ -26,6 +28,7 @@ func mostRecentDeploymentConditionTime(conditions []apiappsv1.DeploymentConditio
 }
 
 type DeploymentHandler struct {
+	// will be inherited from parent controller
 	opts      Options
 	workQueue workqueue.RateLimitingInterface
 }
@@ -38,24 +41,24 @@ func NewDeploymentHandler(opts Options, workQueue workqueue.RateLimitingInterfac
 }
 
 func (handler *DeploymentHandler) handleFunc(obj interface{}, isAdd bool) {
-	deployment, ok := obj.(*apiappsv1.Deployment)
+	resource, ok := obj.(*apiappsv1.Deployment)
 
 	if !ok {
-		logrus.Errorf("could not coerse object to deployment")
+		logrus.Errorf("could not coerce object to Deployment")
 		return
 	}
 
-	if !handler.opts.Filter.Matches(deployment) || handler.opts.StartTime.After(mostRecentDeploymentConditionTime(deployment.Status.Conditions)) {
+	if !handler.opts.Filter.Matches(resource) || handler.opts.StartTime.After(mostRecentDeploymentConditionTime(resource.Status.Conditions)) {
 		return
 	}
 
 	if isAdd {
-		linkResourceOwners(handler.opts.ParentPath, "Deployment", deployment)
+		linkResourceOwners(handler.opts.ParentPath, "Deployment", resource)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(handler.opts.ParentPath, "Deployment", deployment); err != nil {
-			logrus.WithFields(resourceFields(deployment)).Errorf("could not dump deployment description: %s", err)
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Deployment", resource); err != nil {
+			logrus.WithFields(resourceFields(resource)).Errorf("could not dump Deployment description: %s", err)
 		}
 	}))
 }

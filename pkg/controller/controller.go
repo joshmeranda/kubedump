@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+//go:generate go run ../codegen apiappsv1.ReplicaSet k8s.io/api/apps/v1
+//go:generate go run ../codegen apiappsv1.Deployment k8s.io/api/apps/v1
+//go:generate go run ../codegen apibatchv1.Job k8s.io/api/batch/v1
+
 type Job struct {
 	id uuid.UUID
 	fn *func()
@@ -84,7 +88,7 @@ func NewController(
 
 	jobInformer.Informer().AddEventHandler(NewJobHandler(opts, controller.workQueue))
 
-	replicasetInformer.Informer().AddEventHandler(NewReplicasetHandler(opts, controller.workQueue))
+	replicasetInformer.Informer().AddEventHandler(NewReplicaSetHandler(opts, controller.workQueue))
 	deploymentInformer.Informer().AddEventHandler(NewDeploymentHandler(opts, controller.workQueue))
 
 	return controller
