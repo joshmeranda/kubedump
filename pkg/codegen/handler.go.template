@@ -4,12 +4,12 @@ package controller
 
 import (
 	"github.com/sirupsen/logrus"
-	{{importPath}}
 	"k8s.io/client-go/util/workqueue"
 	"time"
+	{{additionalImports}}
 )
 
-func mostRecent{{typeName}}ConditionTime(conditions []{{typePath}}Condition) time.Time {
+func mostRecent{{typeName}}ConditionTime(conditions []{{conditionTypePath}}) time.Time {
 	if len(conditions) == 0 {
 		// if there are no conditions we'd rather take it than not
 		return time.Now().UTC()

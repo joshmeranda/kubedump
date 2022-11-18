@@ -112,6 +112,3 @@ mostly-clean:
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin
-
-fmt:
-	${GO_FMT} ./cmd/kubedump ./cmd/kubedump-server ./pkg ./pkg/controller ./pkg/filter
