@@ -4,7 +4,26 @@ import (
 	"github.com/sirupsen/logrus"
 	apiappsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/util/workqueue"
+	"time"
 )
+
+// we have got to be able to generate this
+func mostRecentReplicasetConditionTime(conditions []apiappsv1.ReplicaSetCondition) time.Time {
+	if len(conditions) == 0 {
+		logrus.Warnf("encountered job with no conditions")
+	}
+
+	var t time.Time
+
+	for _, condition := range conditions {
+
+		if utc := condition.LastTransitionTime.UTC(); utc.After(t) {
+			t = utc
+		}
+	}
+
+	return t
+}
 
 type ReplicasetHandler struct {
 	// will be inherited from parent controller
@@ -27,7 +46,7 @@ func (handler *ReplicasetHandler) handleFunc(obj interface{}, isAdd bool) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(set) {
+	if !handler.opts.Filter.Matches(set) || handler.opts.StartTime.After(mostRecentReplicasetConditionTime(set.Status.Conditions)) {
 		return
 	}
 

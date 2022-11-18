@@ -28,6 +28,7 @@ func NewJob(fn func()) Job {
 type Options struct {
 	ParentPath string
 	Filter     filter.Expression
+	StartTime  time.Time
 }
 
 type Controller struct {

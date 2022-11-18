@@ -4,7 +4,25 @@ import (
 	"github.com/sirupsen/logrus"
 	apibatchv1 "k8s.io/api/batch/v1"
 	"k8s.io/client-go/util/workqueue"
+	"time"
 )
+
+func mostRecentJobConditionTime(conditions []apibatchv1.JobCondition) time.Time {
+	if len(conditions) == 0 {
+		logrus.Warnf("encountered job with no conditions")
+	}
+
+	var t time.Time
+
+	for _, condition := range conditions {
+
+		if utc := condition.LastTransitionTime.UTC(); utc.After(t) {
+			t = utc
+		}
+	}
+
+	return t
+}
 
 type JobHandler struct {
 	// will be inherited from parent controller
@@ -27,7 +45,7 @@ func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(job) {
+	if !handler.opts.Filter.Matches(job) || handler.opts.StartTime.After(mostRecentJobConditionTime(job.Status.Conditions)) {
 		return
 	}
 

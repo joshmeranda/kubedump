@@ -3,8 +3,27 @@ package controller
 import (
 	"github.com/sirupsen/logrus"
 	apicorev1 "k8s.io/api/core/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
+	"time"
 )
+
+func mostRecentConditionTime(conditions []apimetav1.Condition) time.Time {
+	if len(conditions) == 0 {
+		logrus.Warnf("encountered job with no conditions")
+	}
+
+	var t time.Time
+
+	for _, condition := range conditions {
+
+		if utc := condition.LastTransitionTime.UTC(); utc.After(t) {
+			t = utc
+		}
+	}
+
+	return t
+}
 
 type ServiceHandler struct {
 	// will be inherited from parent controller
@@ -27,7 +46,7 @@ func (handler *ServiceHandler) handleFunc(obj interface{}, isAdd bool) {
 		return
 	}
 
-	if !handler.opts.Filter.Matches(service) {
+	if !handler.opts.Filter.Matches(service) || handler.opts.StartTime.After(mostRecentConditionTime(service.Status.Conditions)) {
 		return
 	}
 

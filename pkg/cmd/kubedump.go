@@ -42,6 +42,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	opts := controller.Options{
 		ParentPath: parentPath,
 		Filter:     f,
+		StartTime:  time.Now().UTC(),
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))

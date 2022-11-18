@@ -33,11 +33,12 @@ func NewEventHandler(opts Options, workQueue workqueue.RateLimitingInterface, po
 	}
 }
 
+// todo: duplicated code
 func (handler *EventHandler) handlePodEvent(podEvent *eventsv1.Event) error {
 	pod, err := handler.podInformer.Lister().Pods(podEvent.Regarding.Namespace).Get(podEvent.Regarding.Name)
 
 	if err != nil {
-		return fmt.Errorf("could not get pod from event: %w", err)
+		return fmt.Errorf("scould not get pod from event: %w", err)
 	}
 
 	if !handler.opts.Filter.Matches(pod) {
@@ -106,6 +107,10 @@ func (handler *EventHandler) handleFunc(obj interface{}) {
 
 	if !ok {
 		logrus.Errorf("could not coerce object to event")
+		return
+	}
+
+	if event.EventTime.Time.Before(handler.opts.StartTime) {
 		return
 	}
 
