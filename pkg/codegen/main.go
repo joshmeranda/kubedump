@@ -6,17 +6,20 @@ import (
 	"os"
 	"path"
 	"strings"
+	"text/template"
 )
 
 const (
-	handlerTemplatePath = "../codegen/handler.go.template"
+	handlerTemplatePath = "../codegen/handler.tpl"
 	handlerDirPath      = "../controller"
-
-	typeNameTemplate          = "{{typeName}}"
-	typePathTemplate          = "{{typePath}}"
-	additionalImportsTemplate = "{{additionalImports}}"
-	conditionTypePathTemplate = "{{conditionTypePath}}"
 )
+
+type Options struct {
+	TypePath          string
+	TypeName          string
+	ConditionTypePath string
+	AdditionalImports string
+}
 
 func getConditionType(typePath string, ctx *cli.Context) string {
 	if ctx.IsSet("condition-type") {
@@ -36,22 +39,27 @@ func getTypeName(typePath string) string {
 
 func codegen(ctx *cli.Context) error {
 	typePath := ctx.String("type-path")
-	typeName := getTypeName(typePath)
-	conditionTypePath := getConditionType(typePath, ctx)
-	additionalImports := strings.Join(ctx.StringSlice("additional-imports"), "\n\t")
 
-	rawTemplate, err := os.ReadFile(handlerTemplatePath)
-	if err != nil {
-		return fmt.Errorf("could not read template at '%s': %w", handlerTemplatePath, err)
+	opts := Options{
+		TypePath:          typePath,
+		TypeName:          getTypeName(typePath),
+		ConditionTypePath: getConditionType(typePath, ctx),
+		AdditionalImports: strings.Join(ctx.StringSlice("additional-imports"), "\n\t"),
 	}
 
-	data := strings.ReplaceAll(string(rawTemplate), typePathTemplate, typePath)
-	data = strings.ReplaceAll(data, typeNameTemplate, typeName)
-	data = strings.ReplaceAll(data, conditionTypePathTemplate, conditionTypePath)
-	data = strings.ReplaceAll(data, additionalImportsTemplate, additionalImports)
-	handlerPath := path.Join(handlerDirPath, fmt.Sprintf("%s.go", strings.ToLower(typeName)))
+	tpl, err := template.ParseFiles(handlerTemplatePath)
+	if err != nil {
+		return fmt.Errorf("could not parse template at '%s': %w", handlerTemplatePath, err)
+	}
 
-	if err := os.WriteFile(handlerPath, []byte(data), 0644); err != nil {
+	handlerPath := path.Join(handlerDirPath, fmt.Sprintf("%s.go", strings.ToLower(opts.TypeName)))
+	builder := strings.Builder{}
+
+	if err := tpl.Execute(&builder, opts); err != nil {
+		return fmt.Errorf("could not execute template: %w", err)
+	}
+
+	if err := os.WriteFile(handlerPath, []byte(builder.String()), 0644); err != nil {
 		return fmt.Errorf("error writing to file '%s': %w", handlerPath, err)
 	}
 
