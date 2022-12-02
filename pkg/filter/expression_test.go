@@ -5,67 +5,67 @@ import (
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	apimeta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
 func TestNot(t *testing.T) {
 	assert.True(t, notExpression{
-		Inner: falsyExpression{},
+		inner: falsyExpression{},
 	}.Matches(0))
 
 	assert.False(t, notExpression{
-		Inner: truthyExpression{},
+		inner: truthyExpression{},
 	}.Matches(0))
 }
 
 func TestAnd(t *testing.T) {
 	assert.True(t, andExpression{
-		Left:  truthyExpression{},
-		Right: truthyExpression{},
+		left:  truthyExpression{},
+		right: truthyExpression{},
 	}.Matches(0))
 
 	assert.False(t, andExpression{
-		Left:  falsyExpression{},
-		Right: truthyExpression{},
+		left:  falsyExpression{},
+		right: truthyExpression{},
 	}.Matches(0))
 
 	assert.False(t, andExpression{
-		Left:  truthyExpression{},
-		Right: falsyExpression{},
+		left:  truthyExpression{},
+		right: falsyExpression{},
 	}.Matches(0))
 
 	assert.False(t, andExpression{
-		Left:  falsyExpression{},
-		Right: falsyExpression{},
+		left:  falsyExpression{},
+		right: falsyExpression{},
 	}.Matches(0))
 }
 
 func TestOr(t *testing.T) {
 	assert.True(t, orExpression{
-		Left:  truthyExpression{},
-		Right: truthyExpression{},
+		left:  truthyExpression{},
+		right: truthyExpression{},
 	}.Matches(0))
 
 	assert.True(t, orExpression{
-		Left:  falsyExpression{},
-		Right: truthyExpression{},
+		left:  falsyExpression{},
+		right: truthyExpression{},
 	}.Matches(0))
 
 	assert.True(t, orExpression{
-		Left:  truthyExpression{},
-		Right: falsyExpression{},
+		left:  truthyExpression{},
+		right: falsyExpression{},
 	}.Matches(0))
 
 	assert.False(t, orExpression{
-		Left:  falsyExpression{},
-		Right: falsyExpression{},
+		left:  falsyExpression{},
+		right: falsyExpression{},
 	}.Matches(0))
 }
 
 func TestCheckOwners(t *testing.T) {
 	type Entry struct {
-		Owners      []apimeta.OwnerReference
+		Owners      []apimetav1.OwnerReference
 		ShouldMatch bool
 	}
 
@@ -76,7 +76,7 @@ func TestCheckOwners(t *testing.T) {
 
 	entries := []Entry{
 		{
-			Owners: []apimeta.OwnerReference{
+			Owners: []apimetav1.OwnerReference{
 				{
 					Kind: "Job",
 					Name: "test-job",
@@ -85,7 +85,7 @@ func TestCheckOwners(t *testing.T) {
 			ShouldMatch: true,
 		},
 		{
-			Owners: []apimeta.OwnerReference{
+			Owners: []apimetav1.OwnerReference{
 				{
 					Kind: "Job",
 					Name: "test-job-postfix",
@@ -118,7 +118,7 @@ func TestPod(t *testing.T) {
 	cases := []Entry{
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "default",
 				},
@@ -127,7 +127,7 @@ func TestPod(t *testing.T) {
 		},
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "non-default",
 				},
@@ -136,7 +136,7 @@ func TestPod(t *testing.T) {
 		},
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-pod-postfix",
 					Namespace: "default",
 				},
@@ -145,7 +145,7 @@ func TestPod(t *testing.T) {
 		},
 		{
 			Pod: apicorev1.Pod{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-pod-postfix",
 					Namespace: "non-default",
 				},
@@ -179,7 +179,7 @@ func TestJob(t *testing.T) {
 	cases := []Entry{
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-job",
 					Namespace: "default",
 				},
@@ -188,7 +188,7 @@ func TestJob(t *testing.T) {
 		},
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-job",
 					Namespace: "non-default",
 				},
@@ -197,7 +197,7 @@ func TestJob(t *testing.T) {
 		},
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-job-postfix",
 					Namespace: "default",
 				},
@@ -206,7 +206,7 @@ func TestJob(t *testing.T) {
 		},
 		{
 			Job: apibatchv1.Job{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-job-postfix",
 					Namespace: "non-default",
 				},
@@ -240,7 +240,7 @@ func TestReplicaset(t *testing.T) {
 	cases := []Entry{
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-replicaset",
 					Namespace: "default",
 				},
@@ -249,7 +249,7 @@ func TestReplicaset(t *testing.T) {
 		},
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-replicaset",
 					Namespace: "non-default",
 				},
@@ -258,7 +258,7 @@ func TestReplicaset(t *testing.T) {
 		},
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-replicaset-postfix",
 					Namespace: "default",
 				},
@@ -267,7 +267,7 @@ func TestReplicaset(t *testing.T) {
 		},
 		{
 			Set: apiappsv1.ReplicaSet{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-replicaset-postfix",
 					Namespace: "non-default",
 				},
@@ -301,7 +301,7 @@ func TestDeployment(t *testing.T) {
 	cases := []Entry{
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-deployment",
 					Namespace: "default",
 				},
@@ -310,7 +310,7 @@ func TestDeployment(t *testing.T) {
 		},
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-deployment",
 					Namespace: "non-default",
 				},
@@ -319,7 +319,7 @@ func TestDeployment(t *testing.T) {
 		},
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-deployment-postfix",
 					Namespace: "default",
 				},
@@ -328,7 +328,7 @@ func TestDeployment(t *testing.T) {
 		},
 		{
 			Deployment: apiappsv1.Deployment{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-deployment-postfix",
 					Namespace: "non-default",
 				},
@@ -362,7 +362,7 @@ func TestService(t *testing.T) {
 	cases := []Entry{
 		{
 			Service: apicorev1.Service{
-				ObjectMeta: apimeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-service",
 					Namespace: "default",
 				},
@@ -371,7 +371,7 @@ func TestService(t *testing.T) {
 		},
 		{
 			Service: apicorev1.Service{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-srvice",
 					Namespace: "non-default",
 				},
@@ -380,7 +380,7 @@ func TestService(t *testing.T) {
 		},
 		{
 			Service: apicorev1.Service{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-service-postfix",
 					Namespace: "default",
 				},
@@ -389,7 +389,7 @@ func TestService(t *testing.T) {
 		},
 		{
 			Service: apicorev1.Service{
-				ObjectMeta: apismeta.ObjectMeta{
+				ObjectMeta: apimetav1.ObjectMeta{
 					Name:      "some-service-postfix",
 					Namespace: "non-default",
 				},
@@ -411,35 +411,35 @@ func TestService(t *testing.T) {
 
 func TestNamespace(t *testing.T) {
 	expr := namespaceExpression{
-		NamespacePattern: "*-ns",
+		namespacePattern: "*-ns",
 	}
 
 	assert.True(t, expr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Namespace: "sample-ns",
 		},
 	}))
 
 	assert.False(t, expr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Namespace: "sample-namespace",
 		},
 	}))
 
 	assert.True(t, expr.Matches(apibatchv1.Job{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Namespace: "sample-ns",
 		},
 	}))
 
 	assert.True(t, expr.Matches(apiappsv1.ReplicaSet{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Namespace: "sample-ns",
 		},
 	}))
 
 	assert.True(t, expr.Matches(apiappsv1.Deployment{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Namespace: "sample-ns",
 		},
 	}))
@@ -463,13 +463,13 @@ func TestLabel(t *testing.T) {
 	emptyExpr := labelExpression{}
 
 	assert.True(t, emptyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{},
 		},
 	}))
 
 	assert.True(t, emptyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				"anything": "anything",
 			},
@@ -494,7 +494,7 @@ func TestLabel(t *testing.T) {
 	}
 
 	assert.True(t, simpleExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key: simple.Value,
 			},
@@ -502,7 +502,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.True(t, simpleExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key: simple.Value,
 				"extra":    "extra",
@@ -511,7 +511,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.False(t, simpleExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key: "other value",
 			},
@@ -519,7 +519,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.False(t, simpleExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				"other key": simple.Value,
 			},
@@ -527,7 +527,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.True(t, wcKeyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				wcKey.Key: wcKey.Value,
 			},
@@ -535,7 +535,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.False(t, wcKeyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				wcKey.Key: "other value",
 			},
@@ -543,7 +543,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.False(t, wcKeyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				"other key": wcKey.Value,
 			},
@@ -551,7 +551,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.True(t, wcValueExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				wcValue.Key: wcValue.Value,
 			},
@@ -559,7 +559,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.False(t, wcValueExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				wcValue.Key: "other value",
 			},
@@ -567,7 +567,7 @@ func TestLabel(t *testing.T) {
 	}))
 
 	assert.False(t, wcValueExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				"other key": wcValue.Value,
 			},
@@ -584,7 +584,7 @@ func TestLabel(t *testing.T) {
 
 	// 1 1 1
 	assert.True(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key:  simple.Value,
 				wcKey.Key:   wcKey.Value,
@@ -595,7 +595,7 @@ func TestLabel(t *testing.T) {
 
 	// 1 0 1 (failed value)
 	assert.False(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key:  simple.Value,
 				wcKey.Key:   "other value",
@@ -606,7 +606,7 @@ func TestLabel(t *testing.T) {
 
 	// 1 0 1 (failed key)
 	assert.False(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				simple.Key:  simple.Value,
 				"other key": wcKey.Key,
@@ -617,7 +617,7 @@ func TestLabel(t *testing.T) {
 
 	// missing the simple
 	assert.False(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apismeta.ObjectMeta{
+		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
 				wcKey.Key:   wcKey.Key,
 				wcValue.Key: wcValue.Value,

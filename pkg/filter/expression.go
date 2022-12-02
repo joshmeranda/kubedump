@@ -47,29 +47,29 @@ func (_ truthyExpression) Matches(_ interface{}) bool {
 }
 
 type notExpression struct {
-	Inner Expression
+	inner Expression
 }
 
 func (expr notExpression) Matches(v interface{}) bool {
-	return !expr.Inner.Matches(v)
+	return !expr.inner.Matches(v)
 }
 
 type andExpression struct {
-	Left  Expression
-	Right Expression
+	left  Expression
+	right Expression
 }
 
 func (expr andExpression) Matches(v interface{}) bool {
-	return expr.Left.Matches(v) && expr.Right.Matches(v)
+	return expr.left.Matches(v) && expr.right.Matches(v)
 }
 
 type orExpression struct {
-	Left  Expression
-	Right Expression
+	left  Expression
+	right Expression
 }
 
 func (expr orExpression) Matches(v interface{}) bool {
-	return expr.Left.Matches(v) || expr.Right.Matches(v)
+	return expr.left.Matches(v) || expr.right.Matches(v)
 }
 
 // podExpression evaluates to true if the pod Name and Namespace match the specified patterns.
@@ -224,7 +224,7 @@ func (expr deploymentExpression) NamespacePattern() string {
 
 // namespaceExpression evaluates to true only if the given value has a Namespace matching the specified pattern.
 type namespaceExpression struct {
-	NamespacePattern string
+	namespacePattern string
 }
 
 func (expr namespaceExpression) Matches(v interface{}) bool {
@@ -265,7 +265,7 @@ func (expr namespaceExpression) Matches(v interface{}) bool {
 }
 
 func (expr namespaceExpression) checkObject(obj apimetav1.Object) bool {
-	if wildcard.MatchSimple(expr.NamespacePattern, obj.GetNamespace()) {
+	if wildcard.MatchSimple(expr.namespacePattern, obj.GetNamespace()) {
 		return true
 	} else {
 		return false

@@ -6,120 +6,6 @@ import (
 	"strings"
 )
 
-type stack struct {
-	inner []token
-}
-
-func (s *stack) push(t token) {
-	s.inner = append(s.inner, t)
-}
-
-// pop will return and remove the last element on the stack or nil if the stack is empty.
-func (s *stack) pop() *token {
-	if len(s.inner) == 0 {
-		return nil
-	}
-
-	t := s.inner[len(s.inner)-1]
-
-	s.inner = s.inner[:len(s.inner)-1]
-
-	return &t
-}
-
-// peek will return the last element on the stack or nil if the stack is empty.
-func (s *stack) peek() *token {
-	if len(s.inner) == 0 {
-		return nil
-	}
-
-	return &s.inner[len(s.inner)-1]
-}
-
-func (s *stack) len() int {
-	return len(s.inner)
-}
-
-func (s stack) String() string {
-	builder := strings.Builder{}
-
-	for i, t := range s.inner {
-		if i == len(s.inner)-1 {
-			builder.WriteString(t.Body)
-		} else {
-			builder.WriteString(t.Body + " ")
-		}
-	}
-
-	return builder.String()
-}
-
-func operatorPrecedence(op string) int {
-	switch op {
-	case "not":
-		return 2
-	case "and":
-		return 1
-	case "or":
-		return 0
-	default:
-		panic("unsupported operator '" + op + "'")
-	}
-}
-
-func reverseTokens(tokens []token) {
-	for i, j := 0, len(tokens)-1; i < j; i, j = i+1, j-1 {
-		tokens[i], tokens[j] = tokens[j], tokens[i]
-	}
-}
-
-func prefixTokens(tokens []token) []token {
-	// todo: do we really need to reverse the tokens first
-	reverseTokens(tokens)
-
-	opStack := stack{}
-	prefix := stack{}
-
-	for _, t := range tokens {
-		switch t.Kind {
-		case Operator:
-			peekedOperator := opStack.peek()
-
-			if opStack.len() == 0 || peekedOperator.Kind == CloseParenthesis {
-				opStack.push(t)
-			} else {
-				currentPrecendence := operatorPrecedence(t.Body)
-				peekedPrecendence := operatorPrecedence(peekedOperator.Body)
-
-				if currentPrecendence >= peekedPrecendence {
-					opStack.push(t)
-				} else if currentPrecendence < peekedPrecendence {
-					for ; currentPrecendence < peekedPrecendence; peekedPrecendence = operatorPrecedence(opStack.peek().Body) {
-						prefix.push(*opStack.pop())
-					}
-				}
-			}
-		case CloseParenthesis:
-			opStack.push(t)
-		case OpenParenthesis:
-			for popped := opStack.pop(); popped != nil && popped.Kind != CloseParenthesis; popped = opStack.pop() {
-				prefix.push(*popped)
-			}
-		default:
-			prefix.push(t)
-		}
-	}
-
-	for opStack.len() > 0 {
-		prefix.push(*opStack.pop())
-	}
-
-	innerPrefix := prefix.inner
-	reverseTokens(innerPrefix)
-
-	return innerPrefix
-}
-
 func splitPattern(pattern string) (string, string) {
 	if pattern == "" {
 		return "", ""
@@ -134,6 +20,8 @@ func splitPattern(pattern string) (string, string) {
 	return split[0], split[1]
 }
 
+// splitLabelPattern attempts to split the given label into the key and value pair it represents, or empty strings and
+// false if the pair could not be determined.
 func splitLabelPattern(pattern string) (string, string, bool) {
 	if !strings.ContainsRune(pattern, '=') {
 		return "", "", false
