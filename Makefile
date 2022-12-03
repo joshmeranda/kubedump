@@ -54,11 +54,14 @@ help:
 # # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: kubedump kubedump-server
+.PHONY: generate kubedump kubedump-server
 
 all: docker charts kubedump
 
-kubedump: bin/kubedump go.mod
+generate:
+	go generate ./pkg/controller ./pkg/filter
+
+kubedump: generate bin/kubedump go.mod
 
 bin/kubedump: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
@@ -105,7 +108,7 @@ test: ${SOURCES}
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	${RM} --recursive kubedump-*.tar.gz *.dump tests/kubedump-* tests/kubeconfig-*
+	${RM} --recursive kubedump-*.tar.gz *.dump tests/kubedump-* tests/kubeconfig-* pkg/filter/*.output
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin

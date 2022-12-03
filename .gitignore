@@ -34,3 +34,4 @@ bin/
 artifacts
 kubedump-*.tar.gz
 *.dump
+y.output

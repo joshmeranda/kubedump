@@ -18,24 +18,24 @@ func TestComplex(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, andExpression{
-		Left: notExpression{
-			Inner: podExpression{
+		left: notExpression{
+			inner: podExpression{
 				namePattern:      "pod-name",
 				namespacePattern: "*",
 			},
 		},
-		Right: orExpression{
-			Left: orExpression{
-				Left: podExpression{
+		right: orExpression{
+			left: orExpression{
+				left: podExpression{
 					namePattern:      "another-pod",
 					namespacePattern: "default",
 				},
-				Right: jobExpression{
+				right: jobExpression{
 					namePattern:      "some-job",
 					namespacePattern: "namespace",
 				},
 			},
-			Right: replicasetExpression{
+			right: replicasetExpression{
 				namePattern:      "*",
 				namespacePattern: "default",
 			},
@@ -97,11 +97,11 @@ func TestParseOperatorExpression(t *testing.T) {
 	expr, err := Parse("pod * and pod *")
 	assert.NoError(t, err)
 	assert.Equal(t, andExpression{
-		Left: podExpression{
+		left: podExpression{
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
-		Right: podExpression{
+		right: podExpression{
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
@@ -114,11 +114,11 @@ func TestParseOperatorExpression(t *testing.T) {
 	expr, err = Parse("pod * or pod *")
 	assert.NoError(t, err)
 	assert.Equal(t, orExpression{
-		Left: podExpression{
+		left: podExpression{
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
-		Right: podExpression{
+		right: podExpression{
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
@@ -136,19 +136,19 @@ func TestParsedChainedOperatorExpression(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := andExpression{
-		Left: andExpression{
-			Left: podExpression{
-				namePattern:      "a",
-				namespacePattern: "default",
-			},
-			Right: podExpression{
+		left: podExpression{
+			namePattern:      "a",
+			namespacePattern: "default",
+		},
+		right: andExpression{
+			left: podExpression{
 				namePattern:      "b",
 				namespacePattern: "default",
 			},
-		},
-		Right: podExpression{
-			namePattern:      "c",
-			namespacePattern: "default",
+			right: podExpression{
+				namePattern:      "c",
+				namespacePattern: "default",
+			},
 		},
 	}
 
@@ -159,7 +159,7 @@ func TestParseNotExpression(t *testing.T) {
 	expr, err := Parse("not pod *")
 	assert.NoError(t, err)
 	assert.Equal(t, notExpression{
-		Inner: podExpression{
+		inner: podExpression{
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
@@ -174,7 +174,7 @@ func TestParseNamespaceExpression(t *testing.T) {
 	expr, err := Parse("namespace default")
 	assert.NoError(t, err)
 	assert.Equal(t, namespaceExpression{
-		NamespacePattern: "default",
+		namespacePattern: "default",
 	}, expr)
 
 	expr, err = Parse("namespace")
@@ -200,10 +200,8 @@ func TestParseLabelExpression(t *testing.T) {
 
 	expr, err = Parse("label")
 
-	assert.NoError(t, err)
-	assert.Equal(t, labelExpression{
-		labelPatterns: map[string]string{},
-	}, expr)
+	assert.Error(t, err)
+	assert.Nil(t, expr)
 
 	expr, err = Parse("label resource=pod")
 	assert.NoError(t, err)

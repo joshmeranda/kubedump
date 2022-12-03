@@ -15,7 +15,7 @@ func TestLexNextWithExcessWhitespace(t *testing.T) {
 	assert.Equal(t, PATTERN, lexer.Lex(lval))
 	assert.Equal(t, lval.s, "default/*")
 
-	assert.Equal(t, lexer.Lex(lval), EOE)
+	assert.Equal(t, lexer.Lex(lval), EOF)
 }
 
 func TestLex(t *testing.T) {

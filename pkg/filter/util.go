@@ -20,24 +20,35 @@ func splitPattern(pattern string) (string, string) {
 	return split[0], split[1]
 }
 
-// splitLabelPattern attempts to split the given label into the key and value pair it represents, or empty strings and
-// false if the pair could not be determined.
-func splitLabelPattern(pattern string) (string, string, bool) {
+// splitLabelPattern attempts to split the given label into the key and value pair it represents.
+func splitLabelPattern(pattern string) (string, string, error) {
 	if !strings.ContainsRune(pattern, '=') {
-		return "", "", false
+		return "", "", fmt.Errorf("label pattern does not contain an '='")
 	}
 
 	split := strings.SplitN(pattern, "=", 2)
 
+	key, value := "", ""
+
 	if len(split) == 1 {
 		if strings.Index(pattern, "=") == 0 {
-			return "", split[0], true
+			return "", "", fmt.Errorf("key value cannot be empty")
 		} else {
-			return split[0], "", true
+			key = split[0]
 		}
+	} else {
+		key, value = split[0], split[1]
 	}
 
-	return split[0], split[1], true
+	if err := validateLabelKey(key); err != nil {
+		return "", "", fmt.Errorf("key '%s' is not valid: %w", key, err)
+	}
+
+	if err := validateLabelValue(value); err != nil {
+		return "", "", fmt.Errorf("value '%s' is not valid: %w", value, err)
+	}
+
+	return key, value, nil
 }
 
 const (
@@ -118,22 +129,6 @@ func validateNamespace(namespace string) error {
 	return validateDnsLabelRfc1123("namespace", namespace)
 }
 
-func validatePodName(name string) error {
-	return validateDnsSubdomain("pod", name)
-}
-
-func validateJobName(name string) error {
-	return validateDnsSubdomain("job", name)
-}
-
-func validateDeploymentName(name string) error {
-	return validateDnsSubdomain("job", name)
-}
-
-func validateReplicasetName(name string) error {
-	return validateDnsSubdomain("replicaset", name)
-}
-
-func validateServiceName(name string) error {
-	return validateDnsSubdomain("replicaset", name)
+func validateResourceName(kind string, name string) error {
+	return validateDnsSubdomain(kind, name)
 }

@@ -32,12 +32,11 @@ func (lexer *Lexer) Lex(lval *yySymType) int {
 	lexer.nextNonSpace()
 
 	if lexer.head == len(lexer.s) {
-		return EOE
+		return EOF
 	}
 
 	switch lexer.s[lexer.head] {
 	case '(', ')':
-		fmt.Printf("=== [Lexer.Lex] '%c'\n", lexer.s[lexer.head])
 		lexer.head++
 		return int(lexer.s[lexer.head-1])
 	}
@@ -54,8 +53,6 @@ func (lexer *Lexer) Lex(lval *yySymType) int {
 
 	body := lexer.s[lexer.head : nextHead+1]
 	lexer.head = nextHead + 1
-
-	fmt.Printf("=== [Lexer.Lex] '%s'\n", body)
 
 	lval.s = body
 	switch body {
