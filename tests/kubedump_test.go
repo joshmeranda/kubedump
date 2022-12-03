@@ -114,5 +114,5 @@ func TestDump(t *testing.T) {
 	assertResourceFile(t, "Service", path.Join(parentPath, SampleService.Namespace, "service", SampleService.Name, SampleService.Name+".yaml"), SampleService.GetObjectMeta())
 
 	//displayTree(t, parentPath)
-	copyTree(t, parentPath, d.Name()+".dump")
+	//copyTree(t, parentPath, d.Name()+".dump")
 }

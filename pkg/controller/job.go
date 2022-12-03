@@ -1,3 +1,5 @@
+// The code in this file was generated using ./pkg/codegen, do not modify it directly
+
 package controller
 
 import (
@@ -39,24 +41,24 @@ func NewJobHandler(opts Options, workQueue workqueue.RateLimitingInterface) *Job
 }
 
 func (handler *JobHandler) handleFunc(obj interface{}, isAdd bool) {
-	job, ok := obj.(*apibatchv1.Job)
+	resource, ok := obj.(*apibatchv1.Job)
 
 	if !ok {
-		logrus.Errorf("could not coerce object to job")
+		logrus.Errorf("could not coerce object to Job")
 		return
 	}
 
-	if !handler.opts.Filter.Matches(job) || handler.opts.StartTime.After(mostRecentJobConditionTime(job.Status.Conditions)) {
+	if !handler.opts.Filter.Matches(resource) || handler.opts.StartTime.After(mostRecentJobConditionTime(resource.Status.Conditions)) {
 		return
 	}
 
 	if isAdd {
-		linkResourceOwners(handler.opts.ParentPath, "Service", job)
+		linkResourceOwners(handler.opts.ParentPath, "Job", resource)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(handler.opts.ParentPath, "Job", job); err != nil {
-			logrus.WithFields(resourceFields(job)).Errorf("could not dump job description: %s", err)
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Job", resource); err != nil {
+			logrus.WithFields(resourceFields(resource)).Errorf("could not dump Job description: %s", err)
 		}
 	}))
 }

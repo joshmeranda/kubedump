@@ -43,6 +43,7 @@ help:
 	@echo "  kubedump-server    build the kubedump server binary"
 	@echo "  docker          builder the kubedump-serve image"
 	@echo "  all             build all binaries and docker images"
+	@echo "  generate        run go generate on project"
 	@echo "  test            run all tests"
 	@echo "  mostly-clean    clean any project generated files (not-including deliverables)"
 	@echo "  clean           clean built and generated files"
@@ -66,10 +67,13 @@ kubedump: generate bin/kubedump go.mod
 bin/kubedump: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
-kubedump-server: bin/kubedump-server
+kubedump-server: generate bin/kubedump-server go.mod
 
 bin/kubedump-server: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
+
+generate:
+	go generate ./pkg/controller
 
 # # # # # # # # # # # # # # # # # # # #
 # Build docker images                 #
@@ -112,6 +116,3 @@ mostly-clean:
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin
-
-fmt:
-	${GO_FMT} ./cmd/kubedump ./cmd/kubedump-server ./pkg ./pkg/controller ./pkg/filter

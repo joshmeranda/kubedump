@@ -1,3 +1,5 @@
+// The code in this file was generated using ./pkg/codegen, do not modify it directly
+
 package controller
 
 import (
@@ -8,7 +10,7 @@ import (
 	"time"
 )
 
-func mostRecentConditionTime(conditions []apimetav1.Condition) time.Time {
+func mostRecentServiceConditionTime(conditions []apimetav1.Condition) time.Time {
 	if len(conditions) == 0 {
 		// if there are no conditions we'd rather take it than not
 		return time.Now().UTC()
@@ -40,28 +42,24 @@ func NewServiceHandler(opts Options, workQueue workqueue.RateLimitingInterface) 
 }
 
 func (handler *ServiceHandler) handleFunc(obj interface{}, isAdd bool) {
-	service, ok := obj.(*apicorev1.Service)
+	resource, ok := obj.(*apicorev1.Service)
 
 	if !ok {
-		logrus.Errorf("could not coerce object to service")
+		logrus.Errorf("could not coerce object to Service")
 		return
 	}
 
-	if !handler.opts.Filter.Matches(service) || handler.opts.StartTime.After(mostRecentConditionTime(service.Status.Conditions)) {
+	if !handler.opts.Filter.Matches(resource) || handler.opts.StartTime.After(mostRecentServiceConditionTime(resource.Status.Conditions)) {
 		return
 	}
 
 	if isAdd {
-		for _, ownerRef := range service.OwnerReferences {
-			if err := linkToOwner(handler.opts.ParentPath, ownerRef, "Service", service); err != nil {
-				logrus.Errorf("could not link service to '%s' parent '%s': %s", ownerRef.Kind, ownerRef.Name, err)
-			}
-		}
+		linkResourceOwners(handler.opts.ParentPath, "Service", resource)
 	}
 
 	handler.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(handler.opts.ParentPath, "Service", service); err != nil {
-			logrus.WithFields(resourceFields(service)).Errorf("could not dump service description")
+		if err := dumpResourceDescription(handler.opts.ParentPath, "Service", resource); err != nil {
+			logrus.WithFields(resourceFields(resource)).Errorf("could not dump Service description: %s", err)
 		}
 	}))
 }
