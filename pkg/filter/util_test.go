@@ -25,20 +25,23 @@ func TestSplitPattern(t *testing.T) {
 }
 
 func TestSplitLabelPattern(t *testing.T) {
-	assertLabelSplit := func(pattern string, key string, value string, found bool) {
-		k, v, f := splitLabelPattern(pattern)
+	assertLabelSplit := func(pattern string, key string, value string, hasErr bool) {
+		k, v, err := splitLabelPattern(pattern)
 
-		assert.Equal(t, key, k, "bad key '%s' for pattern '%s'", k, pattern)
-		assert.Equal(t, value, v, "bad value '%s' for pattern '%s'", v, pattern)
-		assert.Equal(t, found, f, "bad found '%s' for pattern '%s'", found, pattern)
+		if hasErr {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Equal(t, key, k, "bad key '%s' for pattern '%s'", k, pattern)
+			assert.Equal(t, value, v, "bad value '%s' for pattern '%s'", v, pattern)
+		}
 	}
 
 	assertLabelSplit("=", "", "", true)
-	assertLabelSplit("key=", "key", "", true)
+	assertLabelSplit("key=", "key", "", false)
 	assertLabelSplit("=value", "", "value", true)
-	assertLabelSplit("key=value", "key", "value", true)
-
-	assertLabelSplit("no-label", "", "", false)
+	assertLabelSplit("key=value", "key", "value", false)
+	assertLabelSplit("no-label", "", "", true)
 }
 
 func TestValidateDnsSubdomain(t *testing.T) {
