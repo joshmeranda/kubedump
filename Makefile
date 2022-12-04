@@ -43,7 +43,6 @@ help:
 	@echo "  kubedump-server    build the kubedump server binary"
 	@echo "  docker          builder the kubedump-serve image"
 	@echo "  all             build all binaries and docker images"
-	@echo "  generate        run go generate on project"
 	@echo "  test            run all tests"
 	@echo "  mostly-clean    clean any project generated files (not-including deliverables)"
 	@echo "  clean           clean built and generated files"
@@ -53,23 +52,36 @@ help:
 	@echo "  VERBOSE         if set various recipes are run with verbose output"
 
 # # # # # # # # # # # # # # # # # # # #
+# code generation                     #
+# # # # # # # # # # # # # # # # # # # #
+GENERATED_CONTROLLERS=$(addsuffix .go,$(addprefix ./pkg/controller/, replicaset deployment job service))
+HANDLER_TEMPLATE=pkg/codegen/handler.tpl
+
+YYPARSER=pkg/filter/yyparser.go
+YACC_FILE=pkg/filter/parser.y
+
+${GENERATED_CONTROLLERS}: ${HANDLER_TEMPLATE}
+	@echo $@
+	go generate ./pkg/controller 1> /dev/null
+
+${YYPARSER}: ${YACC_FILE}
+	go generate ./pkg/filter
+
+# # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: generate kubedump kubedump-server
+.PHONY: kubedump kubedump-server
 
 all: docker charts kubedump
 
-generate:
-	go generate ./pkg/controller ./pkg/filter
+kubedump: bin/kubedump go.mod
 
-kubedump: generate bin/kubedump go.mod
-
-bin/kubedump: ${SOURCES}
+bin/kubedump: ${SOURCES} ${YYPARSER} ${GENERATED_CONTROLLERS}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
-kubedump-server: generate bin/kubedump-server go.mod
+kubedump-server: bin/kubedump-server go.mod
 
-bin/kubedump-server: ${SOURCES}
+bin/kubedump-server: ${SOURCES} ${YYPARSER} ${GENERATED_CONTROLLERS}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #
@@ -93,10 +105,10 @@ charts:
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
 # # # # # # # # # # # # # # # # # # # #
-unit: generate
+unit: ${YYPARSER} ${GENERATED_CONTROLLERS}
 	${GO_TEST} ${UNIT_TEST_PATHS}
 
-integration: generate
+integration: ${YYPARSER} ${GENERATED_CONTROLLERS}
 	${GO_TEST} ${INTEGRATION_TEST_PATHS}
 
 test: unit integration
@@ -108,7 +120,7 @@ test: unit integration
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	${RM} --recursive kubedump-*.tar.gz *.dump tests/kubedump-* tests/kubeconfig-* pkg/filter/*.output
+	${RM} --recursive kubedump-*.tar.gz *.dump tests/kubedump-* tests/kubeconfig-* pkg/filter/*.output pkg/filter/y.output
 
 clean: mostly-clean
 	${RM} --recursive artifacts bin
