@@ -13,11 +13,10 @@ import (
 	"time"
 )
 
-//go:generate go run ../codegen -p apiappsv1.ReplicaSet -i "apiappsv1 \"k8s.io/api/apps/v1\""
-//go:generate go run ../codegen -p apiappsv1.Deployment -i "apiappsv1 \"k8s.io/api/apps/v1\""
-//go:generate go run ../codegen -p apibatchv1.Job -i "apibatchv1 \"k8s.io/api/batch/v1\""
-//go:generate go run ../codegen -p apicorev1.Service -c apimetav1.Condition -i "apicorev1 \"k8s.io/api/core/v1\",apimetav1 \"k8s.io/apimachinery/pkg/apis/meta/v1\""
-//go:generate go fmt deployment.go job.go replicaset.go service.go
+//go:generate go run ../codegen handler -p apiappsv1.ReplicaSet -i "apiappsv1 \"k8s.io/api/apps/v1\""
+//go:generate go run ../codegen handler -p apiappsv1.Deployment -i "apiappsv1 \"k8s.io/api/apps/v1\""
+//go:generate go run ../codegen handler -p apibatchv1.Job -i "apibatchv1 \"k8s.io/api/batch/v1\""
+//go:generate go run ../codegen handler -p apicorev1.Service -c apimetav1.Condition -i "apicorev1 \"k8s.io/api/core/v1\",apimetav1 \"k8s.io/apimachinery/pkg/apis/meta/v1\""
 
 type Job struct {
 	id uuid.UUID
