@@ -2,6 +2,10 @@ package filter
 
 //go:generate goyacc -o yyparser.go parser.y
 
+func init() {
+	yyErrorVerbose = true
+}
+
 func Parse(s string) (Expression, error) {
 	lexer := NewLexer(s)
 

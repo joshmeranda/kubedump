@@ -72,9 +72,6 @@ kubedump-server: generate bin/kubedump-server go.mod
 bin/kubedump-server: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
 
-generate:
-	go generate ./pkg/controller
-
 # # # # # # # # # # # # # # # # # # # #
 # Build docker images                 #
 # # # # # # # # # # # # # # # # # # # #
@@ -96,14 +93,13 @@ charts:
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
 # # # # # # # # # # # # # # # # # # # #
-unit:
+unit: generate
 	${GO_TEST} ${UNIT_TEST_PATHS}
 
-integration:
+integration: generate
 	${GO_TEST} ${INTEGRATION_TEST_PATHS}
 
-test: ${SOURCES}
-	${GO_TEST} ${TEST_PATHS}
+test: unit integration
 
 # # # # # # # # # # # # # # # # # # # #
 # Project management recipes          #

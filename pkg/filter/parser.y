@@ -31,7 +31,7 @@ func couldNotParseErr(err error) error {
 
 %token<s> RESOURCE PATTERN NAMESPACE LABEL
 
-%type<expression> expr
+%type<expression> expr single_expr
 %type<labels> labels
 
 %%
@@ -40,7 +40,15 @@ start:         { yylex.(*Lexer).result = truthyExpression{} }
 	| expr { yylex.(*Lexer).result = $1 }
 	;
 
-expr:   RESOURCE PATTERN {
+expr: single_expr
+	| '(' expr ')'     { $$ = $2 }
+	| expr AND expr    { $$ = andExpression { left: $1, right: $3 } }
+	| expr OR expr     { $$ = orExpression { left: $1, right: $3 } }
+	| NOT single_expr  { $$ = notExpression { inner: $2 } }
+	| NOT '(' expr ')' { $$ = notExpression { inner: $3 } }
+	;
+
+single_expr: RESOURCE PATTERN {
 		namespacePattern, namePattern := splitPattern($2)
 		if err := validateNamespace(namespacePattern); err != nil {
 			yylex.Error(couldNotParseErr(err).Error())
@@ -63,21 +71,16 @@ expr:   RESOURCE PATTERN {
 			$$ = serviceExpression { namePattern: namePattern, namespacePattern: namespacePattern }
 		}
 	}
-	| NAMESPACE PATTERN {
+	| NAMESPACE PATTERN   {
 		if err := validateNamespace($2); err != nil {
 			yylex.Error(couldNotParseErr(err).Error())
 		}
 
 		$$ = namespaceExpression{ namespacePattern: $2 }
 	}
-	| LABEL labels { $$ = labelExpression{ labelPatterns: $2 } }
-	| '(' expr ')' { $$ = $2	 }
-	| expr AND expr { $$ = andExpression { left: $1, right: $3 } }
-	| expr OR expr { $$ = orExpression { left: $1, right: $3 } }
-	| NOT expr { $$ = notExpression { inner: $2 } }
-	;
+	| LABEL labels        { $$ = labelExpression{ labelPatterns: $2 } }
 
-labels: PATTERN {
+labels: PATTERN          {
 		key, val, err := splitLabelPattern($1)
 
 		if err != nil {

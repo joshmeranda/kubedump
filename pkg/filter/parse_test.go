@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -14,30 +13,30 @@ func TestParseEmpty(t *testing.T) {
 }
 
 func TestComplex(t *testing.T) {
-	expr, err := Parse("not pod */pod-name and (pod another-pod or job namespace/some-job or replicaset *)")
+	expr, err := Parse("not pod a and (pod b or job c or replicaset d)")
 
 	assert.NoError(t, err)
 	assert.Equal(t, andExpression{
 		left: notExpression{
 			inner: podExpression{
-				namePattern:      "pod-name",
-				namespacePattern: "*",
+				namePattern:      "a",
+				namespacePattern: "default",
 			},
 		},
 		right: orExpression{
-			left: orExpression{
-				left: podExpression{
-					namePattern:      "another-pod",
+			left: podExpression{
+				namePattern:      "b",
+				namespacePattern: "default",
+			},
+			right: orExpression{
+				left: jobExpression{
+					namePattern:      "c",
 					namespacePattern: "default",
 				},
-				right: jobExpression{
-					namePattern:      "some-job",
-					namespacePattern: "namespace",
+				right: replicasetExpression{
+					namePattern:      "d",
+					namespacePattern: "default",
 				},
-			},
-			right: replicasetExpression{
-				namePattern:      "*",
-				namespacePattern: "default",
 			},
 		},
 	}, expr)
@@ -130,8 +129,6 @@ func TestParseOperatorExpression(t *testing.T) {
 }
 
 func TestParsedChainedOperatorExpression(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-
 	expr, err := Parse("pod a and pod b and pod c")
 	assert.NoError(t, err)
 
