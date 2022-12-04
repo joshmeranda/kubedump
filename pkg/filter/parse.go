@@ -1,6 +1,6 @@
 package filter
 
-//go:generate goyacc -o yyparser.go parser.y
+//go:generate go run ../codegen parser
 
 func init() {
 	yyErrorVerbose = true

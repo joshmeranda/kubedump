@@ -58,7 +58,7 @@ GENERATED_CONTROLLERS=$(addsuffix .go,$(addprefix ./pkg/controller/, replicaset 
 HANDLER_TEMPLATE=pkg/codegen/handler.tpl
 
 YYPARSER=pkg/filter/yyparser.go
-YACC_FILE=pkg/filter/parser.y
+YACC_FILE=pkg/codegen/parser.y
 
 ${GENERATED_CONTROLLERS}: ${HANDLER_TEMPLATE}
 	@echo $@

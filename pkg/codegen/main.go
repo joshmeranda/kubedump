@@ -4,14 +4,26 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"os"
+	"os/exec"
 	"path"
+	"runtime"
 	"strings"
 	"text/template"
 )
 
-const (
-	handlerTemplatePath = "../codegen/handler.tpl"
-	handlerDirPath      = "../controller"
+var (
+	_, thisFilePath, _, _ = runtime.Caller(0)
+	thisDirPath           = path.Dir(thisFilePath)
+	projectRoot           = path.Join(thisDirPath, "..", "..")
+
+	controllerSrcPath = path.Join(projectRoot, "pkg", "controller")
+	filterSrcPath     = path.Join(projectRoot, "pkg", "filter")
+	codegenSrcPath    = path.Join(projectRoot, "pkg", "codegen")
+
+	handlerTemplatePath = path.Join(codegenSrcPath, "handler.tpl")
+	parserYaccPath      = path.Join(codegenSrcPath, "parser.y")
+
+	parserGoPath = path.Join(filterSrcPath, "yyparser.go")
 )
 
 type Options struct {
@@ -37,7 +49,7 @@ func getTypeName(typePath string) string {
 	}
 }
 
-func codegen(ctx *cli.Context) error {
+func handlerGen(ctx *cli.Context) error {
 	typePath := ctx.String("type-path")
 
 	opts := Options{
@@ -52,7 +64,7 @@ func codegen(ctx *cli.Context) error {
 		return fmt.Errorf("could not parse template at '%s': %w", handlerTemplatePath, err)
 	}
 
-	handlerPath := path.Join(handlerDirPath, fmt.Sprintf("%s.go", strings.ToLower(opts.TypeName)))
+	handlerPath := path.Join(controllerSrcPath, fmt.Sprintf("%s.go", strings.ToLower(opts.TypeName)))
 	builder := strings.Builder{}
 
 	if err := tpl.Execute(&builder, opts); err != nil {
@@ -66,27 +78,48 @@ func codegen(ctx *cli.Context) error {
 	return nil
 }
 
+func parserGen(_ *cli.Context) error {
+	cmd := exec.Command("goyacc", "-o", parserGoPath, parserYaccPath)
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("Could not generate filter parser: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 	app := cli.App{
-		Name:      "codegen",
-		Usage:     "code generation for kubedump",
-		UsageText: "codegen <typePath> <importPath>",
-		Action:    codegen,
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "type-path",
-				Usage:    "the path to the type for the handler",
-				Required: true,
-				Aliases:  []string{"p"},
+		Name:  "codegen",
+		Usage: "code generation for kubedump",
+		Commands: cli.Commands{
+			{
+				Name:        "handler",
+				Description: "generate the the handle for a specified type",
+				Action:      handlerGen,
+				Flags: cli.FlagsByName{
+					&cli.StringFlag{
+						Name:     "type-path",
+						Usage:    "the path to the type for the handler",
+						Required: true,
+						Aliases:  []string{"p"},
+					},
+					&cli.StringFlag{
+						Name:    "condition-type",
+						Usage:   "use the given type for status checking (defaults to the type path + Condition)",
+						Aliases: []string{"c"},
+					},
+					&cli.StringSliceFlag{
+						Name:    "additional-imports",
+						Aliases: []string{"i"},
+					},
+				},
 			},
-			&cli.StringFlag{
-				Name:    "condition-type",
-				Usage:   "use the given type for status checking (defaults to the type path + Condition)",
-				Aliases: []string{"c"},
-			},
-			&cli.StringSliceFlag{
-				Name:    "additional-imports",
-				Aliases: []string{"i"},
+			{
+				Name:        "parser",
+				Description: "generate the filter parser",
+				Action:      parserGen,
+				Flags:       cli.FlagsByName{},
 			},
 		},
 		Authors: []*cli.Author{
@@ -95,8 +128,6 @@ func main() {
 				Email: "joshmeranda@gmail.com",
 			},
 		},
-		CustomAppHelpTemplate:  "",
-		UseShortOptionHandling: true,
 	}
 
 	if err := app.Run(os.Args); err != nil {
