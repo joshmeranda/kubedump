@@ -26,6 +26,14 @@ type Expression interface {
 	Matches(v interface{}) bool
 }
 
+// todo: since we need this to provide storage we might want to replicate this for the other Expression types
+
+func NewLabelExpression(labels map[string]string) Expression {
+	return labelExpression{
+		labels: labels,
+	}
+}
+
 type ResourceExpression interface {
 	Expression
 
@@ -300,6 +308,8 @@ func (expr labelExpression) Matches(v interface{}) bool {
 		labels = v.(apicorev1.Service).Labels
 	case *apicorev1.Service:
 		labels = v.(*apicorev1.Service).Labels
+	case map[string]string:
+		labels = v.(map[string]string)
 	default:
 		return false
 	}

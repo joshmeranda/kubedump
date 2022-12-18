@@ -503,4 +503,8 @@ func TestLabel(t *testing.T) {
 			},
 		},
 	}))
+
+	assert.True(t, simpleExpr.Matches(map[string]string{
+		"app": "kubedump",
+	}))
 }
