@@ -273,7 +273,7 @@ func (expr namespaceExpression) checkObject(obj apimetav1.Object) bool {
 }
 
 type labelExpression struct {
-	labelPatterns map[string]string
+	labels map[string]string
 }
 
 func (expr labelExpression) Matches(v interface{}) bool {
@@ -304,19 +304,14 @@ func (expr labelExpression) Matches(v interface{}) bool {
 		return false
 	}
 
-	if len(expr.labelPatterns) == 0 {
+	if len(expr.labels) == 0 {
 		return true
 	}
 
-patternLoop:
-	for namePattern, valuePattern := range expr.labelPatterns {
-		for name, value := range labels {
-			if wildcard.MatchSimple(namePattern, name) && wildcard.MatchSimple(valuePattern, value) {
-				continue patternLoop
-			}
+	for key, value := range expr.labels {
+		if lValue, found := labels[key]; !found || lValue != value {
+			return false
 		}
-
-		return false
 	}
 
 	return true

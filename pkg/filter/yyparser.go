@@ -546,7 +546,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line parser.y:81
 		{
-			yyVAL.expression = labelExpression{labelPatterns: yyDollar[2].labels}
+			yyVAL.expression = labelExpression{labels: yyDollar[2].labels}
 		}
 	case 12:
 		yyDollar = yyS[yypt-1 : yypt+1]

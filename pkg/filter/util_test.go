@@ -42,6 +42,7 @@ func TestSplitLabelPattern(t *testing.T) {
 	assertLabelSplit("=value", "", "value", true)
 	assertLabelSplit("key=value", "key", "value", false)
 	assertLabelSplit("no-label", "", "", true)
+	assertLabelSplit("*=*", "", "", true)
 }
 
 func TestValidateDnsSubdomain(t *testing.T) {
@@ -106,9 +107,10 @@ func TestValidateLabelKey(t *testing.T) {
 	assert.Error(t, validateLabelKey(strings.Repeat("a", 254)+"/"+strings.Repeat("a", 63)))
 	assert.Error(t, validateLabelKey(strings.Repeat("a", 253)+"/"+strings.Repeat("a", 64)))
 
-	assert.NoError(t, validateLabelKey("prefix.with.wildcard-*/name.with.wildcard-*"))
+	assert.Error(t, validateLabelKey("prefix.with.wildcard-*/name.with.wildcard-*"))
 
 	assert.Error(t, validateLabelKey(""))
+	assert.Error(t, validateLabelKey("*"))
 }
 
 func TestValidateLabelValue(t *testing.T) {
@@ -119,4 +121,5 @@ func TestValidateLabelValue(t *testing.T) {
 	assert.Error(t, validateLabelValue(strings.Repeat("a", 64)))
 
 	assert.NoError(t, validateLabelValue("label.value.with.wildcard-*"))
+	assert.Error(t, validateLabelValue("*"))
 }

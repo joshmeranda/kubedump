@@ -186,14 +186,8 @@ func TestParseNamespaceExpression(t *testing.T) {
 func TestParseLabelExpression(t *testing.T) {
 	expr, err := Parse("label app=kubedump *-wc-key=*-wc-pattern empty=")
 
-	assert.NoError(t, err)
-	assert.Equal(t, labelExpression{
-		labelPatterns: map[string]string{
-			"app":      "kubedump",
-			"*-wc-key": "*-wc-pattern",
-			"empty":    "",
-		},
-	}, expr)
+	assert.Error(t, err)
+	assert.Nil(t, expr)
 
 	expr, err = Parse("label")
 
@@ -203,7 +197,7 @@ func TestParseLabelExpression(t *testing.T) {
 	expr, err = Parse("label resource=pod")
 	assert.NoError(t, err)
 	assert.Equal(t, labelExpression{
-		labelPatterns: map[string]string{
+		labels: map[string]string{
 			"resource": "pod",
 		},
 	}, expr)

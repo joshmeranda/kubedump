@@ -448,17 +448,6 @@ func TestNamespace(t *testing.T) {
 }
 
 func TestLabel(t *testing.T) {
-	type MapPair struct {
-		Key   string
-		Value string
-	}
-
-	var (
-		simple  = MapPair{"app", "kubedump"}
-		wcKey   = MapPair{"*-wc-key", "simple-value"}
-		wcValue = MapPair{"simple-key", "*-wc-value"}
-	)
-
 	// should match anything
 	emptyExpr := labelExpression{}
 
@@ -477,26 +466,15 @@ func TestLabel(t *testing.T) {
 	}))
 
 	simpleExpr := labelExpression{
-		labelPatterns: map[string]string{
-			simple.Key: simple.Value,
-		},
-	}
-
-	wcKeyExpr := labelExpression{
-		labelPatterns: map[string]string{
-			wcKey.Key: wcKey.Value,
-		},
-	}
-	wcValueExpr := labelExpression{
-		labelPatterns: map[string]string{
-			wcValue.Key: wcValue.Value,
+		labels: map[string]string{
+			"app": "kubedump",
 		},
 	}
 
 	assert.True(t, simpleExpr.Matches(apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
-				simple.Key: simple.Value,
+				"app": "kubedump",
 			},
 		},
 	}))
@@ -504,8 +482,8 @@ func TestLabel(t *testing.T) {
 	assert.True(t, simpleExpr.Matches(apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
-				simple.Key: simple.Value,
-				"extra":    "extra",
+				"app":   "kubedump",
+				"extra": "extra",
 			},
 		},
 	}))
@@ -513,7 +491,7 @@ func TestLabel(t *testing.T) {
 	assert.False(t, simpleExpr.Matches(apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
-				simple.Key: "other value",
+				"app": "other value",
 			},
 		},
 	}))
@@ -521,106 +499,7 @@ func TestLabel(t *testing.T) {
 	assert.False(t, simpleExpr.Matches(apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Labels: map[string]string{
-				"other key": simple.Value,
-			},
-		},
-	}))
-
-	assert.True(t, wcKeyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				wcKey.Key: wcKey.Value,
-			},
-		},
-	}))
-
-	assert.False(t, wcKeyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				wcKey.Key: "other value",
-			},
-		},
-	}))
-
-	assert.False(t, wcKeyExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				"other key": wcKey.Value,
-			},
-		},
-	}))
-
-	assert.True(t, wcValueExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				wcValue.Key: wcValue.Value,
-			},
-		},
-	}))
-
-	assert.False(t, wcValueExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				wcValue.Key: "other value",
-			},
-		},
-	}))
-
-	assert.False(t, wcValueExpr.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				"other key": wcValue.Value,
-			},
-		},
-	}))
-
-	union := labelExpression{
-		labelPatterns: map[string]string{
-			simple.Key:  simple.Value,
-			wcKey.Key:   wcKey.Value,
-			wcValue.Key: wcValue.Value,
-		},
-	}
-
-	// 1 1 1
-	assert.True(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				simple.Key:  simple.Value,
-				wcKey.Key:   wcKey.Value,
-				wcValue.Key: wcValue.Value,
-			},
-		},
-	}))
-
-	// 1 0 1 (failed value)
-	assert.False(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				simple.Key:  simple.Value,
-				wcKey.Key:   "other value",
-				wcValue.Key: wcValue.Value,
-			},
-		},
-	}))
-
-	// 1 0 1 (failed key)
-	assert.False(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				simple.Key:  simple.Value,
-				"other key": wcKey.Key,
-				wcValue.Key: wcValue.Value,
-			},
-		},
-	}))
-
-	// missing the simple
-	assert.False(t, union.Matches(apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Labels: map[string]string{
-				wcKey.Key:   wcKey.Key,
-				wcValue.Key: wcValue.Value,
+				"other key": "kubedump",
 			},
 		},
 	}))
