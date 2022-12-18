@@ -1,9 +1,11 @@
 package selector
 
-type ResourceId struct {
+type ResourceWrapper struct {
 	Kind      string
 	Name      string
 	Namespace string
+
+	Resource interface{}
 }
 
 type LabelSelector map[string]string
