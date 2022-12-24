@@ -42,7 +42,6 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	opts := controller.Options{
 		ParentPath: parentPath,
 		Filter:     f,
-		StartTime:  time.Now().UTC(),
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
@@ -57,7 +56,11 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		return fmt.Errorf("could not crete client: %w", err)
 	}
 
-	c := controller.NewController(client, opts)
+	c, err := controller.NewController(client, opts)
+
+	if err != nil {
+		return fmt.Errorf("could not create controller: %w", err)
+	}
 
 	if err = c.Start(5); err != nil {
 		return fmt.Errorf("could not Start controller: %w", err)

@@ -76,6 +76,13 @@ func resourceFilePath(parent string, objKind string, obj apimetav1.Object, fileN
 	return path.Join(resourceDirPath(parent, objKind, obj), fileName)
 }
 
+func containerLogFilePath(parentPath string, pod *apicorev1.Pod, container *apicorev1.Container) string {
+	return path.Join(
+		resourceDirPath(parentPath, "Pod", pod),
+		container.Name+".log",
+	)
+}
+
 func linkToOwner(parent string, owner apimetav1.OwnerReference, objKind string, obj apimetav1.Object) error {
 	ownerPath := resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
 		Name: owner.Name,
@@ -117,7 +124,7 @@ func linkToOwner(parent string, owner apimetav1.OwnerReference, objKind string, 
 func linkResourceOwners(parent string, kind string, obj apimetav1.Object) {
 	for _, owner := range obj.GetOwnerReferences() {
 		if err := linkToOwner(parent, owner, kind, obj); err != nil {
-			logrus.Errorf("could not link %s to owners '%s/%s/%s'", kind, owner.Kind, obj.GetNamespace(), owner.Name)
+			logrus.Errorf("could not link %s to owners '%s/%s/%s': %s", kind, owner.Kind, obj.GetNamespace(), owner.Name, err)
 		}
 	}
 }
@@ -177,13 +184,13 @@ func dumpResourceDescription(parentPath string, objKind string, obj apimetav1.Ob
 		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
 	}
 
-	jobYaml, err := yaml.Marshal(obj)
+	resource, err := yaml.Marshal(obj)
 
 	if err != nil {
 		return fmt.Errorf("could not marshal %s: %w", objKind, err)
 	}
 
-	_, err = f.Write(jobYaml)
+	_, err = f.Write(resource)
 
 	if err != nil {
 		return fmt.Errorf("could not write %s to file '%s': %w", objKind, yamlPath, err)

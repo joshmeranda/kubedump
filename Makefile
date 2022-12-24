@@ -60,9 +60,9 @@ HANDLER_TEMPLATE=pkg/codegen/handler.tpl
 YYPARSER=pkg/filter/yyparser.go
 YACC_FILE=pkg/codegen/parser.y
 
-${GENERATED_CONTROLLERS}: ${HANDLER_TEMPLATE}
-	@echo $@
-	go generate ./pkg/controller 1> /dev/null
+#${GENERATED_CONTROLLERS}: ${HANDLER_TEMPLATE}
+#	@echo $@
+#	go generate ./pkg/controller 1> /dev/null
 
 ${YYPARSER}: ${YACC_FILE}
 	go generate ./pkg/filter
@@ -76,12 +76,12 @@ all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 
-bin/kubedump: ${SOURCES} ${YYPARSER} ${GENERATED_CONTROLLERS}
+bin/kubedump: ${SOURCES} ${YYPARSER}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
 kubedump-server: bin/kubedump-server go.mod
 
-bin/kubedump-server: ${SOURCES} ${YYPARSER} ${GENERATED_CONTROLLERS}
+bin/kubedump-server: ${SOURCES} ${YYPARSER}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #

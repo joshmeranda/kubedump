@@ -164,7 +164,6 @@ func (handler *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		f, err := filter.Parse(r.URL.Query().Get("filter"))
-
 		if err != nil {
 			errorResponse(w, fmt.Sprintf("could not parse query filter as filter: %s", err), http.StatusBadRequest)
 		}
@@ -175,20 +174,22 @@ func (handler *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 		}
 
 		config, err := rest.InClusterConfig()
-
 		if err != nil {
 			errorResponse(w, fmt.Sprintf("could not create internal config: %s", err), http.StatusInternalServerError)
 			return
 		}
 
 		client, err := kubernetes.NewForConfig(config)
-
 		if err != nil {
 			errorResponse(w, fmt.Sprintf("could not create internal client: %s", err), http.StatusInternalServerError)
 			return
 		}
 
-		c := controller.NewController(client, opts)
+		c, err := controller.NewController(client, opts)
+		if err != nil {
+			errorResponse(w, fmt.Sprintf("could not create controller: %s", err), http.StatusInternalServerError)
+			return
+		}
 
 		handler.lock.Lock()
 
