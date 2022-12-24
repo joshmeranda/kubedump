@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"io"
 	apicorev1 "k8s.io/api/core/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"os"
+	"time"
 )
 
 type Stream interface {
 	// Sync new data from stream source into stream destination.
 	Sync() error
 
-	// Close the stream source and destinations and return both errors in that order.
-	Close() (error, error)
+	// Close the streamer.
+	Close() error
 }
 
 type LogStreamOptions struct {
@@ -30,8 +32,9 @@ type logStream struct {
 
 	cancel context.CancelFunc
 
-	in  io.ReadCloser
 	out io.WriteCloser
+
+	lastRead time.Time
 }
 
 func NewLogStream(opts LogStreamOptions) (Stream, error) {
@@ -46,50 +49,53 @@ func NewLogStream(opts LogStreamOptions) (Stream, error) {
 		return nil, fmt.Errorf("could not create log file '%s': %w", logFilePath, err)
 	}
 
-	request := opts.KubeClientSet.CoreV1().Pods(opts.Pod.Namespace).GetLogs(opts.Pod.Name, &apicorev1.PodLogOptions{
-		Container: opts.Container.Name,
-		Follow:    true,
-		Previous:  false,
-		//SinceSeconds:                 nil,
-		//SinceTime:                    nil,
-		// todo: this might be interesting if we only want to collect logs while the logs are collected
-		//Timestamps:                   false,
-		//TailLines:                    nil,
-		//LimitBytes:                   nil,
-		//InsecureSkipTLSVerifyBackend: false,
-	})
-
-	stream, err := request.Stream(opts.Context)
-	if err != nil {
-		return nil, fmt.Errorf("could not create log stream for container: %w", err)
-	}
-
 	ctx, cancel := context.WithCancel(opts.Context)
 	opts.Context = ctx
 
 	return &logStream{
 		LogStreamOptions: opts,
 		cancel:           cancel,
-		in:               stream,
 		out:              logFile,
+		lastRead:         time.Time{},
 	}, nil
 }
 
 func (stream *logStream) Sync() error {
-	var buff []byte
+	// todo: stream.lastRead may not be set immediately and cause race conditions
+	request := stream.KubeClientSet.CoreV1().Pods(stream.Pod.Namespace).GetLogs(stream.Pod.Name, &apicorev1.PodLogOptions{
+		Container: stream.Container.Name,
+		Follow:    false,
+		Previous:  false,
+		SinceTime: &apimetav1.Time{
+			Time: stream.lastRead,
+		},
+		// todo: this might be interesting if we only want to collect logs while the logs are collected
+		Timestamps: true,
+	})
 
-	if _, err := stream.in.Read(buff); err != nil && err != context.Canceled {
-		return fmt.Errorf("erro syncing stream: %w", err)
+	stream.lastRead = time.Now()
+	response := request.Do(stream.Context)
+	if err := response.Error(); err != nil {
+		return fmt.Errorf("error requesting logs: %w", err)
+	}
+
+	body, err := response.Raw()
+	if err != nil {
+		return fmt.Errorf("error requesting logs: %w", err)
+
+	}
+
+	if _, err := stream.out.Write(body); err != nil {
+		return fmt.Errorf("error witing log response: %w", err)
 	}
 
 	return nil
 }
 
-func (stream *logStream) Close() (error, error) {
+func (stream *logStream) Close() error {
 	stream.cancel()
 
-	inErr := stream.in.Close()
-	outErr := stream.out.Close()
+	err := stream.out.Close()
 
-	return inErr, outErr
+	return err
 }

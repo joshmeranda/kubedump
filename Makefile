@@ -41,15 +41,16 @@ help:
 	@echo "Targets:"
 	@echo "  kubedump           build the kubedump binary"
 	@echo "  kubedump-server    build the kubedump server binary"
-	@echo "  docker          builder the kubedump-serve image"
-	@echo "  all             build all binaries and docker images"
-	@echo "  test            run all tests"
-	@echo "  mostly-clean    clean any project generated files (not-including deliverables)"
-	@echo "  clean           clean built and generated files"
-	@echo "  fmt             run the source through the builtin go formatter"
+	@echo "  generae            run code generation"
+	@echo "  docker             builder the kubedump-serve image"
+	@echo "  all                build all binaries and docker images"
+	@echo "  test               run all tests"
+	@echo "  mostly-clean       clean any project generated files (not-including deliverables)"
+	@echo "  clean              clean built and generated files"
+	@echo "  fmt                run the source through the builtin go formatter"
 	@echo ""
 	@echo "Values:"
-	@echo "  VERBOSE         if set various recipes are run with verbose output"
+	@echo "  VERBOSE            if set various recipes are run with verbose output"
 
 # # # # # # # # # # # # # # # # # # # #
 # code generation                     #
@@ -60,12 +61,12 @@ HANDLER_TEMPLATE=pkg/codegen/handler.tpl
 YYPARSER=pkg/filter/yyparser.go
 YACC_FILE=pkg/codegen/parser.y
 
-#${GENERATED_CONTROLLERS}: ${HANDLER_TEMPLATE}
-#	@echo $@
-#	go generate ./pkg/controller 1> /dev/null
+.PHONY: generate
 
 ${YYPARSER}: ${YACC_FILE}
 	go generate ./pkg/filter
+
+generate: ${YYPARSER}
 
 # # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
@@ -76,12 +77,12 @@ all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 
-bin/kubedump: ${SOURCES} ${YYPARSER}
+bin/kubedump: generate ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
 kubedump-server: bin/kubedump-server go.mod
 
-bin/kubedump-server: ${SOURCES} ${YYPARSER}
+bin/kubedump-server: generate ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #

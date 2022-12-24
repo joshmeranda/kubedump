@@ -132,6 +132,12 @@ func (controller *Controller) syncLogStreams() {
 	}
 
 	controller.logStreamsMu.Unlock()
+
+	time.Sleep(time.Second)
+
+	controller.workQueue.AddRateLimited(NewJob(func() {
+		controller.syncLogStreams()
+	}))
 }
 
 func (controller *Controller) processNextWorkItem() bool {
@@ -146,7 +152,7 @@ func (controller *Controller) processNextWorkItem() bool {
 	if !ok {
 		logrus.Errorf("could not understand worker function")
 		controller.workQueue.Forget(obj)
-		//return false
+		return false
 	}
 
 	// todo: this *could* block which ain't good

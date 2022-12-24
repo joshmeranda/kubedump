@@ -147,14 +147,8 @@ func (controller *Controller) handlePod(kind HandleKind, pod *apicorev1.Pod) {
 					return
 				}
 
-				inErr, outErr := stream.Close()
-
-				if inErr != nil {
-					logrus.Warnf("%s", inErr)
-				}
-
-				if outErr != nil {
-					logrus.Warnf("%s", outErr)
+				if err := stream.Close(); err != nil {
+					logrus.Warnf("%s", err)
 				}
 
 				delete(controller.logStreams, logStreamId)
