@@ -2,97 +2,142 @@ package controller
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
+	informersappsv1 "k8s.io/client-go/informers/apps/v1"
+	informersbatchv1 "k8s.io/client-go/informers/batch/v1"
+	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"kubedump/pkg/filter"
+	"sync"
 	"time"
 )
-
-//go:generate go run ../codegen handler -p apiappsv1.ReplicaSet -i "apiappsv1 \"k8s.io/api/apps/v1\""
-//go:generate go run ../codegen handler -p apiappsv1.Deployment -i "apiappsv1 \"k8s.io/api/apps/v1\""
-//go:generate go run ../codegen handler -p apibatchv1.Job -i "apibatchv1 \"k8s.io/api/batch/v1\""
-//go:generate go run ../codegen handler -p apicorev1.Service -c apimetav1.Condition -i "apicorev1 \"k8s.io/api/core/v1\",apimetav1 \"k8s.io/apimachinery/pkg/apis/meta/v1\""
-
-type Job struct {
-	id uuid.UUID
-	fn *func()
-}
-
-func NewJob(fn func()) Job {
-	return Job{
-		id: uuid.New(),
-		fn: &fn,
-	}
-}
 
 type Options struct {
 	ParentPath string
 	Filter     filter.Expression
-	StartTime  time.Time
 }
 
 type Controller struct {
-	opts          Options
+	Options
+
 	kubeclientset kubernetes.Interface
+	startTime     time.Time
 
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
 
-	informersSynced []cache.InformerSynced
+	sieve Sieve
+
+	// logStreams is a store of logStreams mappe to a unique identifier for the associated container.
+	logStreams   map[string]Stream
+	logStreamsMu sync.Mutex
 
 	workQueue workqueue.RateLimitingInterface
+
+	informersSynced []cache.InformerSynced
+
+	podInformer        informerscorev1.PodInformer
+	serviceInformer    informerscorev1.ServiceInformer
+	jobInformer        informersbatchv1.JobInformer
+	replicasetInformer informersappsv1.ReplicaSetInformer
+	deploymentInformer informersappsv1.DeploymentInformer
 }
 
 func NewController(
 	kubeclientset kubernetes.Interface,
 	opts Options,
-) *Controller {
+) (*Controller, error) {
 	informerFactory := informers.NewSharedInformerFactory(kubeclientset, time.Second*5)
 
-	eventInformer := informerFactory.Events().V1().Events()
-	podInformer := informerFactory.Core().V1().Pods()
-	serviceInformer := informerFactory.Core().V1().Services()
-	jobInformer := informerFactory.Batch().V1().Jobs()
-	replicasetInformer := informerFactory.Apps().V1().ReplicaSets()
-	deploymentInformer := informerFactory.Apps().V1().Deployments()
-
-	informersSynced := []cache.InformerSynced{
-		eventInformer.Informer().HasSynced,
-		podInformer.Informer().HasSynced,
-		serviceInformer.Informer().HasSynced,
-		jobInformer.Informer().HasSynced,
-		replicasetInformer.Informer().HasSynced,
-		deploymentInformer.Informer().HasSynced,
+	sieve, err := NewSieve(opts.Filter)
+	if err != nil {
+		return nil, fmt.Errorf("could not create resource filter: %w", err)
 	}
 
 	controller := &Controller{
-		opts:          opts,
+		Options:       opts,
 		kubeclientset: kubeclientset,
 
 		informerFactory: informerFactory,
 		stopChan:        nil,
 
-		informersSynced: informersSynced,
+		sieve: sieve,
+
+		logStreams: make(map[string]Stream),
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+
+		podInformer:        informerFactory.Core().V1().Pods(),
+		serviceInformer:    informerFactory.Core().V1().Services(),
+		jobInformer:        informerFactory.Batch().V1().Jobs(),
+		replicasetInformer: informerFactory.Apps().V1().ReplicaSets(),
+		deploymentInformer: informerFactory.Apps().V1().Deployments(),
 	}
 
-	eventInformer.Informer().AddEventHandler(NewEventHandler(opts, controller.workQueue, podInformer, jobInformer))
+	eventInformer := informerFactory.Events().V1().Events()
 
-	podInformer.Informer().AddEventHandler(NewPodHandler(opts, controller.workQueue, kubeclientset))
-	serviceInformer.Informer().AddEventHandler(NewServiceHandler(opts, controller.workQueue))
+	controller.informersSynced = []cache.InformerSynced{
+		eventInformer.Informer().HasSynced,
 
-	jobInformer.Informer().AddEventHandler(NewJobHandler(opts, controller.workQueue))
+		controller.podInformer.Informer().HasSynced,
+		controller.serviceInformer.Informer().HasSynced,
+		controller.jobInformer.Informer().HasSynced,
+		controller.replicasetInformer.Informer().HasSynced,
+		controller.deploymentInformer.Informer().HasSynced,
+	}
 
-	replicasetInformer.Informer().AddEventHandler(NewReplicaSetHandler(opts, controller.workQueue))
-	deploymentInformer.Informer().AddEventHandler(NewDeploymentHandler(opts, controller.workQueue))
+	handler := cache.FilteringResourceEventHandler{
+		FilterFunc: func(obj interface{}) bool {
+			return sieve.Matches(obj)
+		},
+		Handler: cache.ResourceEventHandlerFuncs{
+			AddFunc:    controller.onAdd,
+			UpdateFunc: controller.onUpdate,
+			DeleteFunc: controller.onDelete,
+		},
+	}
 
-	return controller
+	eventInformer.Informer().AddEventHandler(handler)
+
+	controller.podInformer.Informer().AddEventHandler(handler)
+	controller.serviceInformer.Informer().AddEventHandler(handler)
+
+	controller.jobInformer.Informer().AddEventHandler(handler)
+
+	controller.replicasetInformer.Informer().AddEventHandler(handler)
+	controller.deploymentInformer.Informer().AddEventHandler(handler)
+
+	return controller, nil
+}
+
+func (controller *Controller) syncLogStreams() {
+	select {
+	case <-controller.stopChan:
+		return
+	default:
+	}
+
+	controller.logStreamsMu.Lock()
+
+	for id, stream := range controller.logStreams {
+		if err := stream.Sync(); err != nil {
+			logrus.Errorf("error syncing container '%s'", id)
+		} else {
+			logrus.Debugf("synced logs for containr '%s'", id)
+		}
+	}
+
+	controller.logStreamsMu.Unlock()
+
+	time.Sleep(time.Second)
+
+	controller.workQueue.AddRateLimited(NewJob(func() {
+		controller.syncLogStreams()
+	}))
 }
 
 func (controller *Controller) processNextWorkItem() bool {
@@ -138,6 +183,8 @@ func (controller *Controller) Start(nWorkers int) error {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
+	controller.startTime = time.Now().UTC()
+
 	logrus.Infof("starting workers")
 	for i := 0; i < nWorkers; i++ {
 		n := i
@@ -148,6 +195,10 @@ func (controller *Controller) Start(nWorkers int) error {
 			}
 		}()
 	}
+
+	controller.workQueue.AddRateLimited(NewJob(func() {
+		controller.syncLogStreams()
+	}))
 
 	logrus.Infof("Started controller")
 

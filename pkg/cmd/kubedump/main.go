@@ -21,7 +21,8 @@ func main() {
 
 	app := kubedump.NewKubedumpApp(stopChan)
 
-	if err := app.Run(os.Args); err != nil {
+	//if err := app.Run(os.Args); err != nil {
+	if err := app.Run([]string{"bin/kubedump", "--kubeconfig", "/home/wrinkle/.kube/config", "dump", "--filter", "namespace default"}); err != nil {
 		fmt.Printf("%s", err)
 		os.Exit(1)
 	}
