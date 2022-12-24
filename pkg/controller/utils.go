@@ -165,8 +165,8 @@ func resourceFields(objs ...interface{}) logrus.Fields {
 	return fields
 }
 
-func dumpResourceDescription(parentPath string, objKind string, obj apimetav1.Object) error {
-	yamlPath := resourceFilePath(parentPath, objKind, obj, obj.GetName()+".yaml")
+func dumpResourceDescription(parentPath string, objKind string, resource HandledResource) error {
+	yamlPath := resourceFilePath(parentPath, objKind, resource.Object, resource.GetName()+".yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -184,13 +184,13 @@ func dumpResourceDescription(parentPath string, objKind string, obj apimetav1.Ob
 		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
 	}
 
-	resource, err := yaml.Marshal(obj)
+	data, err := yaml.Marshal(resource.Resource)
 
 	if err != nil {
 		return fmt.Errorf("could not marshal %s: %w", objKind, err)
 	}
 
-	_, err = f.Write(resource)
+	_, err = f.Write(data)
 
 	if err != nil {
 		return fmt.Errorf("could not write %s to file '%s': %w", objKind, yamlPath, err)

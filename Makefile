@@ -41,7 +41,7 @@ help:
 	@echo "Targets:"
 	@echo "  kubedump           build the kubedump binary"
 	@echo "  kubedump-server    build the kubedump server binary"
-	@echo "  generae            run code generation"
+	@echo "  generate            run code generation"
 	@echo "  docker             builder the kubedump-serve image"
 	@echo "  all                build all binaries and docker images"
 	@echo "  test               run all tests"
@@ -55,7 +55,6 @@ help:
 # # # # # # # # # # # # # # # # # # # #
 # code generation                     #
 # # # # # # # # # # # # # # # # # # # #
-GENERATED_CONTROLLERS=$(addsuffix .go,$(addprefix ./pkg/controller/, replicaset deployment job service))
 HANDLER_TEMPLATE=pkg/codegen/handler.tpl
 
 YYPARSER=pkg/filter/yyparser.go
@@ -77,12 +76,12 @@ all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 
-bin/kubedump: generate ${SOURCES}
+bin/kubedump: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
 
 kubedump-server: bin/kubedump-server go.mod
 
-bin/kubedump-server: generate ${SOURCES}
+bin/kubedump-server: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
 
 # # # # # # # # # # # # # # # # # # # #
@@ -106,10 +105,10 @@ charts:
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #
 # # # # # # # # # # # # # # # # # # # #
-unit: ${YYPARSER} ${GENERATED_CONTROLLERS}
+unit: ${YYPARSER}
 	${GO_TEST} ${UNIT_TEST_PATHS}
 
-integration: ${YYPARSER} ${GENERATED_CONTROLLERS}
+integration: ${YYPARSER}
 	${GO_TEST} ${INTEGRATION_TEST_PATHS}
 
 test: unit integration
