@@ -2,57 +2,58 @@ package controller
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sync"
 )
 
+type pair[F any, S any] struct {
+	first  F
+	second S
+}
+
+type storePair pair[LabelMatcher, HandledResource]
+
 type Store interface {
 	// AddResource adds the given resource with the associated LabelSelector
-	AddResource(resource HandledResource, selector labels.Selector) error
+	AddResource(resource HandledResource, matcher LabelMatcher) error
 
 	// GetResources fetches all resources whose LabelSelector matches the given Labels.
-	GetResources(labels labels.Labels) ([]HandledResource, error)
+	GetResources(labels Labels) ([]HandledResource, error)
 
 	// RemoveResource deletes the given resourceId from storage. If no matching resource exists, it will do nothing.
 	RemoveResource(resource HandledResource) error
 }
 
 // NewStore constructs a store using the default implementation.
-func NewStore() (Store, error) {
+func NewStore() Store {
 	return &memoryStore{
-		inner: make(map[types.UID]pair),
-	}, nil
-}
-
-type pair struct {
-	selector labels.Selector
-	resource HandledResource
+		inner: make(map[types.UID]storePair),
+	}
 }
 
 type memoryStore struct {
 	innerMut sync.RWMutex
-	inner    map[types.UID]pair
+	inner    map[types.UID]storePair
 }
 
-func (store *memoryStore) AddResource(resource HandledResource, selector labels.Selector) error {
+func (store *memoryStore) AddResource(resource HandledResource, matcher LabelMatcher) error {
 	store.innerMut.Lock()
 	defer store.innerMut.Unlock()
 
-	store.inner[resource.GetUID()] = pair{
-		selector: selector,
-		resource: resource,
+	store.inner[resource.GetUID()] = storePair{
+		first:  matcher,
+		second: resource,
 	}
 
 	return nil
 }
 
-func (store *memoryStore) GetResources(labels labels.Labels) ([]HandledResource, error) {
+func (store *memoryStore) GetResources(labels Labels) ([]HandledResource, error) {
 	resources := make([]HandledResource, 0)
 
 	for _, p := range store.inner {
-		if p.selector.Matches(labels) {
-			resources = append(resources, p.resource)
+		if p.first.Matches(labels) {
+			resources = append(resources, p.second)
 		}
 	}
 

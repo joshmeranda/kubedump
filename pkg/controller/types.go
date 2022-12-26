@@ -105,6 +105,6 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 			HandleEventKind: kind,
 		}, nil
 	default:
-		return HandledResource{}, fmt.Errorf("value of type '%T' cannot be a HandledResource", obj)
+		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
 	}
 }

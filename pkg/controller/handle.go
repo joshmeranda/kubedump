@@ -164,6 +164,12 @@ func (controller *Controller) handleResource(kind HandleKind, handledResource Ha
 		linkResourceOwners(controller.ParentPath, handledResource.Kind, handledResource)
 	}
 
+	if matcher := selectorFromHandled(handledResource); matcher != nil {
+		if err := controller.store.AddResource(handledResource, matcher); err != nil {
+			logrus.Errorf("error storing '%s' label matcher: %s", handledResource.Kind, err)
+		}
+	}
+
 	controller.workQueue.AddRateLimited(NewJob(func() {
 		if err := dumpResourceDescription(controller.ParentPath, handledResource.Kind, handledResource); err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -179,7 +185,7 @@ func (controller *Controller) resourceHandlerFunc(kind HandleKind, obj interface
 	handledResource, err := NewHandledResource(kind, obj)
 
 	if err != nil {
-		logrus.Errorf("error handling %s event for type %T: %s", kind, obj, err)
+		logrus.Errorf("error handling %s event for type %F: %s", kind, obj, err)
 		return
 	}
 
@@ -193,7 +199,7 @@ func (controller *Controller) resourceHandlerFunc(kind HandleKind, obj interface
 	case "Service", "Job", "ReplicaSet", "Deployment":
 		controller.handleResource(kind, handledResource)
 	default:
-		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%T)", handledResource, obj))
+		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj))
 	}
 
 	_ = handledResource

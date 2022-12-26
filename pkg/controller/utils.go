@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -129,42 +130,6 @@ func linkResourceOwners(parent string, kind string, obj apimetav1.Object) {
 	}
 }
 
-func resourceFields(objs ...interface{}) logrus.Fields {
-	fields := logrus.Fields{}
-
-	for _, obj := range objs {
-		switch obj.(type) {
-		case *apicorev1.Pod:
-			pod, _ := obj.(*apicorev1.Pod)
-
-			fields["namespace"] = pod.Namespace
-			fields["pod"] = pod.Name
-
-		case *apibatchv1.Job:
-			job, _ := obj.(*apibatchv1.Job)
-
-			fields["namespace"] = job.Namespace
-			fields["job"] = job.Name
-
-		case apicorev1.Container:
-			cnt, _ := obj.(apicorev1.Container)
-
-			fields["container"] = cnt.Name
-
-		case *apicorev1.Namespace:
-			namespace, _ := obj.(*apicorev1.Namespace)
-
-			fields["namespace"] = namespace.Name
-
-		default:
-			// uncomment when checking types
-			//fields["type"] = reflect.TypeOf(obj)
-		}
-	}
-
-	return fields
-}
-
 func dumpResourceDescription(parentPath string, objKind string, resource HandledResource) error {
 	yamlPath := resourceFilePath(parentPath, objKind, resource.Object, resource.GetName()+".yaml")
 
@@ -194,6 +159,29 @@ func dumpResourceDescription(parentPath string, objKind string, resource Handled
 
 	if err != nil {
 		return fmt.Errorf("could not write %s to file '%s': %w", objKind, yamlPath, err)
+	}
+
+	return nil
+}
+
+func selectorFromHandled(handledResource HandledResource) LabelMatcher {
+	switch resource := handledResource.Resource.(type) {
+	case *apicorev1.Service:
+		if matcher, err := MatcherFromLabels(resource.Spec.Selector); err != nil {
+			return matcher
+		}
+	case *apiappsv1.Deployment:
+		if matcher, err := MatcherFromLabelSelector(resource.Spec.Selector); err != nil {
+			return matcher
+		}
+	case *apiappsv1.ReplicaSet:
+		if matcher, err := MatcherFromLabelSelector(resource.Spec.Selector); err != nil {
+			return matcher
+		}
+	case *apibatchv1.Job:
+		if matcher, err := MatcherFromLabelSelector(resource.Spec.Selector); err != nil {
+			return matcher
+		}
 	}
 
 	return nil

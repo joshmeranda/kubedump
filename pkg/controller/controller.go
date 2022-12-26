@@ -38,6 +38,8 @@ type Controller struct {
 
 	workQueue workqueue.RateLimitingInterface
 
+	store Store
+
 	informersSynced []cache.InformerSynced
 
 	podInformer        informerscorev1.PodInformer
@@ -70,6 +72,8 @@ func NewController(
 		logStreams: make(map[string]Stream),
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+
+		store: NewStore(),
 
 		podInformer:        informerFactory.Core().V1().Pods(),
 		serviceInformer:    informerFactory.Core().V1().Services(),
