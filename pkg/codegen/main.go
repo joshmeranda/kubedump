@@ -23,6 +23,7 @@ var (
 )
 
 func parserGen(_ *cli.Context) error {
+
 	cmd := exec.Command("goyacc", "-o", parserGoPath, parserYaccPath)
 
 	if err := cmd.Run(); err != nil {

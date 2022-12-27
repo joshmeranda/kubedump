@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -15,6 +16,18 @@ import (
 	"sync"
 	"time"
 )
+
+type Job struct {
+	id uuid.UUID
+	fn *func()
+}
+
+func NewJob(fn func()) Job {
+	return Job{
+		id: uuid.New(),
+		fn: &fn,
+	}
+}
 
 type Options struct {
 	ParentPath string
@@ -37,6 +50,8 @@ type Controller struct {
 	logStreamsMu sync.Mutex
 
 	workQueue workqueue.RateLimitingInterface
+
+	store Store
 
 	informersSynced []cache.InformerSynced
 
@@ -71,6 +86,8 @@ func NewController(
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 
+		store: NewStore(),
+
 		podInformer:        informerFactory.Core().V1().Pods(),
 		serviceInformer:    informerFactory.Core().V1().Services(),
 		jobInformer:        informerFactory.Batch().V1().Jobs(),
@@ -90,15 +107,10 @@ func NewController(
 		controller.deploymentInformer.Informer().HasSynced,
 	}
 
-	handler := cache.FilteringResourceEventHandler{
-		FilterFunc: func(obj interface{}) bool {
-			return sieve.Matches(obj)
-		},
-		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc:    controller.onAdd,
-			UpdateFunc: controller.onUpdate,
-			DeleteFunc: controller.onDelete,
-		},
+	handler := cache.ResourceEventHandlerFuncs{
+		AddFunc:    controller.onAdd,
+		UpdateFunc: controller.onUpdate,
+		DeleteFunc: controller.onDelete,
 	}
 
 	eventInformer.Informer().AddEventHandler(handler)
@@ -125,7 +137,7 @@ func (controller *Controller) syncLogStreams() {
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
-			logrus.Errorf("error syncing container '%s'", id)
+			logrus.Errorf("error syncing container '%s': %s", id, err)
 		} else {
 			logrus.Debugf("synced logs for containr '%s'", id)
 		}

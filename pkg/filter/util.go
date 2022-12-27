@@ -52,14 +52,15 @@ func splitLabelPattern(pattern string) (string, string, error) {
 }
 
 const (
-	dnsLabelPatternFmt     = "[a-z0-9*]([a-z0-9\\-*]{0,61}[a-z0-9*])?"
-	dnsSubdomainPatternFmt = "[a-z0-9*]([a-z0-9\\-.*]{0,251}[a-z0-9*])?"
+	dnsLabelPatternFmt               = "[a-z0-9*]([a-z0-9\\-*]{0,61}[a-z0-9*])?"
+	dnsSubdomainPatternFmt           = "[a-z0-9*]([a-z0-9\\-.*]{0,251}[a-z0-9*])?"
+	dnsSubdomainPatternNoWildcardFmt = "[a-z0-9]([a-z0-9\\-.]{0,251}[a-z0-9])?"
 
-	labelKeyPrefixPatterFmt = dnsSubdomainPatternFmt + "/"
-	labelKeyNamePatternFmt  = "[a-zA-Z0-9*]([a-zA-Z0-9\\-_.*]{0,61}[a-zA-Z0-9*])?"
-	labelKeyPatternFmt      = "(" + labelKeyPrefixPatterFmt + ")?" + labelKeyNamePatternFmt
+	labelKeyPrefixPatternFmt = dnsSubdomainPatternNoWildcardFmt + "/"
+	labelKeyNamePatternFmt   = "[a-zA-Z0-9]([a-zA-Z0-9\\-_.]{0,61}[a-zA-Z0-9])?"
+	labelKeyPatternFmt       = "(" + labelKeyPrefixPatternFmt + ")?" + labelKeyNamePatternFmt
 
-	labelValuePatternFmt = "([a-zA-Z0-9*]([a-zA-Z0-9\\-_.*]{0,61}[a-zA-Z0-9*])?)?"
+	labelValuePatternFmt = "([a-zA-Z0-9]([a-zA-Z0-9\\-_.]{0,61}[a-zA-Z0-9*])?)?"
 )
 
 var (
@@ -113,11 +114,6 @@ func validateLabelKey(key string) error {
 }
 
 func validateLabelValue(value string) error {
-	// todo: ideally this would be handled by the regex, but this is fine for now
-	//if value == "" {
-	//	return nil
-	//}
-
 	if !labelValuePattern.MatchString(value) {
 		return fmt.Errorf("label valud '%s' is not valid", value)
 	}

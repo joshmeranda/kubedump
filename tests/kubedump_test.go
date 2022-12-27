@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gobwas/glob"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -82,6 +83,8 @@ func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 }
 
 func TestDump(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+
 	d, client, parentPath := controllerSetup(t)
 	defer controllerTeardown(t, d, parentPath)
 
@@ -114,5 +117,5 @@ func TestDump(t *testing.T) {
 	assertResourceFile(t, "Service", path.Join(parentPath, SampleService.Namespace, "service", SampleService.Name, SampleService.Name+".yaml"), SampleService.GetObjectMeta())
 
 	//displayTree(t, parentPath)
-	copyTree(t, parentPath, d.Name()+".dump")
+	//copyTree(t, parentPath, d.Name()+".dump")
 }

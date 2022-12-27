@@ -2,10 +2,11 @@ package controller
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
+	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kubedump/pkg"
 	"os"
 	"path"
 	"path/filepath"
@@ -64,6 +65,7 @@ func isNamespaced(resourceKind string) bool {
 	}
 }
 
+// todo: might want to refactor this to take HandledResources
 func resourceDirPath(parent string, objKind string, obj apimetav1.Object) string {
 	if isNamespaced(objKind) {
 		return path.Join(parent, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
@@ -83,89 +85,35 @@ func containerLogFilePath(parentPath string, pod *apicorev1.Pod, container *apic
 	)
 }
 
-func linkToOwner(parent string, owner apimetav1.OwnerReference, objKind string, obj apimetav1.Object) error {
-	ownerPath := resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
-		Name: owner.Name,
+func linkMatchedResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
+	matcherPath := resourceDirPath(parent, matcher.Kind, matcher.Object)
+	matcherKindPath := path.Join(matcherPath, strings.ToLower(matched.Kind))
 
-		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
-		Namespace: obj.GetNamespace(),
-	})
-	ownerResourcePath := path.Join(ownerPath, strings.ToLower(objKind))
-	objPath := resourceDirPath(parent, objKind, obj)
+	matchedPath := resourceDirPath(parent, matched.Kind, matched)
 
-	relPath, err := filepath.Rel(ownerResourcePath, objPath)
-
+	relPath, err := filepath.Rel(matcherKindPath, matchedPath)
 	if err != nil {
-		return fmt.Errorf("could not get baseepath for owner and obj: %w", err)
+		return fmt.Errorf("could not get basepath for matched and matcher: %w", err)
 	}
 
-	if err != nil {
-		return err
-	}
+	symlinkPath := path.Join(resourceDirPath(parent, matcher.Kind, &apimetav1.ObjectMeta{
+		Name: matcher.GetName(),
 
-	symlinkPath := path.Join(resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
-		Name: owner.Name,
-
-		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
-		Namespace: obj.GetNamespace(),
-	}), strings.ToLower(objKind), obj.GetName())
+		Namespace: matched.GetNamespace(),
+	}), strings.ToLower(matched.Kind), matched.GetName())
 
 	if err := createPathParents(symlinkPath); err != nil {
-		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
+		return fmt.Errorf("unable to create parents for symlnk '%s': %w", symlinkPath, err)
 	}
 
-	if err := os.Symlink(relPath, symlinkPath); err != nil {
+	if err := os.Symlink(relPath, symlinkPath); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("could not create symlink '%s': %w", symlinkPath, err)
 	}
 
 	return nil
 }
 
-func linkResourceOwners(parent string, kind string, obj apimetav1.Object) {
-	for _, owner := range obj.GetOwnerReferences() {
-		if err := linkToOwner(parent, owner, kind, obj); err != nil {
-			logrus.Errorf("could not link %s to owners '%s/%s/%s': %s", kind, owner.Kind, obj.GetNamespace(), owner.Name, err)
-		}
-	}
-}
-
-func resourceFields(objs ...interface{}) logrus.Fields {
-	fields := logrus.Fields{}
-
-	for _, obj := range objs {
-		switch obj.(type) {
-		case *apicorev1.Pod:
-			pod, _ := obj.(*apicorev1.Pod)
-
-			fields["namespace"] = pod.Namespace
-			fields["pod"] = pod.Name
-
-		case *apibatchv1.Job:
-			job, _ := obj.(*apibatchv1.Job)
-
-			fields["namespace"] = job.Namespace
-			fields["job"] = job.Name
-
-		case apicorev1.Container:
-			cnt, _ := obj.(apicorev1.Container)
-
-			fields["container"] = cnt.Name
-
-		case *apicorev1.Namespace:
-			namespace, _ := obj.(*apicorev1.Namespace)
-
-			fields["namespace"] = namespace.Name
-
-		default:
-			// uncomment when checking types
-			//fields["type"] = reflect.TypeOf(obj)
-		}
-	}
-
-	return fields
-}
-
-func dumpResourceDescription(parentPath string, objKind string, resource HandledResource) error {
+func dumpResourceDescription(parentPath string, objKind string, resource kubedump.HandledResource) error {
 	yamlPath := resourceFilePath(parentPath, objKind, resource.Object, resource.GetName()+".yaml")
 
 	if exists(yamlPath) {
@@ -197,4 +145,19 @@ func dumpResourceDescription(parentPath string, objKind string, resource Handled
 	}
 
 	return nil
+}
+
+func selectorFromHandled(handledResource kubedump.HandledResource) (LabelMatcher, error) {
+	switch resource := handledResource.Resource.(type) {
+	case *apicorev1.Service:
+		return MatcherFromLabels(resource.Spec.Selector)
+	case *apiappsv1.Deployment:
+		return MatcherFromLabelSelector(resource.Spec.Selector)
+	case *apiappsv1.ReplicaSet:
+		return MatcherFromLabelSelector(resource.Spec.Selector)
+	case *apibatchv1.Job:
+		return MatcherFromLabelSelector(resource.Spec.Selector)
+	default:
+		return nil, fmt.Errorf("can not create LabelMathcher from kind '%s'", handledResource.Kind)
+	}
 }

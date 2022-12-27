@@ -7,6 +7,7 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kubedump/pkg"
 	"os"
 	"path"
 )
@@ -30,7 +31,8 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 			logrus.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		if !controller.sieve.Matches(resource) {
+		handledResource, _ := kubedump.NewHandledResource("Pod", resource)
+		if !controller.sieve.Matches(handledResource) {
 			return
 		}
 		obj = resource.GetObjectMeta()
@@ -40,7 +42,8 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 			logrus.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		if !controller.sieve.Matches(resource) {
+		handledResource, _ := kubedump.NewHandledResource("Service", resource)
+		if !controller.sieve.Matches(handledResource) {
 			return
 		}
 		obj = resource.GetObjectMeta()
@@ -50,7 +53,8 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 			logrus.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		if !controller.sieve.Matches(resource) {
+		handledResource, _ := kubedump.NewHandledResource("Job", resource)
+		if !controller.sieve.Matches(handledResource) {
 			return
 		}
 		obj = resource.GetObjectMeta()
@@ -60,7 +64,8 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 			logrus.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		if !controller.sieve.Matches(resource) {
+		handledResource, _ := kubedump.NewHandledResource("ReplicaSet", resource)
+		if !controller.sieve.Matches(handledResource) {
 			return
 		}
 		obj = resource.GetObjectMeta()
@@ -70,7 +75,8 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 			logrus.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		if !controller.sieve.Matches(resource) {
+		handledResource, _ := kubedump.NewHandledResource("Deployment", resource)
+		if !controller.sieve.Matches(handledResource) {
 			return
 		}
 		obj = resource.GetObjectMeta()
@@ -100,9 +106,9 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	}
 }
 
-func (controller *Controller) handlePod(kind HandleKind, pod *apicorev1.Pod) {
+func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1.Pod) {
 	switch kind {
-	case HandleAdd:
+	case kubedump.HandleAdd:
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
 				ctx := context.TODO()
@@ -133,7 +139,7 @@ func (controller *Controller) handlePod(kind HandleKind, pod *apicorev1.Pod) {
 				}))
 			}))
 		}
-	case HandleDelete:
+	case kubedump.HandleDelete:
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
 				logStreamId := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)
@@ -159,9 +165,31 @@ func (controller *Controller) handlePod(kind HandleKind, pod *apicorev1.Pod) {
 	}
 }
 
-func (controller *Controller) handleResource(kind HandleKind, handledResource HandledResource) {
-	if kind == HandleAdd {
-		linkResourceOwners(controller.ParentPath, handledResource.Kind, handledResource)
+func (controller *Controller) handleResource(kind kubedump.HandleKind, handledResource kubedump.HandledResource) {
+	resources, err := controller.store.GetResources(handledResource)
+	if err != nil {
+		logrus.Errorf("error fetching resources: %s", err)
+	}
+
+	for _, resource := range resources {
+		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
+			logrus.Errorf("error: %s", err)
+		}
+	}
+
+	if len(resources) == 0 && !controller.sieve.Matches(handledResource) {
+		return
+	}
+
+	matcher, err := selectorFromHandled(handledResource)
+	if err != nil {
+		logrus.Errorf("%s", err)
+	} else {
+		logrus.Debugf("adding selector for resource '%s'", handledResource.String())
+
+		if err := controller.store.AddResource(handledResource, matcher); err != nil {
+			logrus.Errorf("error storing '%s' label matcher: %s", handledResource.Kind, err)
+		}
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
@@ -175,11 +203,11 @@ func (controller *Controller) handleResource(kind HandleKind, handledResource Ha
 }
 
 // resourceHandlerFunc is the entrypoint for handling all resources after filtering.
-func (controller *Controller) resourceHandlerFunc(kind HandleKind, obj interface{}) {
-	handledResource, err := NewHandledResource(kind, obj)
+func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj interface{}) {
+	handledResource, err := kubedump.NewHandledResource(kind, obj)
 
 	if err != nil {
-		logrus.Errorf("error handling %s event for type %T: %s", kind, obj, err)
+		logrus.Errorf("error handling %s event for type %F: %s", kind, obj, err)
 		return
 	}
 
@@ -193,20 +221,18 @@ func (controller *Controller) resourceHandlerFunc(kind HandleKind, obj interface
 	case "Service", "Job", "ReplicaSet", "Deployment":
 		controller.handleResource(kind, handledResource)
 	default:
-		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%T)", handledResource, obj))
+		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj))
 	}
-
-	_ = handledResource
 }
 
 func (controller *Controller) onAdd(obj interface{}) {
-	controller.resourceHandlerFunc(HandleAdd, obj)
+	controller.resourceHandlerFunc(kubedump.HandleAdd, obj)
 }
 
 func (controller *Controller) onUpdate(_ interface{}, new interface{}) {
-	controller.resourceHandlerFunc(HandleUpdate, new)
+	controller.resourceHandlerFunc(kubedump.HandleUpdate, new)
 }
 
 func (controller *Controller) onDelete(obj interface{}) {
-	controller.resourceHandlerFunc(HandleDelete, obj)
+	controller.resourceHandlerFunc(kubedump.HandleDelete, obj)
 }
