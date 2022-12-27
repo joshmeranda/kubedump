@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -30,8 +31,9 @@ func NewJob(fn func()) Job {
 }
 
 type Options struct {
-	ParentPath string
-	Filter     filter.Expression
+	ParentPath    string
+	Filter        filter.Expression
+	ParentContext context.Context
 }
 
 type Controller struct {
@@ -50,6 +52,9 @@ type Controller struct {
 	logStreamsMu sync.Mutex
 
 	workQueue workqueue.RateLimitingInterface
+
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	store Store
 
@@ -73,6 +78,14 @@ func NewController(
 		return nil, fmt.Errorf("could not create resource filter: %w", err)
 	}
 
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if opts.ParentContext != nil {
+		ctx, cancel = context.WithCancel(opts.ParentContext)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+
 	controller := &Controller{
 		Options:       opts,
 		kubeclientset: kubeclientset,
@@ -85,6 +98,9 @@ func NewController(
 		logStreams: make(map[string]Stream),
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+
+		ctx:    ctx,
+		cancel: cancel,
 
 		store: NewStore(),
 
@@ -155,6 +171,7 @@ func (controller *Controller) syncLogStreams() {
 func (controller *Controller) processNextWorkItem() bool {
 	obj, shutdown := controller.workQueue.Get()
 
+	logrus.Debugf("shutting down? %v", shutdown)
 	if shutdown {
 		return false
 	}
@@ -222,11 +239,11 @@ func (controller *Controller) Stop() error {
 		return fmt.Errorf("controller was not running")
 	}
 
-	logrus.Infof("Stopping controller")
-
 	close(controller.stopChan)
-	controller.stopChan = nil
 	controller.workQueue.ShutDown()
+
+	logrus.Infof("Stopping controller")
+	controller.stopChan = nil
 
 	return nil
 }

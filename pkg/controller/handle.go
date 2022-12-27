@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 	apicorev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,12 +110,10 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 	case kubedump.HandleAdd:
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
-				ctx := context.TODO()
-
 				stream, err := NewLogStream(LogStreamOptions{
 					Pod:           pod,
 					Container:     &container,
-					Context:       ctx,
+					Context:       controller.ctx,
 					KubeClientSet: controller.kubeclientset,
 					ParentPath:    controller.ParentPath,
 				})
@@ -181,10 +178,8 @@ func (controller *Controller) handleResource(kind kubedump.HandleKind, handledRe
 		return
 	}
 
-	matcher, err := selectorFromHandled(handledResource)
-	if err != nil {
-		logrus.Errorf("%s", err)
-	} else {
+	matcher, _ := selectorFromHandled(handledResource)
+	if matcher != nil {
 		logrus.Debugf("adding selector for resource '%s'", handledResource.String())
 
 		if err := controller.store.AddResource(handledResource, matcher); err != nil {

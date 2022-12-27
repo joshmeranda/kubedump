@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg/cmd"
@@ -51,17 +52,18 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 		parentPath = path.Join(dir, "kubedump-test")
 	}
 
-	for {
+	stopChan := make(chan struct{})
+	wait.Until(func() {
 		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apimetav1.GetOptions{})
 
 		if err == nil {
-			break
+			close(stopChan)
+			return
 		}
 
 		t.Log("cluster not yet ready")
 
-		time.Sleep(5 * time.Second)
-	}
+	}, time.Second*5, stopChan)
 
 	t.Log("cluster is ready")
 
