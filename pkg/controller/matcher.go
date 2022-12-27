@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"fmt"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type Labels map[string]string
@@ -17,7 +19,15 @@ func MatcherFromLabels(labels Labels) (LabelMatcher, error) {
 }
 
 func MatcherFromLabelSelector(selector *apimetav1.LabelSelector) (LabelMatcher, error) {
-	return nil, nil
+	s, err := apimetav1.LabelSelectorAsSelector(selector)
+
+	if err != nil {
+		return nil, fmt.Errorf("can not get Matcher from LabelSelector: %w", err)
+	}
+
+	return labelSelectorMatcher{
+		inner: s,
+	}, nil
 }
 
 type mapMatcher struct {
@@ -32,4 +42,12 @@ func (matcher mapMatcher) Matches(labels Labels) bool {
 	}
 
 	return true
+}
+
+type labelSelectorMatcher struct {
+	inner labels.Selector
+}
+
+func (matcher labelSelectorMatcher) Matches(l Labels) bool {
+	return matcher.inner.Matches(labels.Set(l))
 }

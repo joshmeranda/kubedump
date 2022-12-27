@@ -13,6 +13,8 @@ type pair[F any, S any] struct {
 
 type storePair pair[LabelMatcher, HandledResource]
 
+// todo: handle when checking resource against it's own selectors.
+
 type Store interface {
 	// AddResource adds the given resource with the associated LabelSelector
 	AddResource(resource HandledResource, matcher LabelMatcher) error

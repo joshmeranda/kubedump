@@ -108,3 +108,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
 	}
 }
+
+func (resource HandledResource) String() string {
+	return fmt.Sprintf("%s/%s/%s", resource.Kind, resource.GetNamespace(), resource.GetName())
+}

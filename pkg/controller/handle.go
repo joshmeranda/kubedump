@@ -160,11 +160,31 @@ func (controller *Controller) handlePod(kind HandleKind, pod *apicorev1.Pod) {
 }
 
 func (controller *Controller) handleResource(kind HandleKind, handledResource HandledResource) {
-	if kind == HandleAdd {
-		linkResourceOwners(controller.ParentPath, handledResource.Kind, handledResource)
+	resources, err := controller.store.GetResources(handledResource.GetLabels())
+	if err != nil {
+		logrus.Errorf("error fetching resources: %s", err)
 	}
 
-	if matcher := selectorFromHandled(handledResource); matcher != nil {
+	for _, resource := range resources {
+		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
+			logrus.Errorf("error: %s", err)
+		}
+	}
+
+	if len(resources) == 0 && !controller.sieve.Matches(handledResource.Resource) {
+		return
+	}
+
+	//if kind == HandleAdd {
+	//	linkResourceOwners(controller.ParentPath, handledResource.Kind, handledResource)
+	//}
+
+	matcher, err := selectorFromHandled(handledResource)
+	if err != nil {
+		logrus.Errorf("%s", err)
+	} else {
+		logrus.Debugf("adding selector for resource '%s'", handledResource.String())
+
 		if err := controller.store.AddResource(handledResource, matcher); err != nil {
 			logrus.Errorf("error storing '%s' label matcher: %s", handledResource.Kind, err)
 		}
@@ -201,8 +221,6 @@ func (controller *Controller) resourceHandlerFunc(kind HandleKind, obj interface
 	default:
 		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj))
 	}
-
-	_ = handledResource
 }
 
 func (controller *Controller) onAdd(obj interface{}) {

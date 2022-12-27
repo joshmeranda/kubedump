@@ -65,6 +65,7 @@ func isNamespaced(resourceKind string) bool {
 	}
 }
 
+// todo: might want to refactor this to take HandledResources
 func resourceDirPath(parent string, objKind string, obj apimetav1.Object) string {
 	if isNamespaced(objKind) {
 		return path.Join(parent, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
@@ -100,10 +101,6 @@ func linkToOwner(parent string, owner apimetav1.OwnerReference, objKind string, 
 		return fmt.Errorf("could not get baseepath for owner and obj: %w", err)
 	}
 
-	if err != nil {
-		return err
-	}
-
 	symlinkPath := path.Join(resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
 		Name: owner.Name,
 
@@ -128,6 +125,35 @@ func linkResourceOwners(parent string, kind string, obj apimetav1.Object) {
 			logrus.Errorf("could not link %s to owners '%s/%s/%s': %s", kind, owner.Kind, obj.GetNamespace(), owner.Name, err)
 		}
 	}
+}
+
+// todo: this has repeated code with linkToOwner
+func linkMatchedResource(parent string, matcher HandledResource, matched HandledResource) error {
+	matcherPath := resourceDirPath(parent, matcher.Kind, matcher.Object)
+	matcherKindPath := path.Join(matcherPath, strings.ToLower(matched.Kind))
+
+	matchedPath := resourceDirPath(parent, matched.Kind, matched)
+
+	relPath, err := filepath.Rel(matcherKindPath, matchedPath)
+	if err != nil {
+		return fmt.Errorf("could not get basepath for matched and matcher: %w", err)
+	}
+
+	symlinkPath := path.Join(resourceDirPath(parent, matcher.Kind, &apimetav1.ObjectMeta{
+		Name: matcher.GetName(),
+
+		Namespace: matched.GetNamespace(),
+	}), strings.ToLower(matched.Kind), matched.GetName())
+
+	if err := createPathParents(symlinkPath); err != nil {
+		return fmt.Errorf("unable to creata parents for symlnk '%s': %w", symlinkPath, err)
+	}
+
+	if err := os.Symlink(relPath, symlinkPath); err != nil {
+		return fmt.Errorf("could not create symlink '%s': %w", symlinkPath, err)
+	}
+
+	return nil
 }
 
 func dumpResourceDescription(parentPath string, objKind string, resource HandledResource) error {
@@ -164,25 +190,17 @@ func dumpResourceDescription(parentPath string, objKind string, resource Handled
 	return nil
 }
 
-func selectorFromHandled(handledResource HandledResource) LabelMatcher {
+func selectorFromHandled(handledResource HandledResource) (LabelMatcher, error) {
 	switch resource := handledResource.Resource.(type) {
 	case *apicorev1.Service:
-		if matcher, err := MatcherFromLabels(resource.Spec.Selector); err != nil {
-			return matcher
-		}
+		return MatcherFromLabels(resource.Spec.Selector)
 	case *apiappsv1.Deployment:
-		if matcher, err := MatcherFromLabelSelector(resource.Spec.Selector); err != nil {
-			return matcher
-		}
+		return MatcherFromLabelSelector(resource.Spec.Selector)
 	case *apiappsv1.ReplicaSet:
-		if matcher, err := MatcherFromLabelSelector(resource.Spec.Selector); err != nil {
-			return matcher
-		}
+		return MatcherFromLabelSelector(resource.Spec.Selector)
 	case *apibatchv1.Job:
-		if matcher, err := MatcherFromLabelSelector(resource.Spec.Selector); err != nil {
-			return matcher
-		}
+		return MatcherFromLabelSelector(resource.Spec.Selector)
+	default:
+		return nil, fmt.Errorf("can not create LabelMathcher from kind '%s'", handledResource.Kind)
 	}
-
-	return nil
 }

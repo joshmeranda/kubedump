@@ -94,15 +94,10 @@ func NewController(
 		controller.deploymentInformer.Informer().HasSynced,
 	}
 
-	handler := cache.FilteringResourceEventHandler{
-		FilterFunc: func(obj interface{}) bool {
-			return sieve.Matches(obj)
-		},
-		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc:    controller.onAdd,
-			UpdateFunc: controller.onUpdate,
-			DeleteFunc: controller.onDelete,
-		},
+	handler := cache.ResourceEventHandlerFuncs{
+		AddFunc:    controller.onAdd,
+		UpdateFunc: controller.onUpdate,
+		DeleteFunc: controller.onDelete,
 	}
 
 	eventInformer.Informer().AddEventHandler(handler)
@@ -129,7 +124,7 @@ func (controller *Controller) syncLogStreams() {
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
-			logrus.Errorf("error syncing container '%s'", id)
+			logrus.Errorf("error syncing container '%s': %s", id, err)
 		} else {
 			logrus.Debugf("synced logs for containr '%s'", id)
 		}
