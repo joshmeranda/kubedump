@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
@@ -85,49 +84,6 @@ func containerLogFilePath(parentPath string, pod *apicorev1.Pod, container *apic
 	)
 }
 
-func linkToOwner(parent string, owner apimetav1.OwnerReference, objKind string, obj apimetav1.Object) error {
-	ownerPath := resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
-		Name: owner.Name,
-
-		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
-		Namespace: obj.GetNamespace(),
-	})
-	ownerResourcePath := path.Join(ownerPath, strings.ToLower(objKind))
-	objPath := resourceDirPath(parent, objKind, obj)
-
-	relPath, err := filepath.Rel(ownerResourcePath, objPath)
-
-	if err != nil {
-		return fmt.Errorf("could not get baseepath for owner and obj: %w", err)
-	}
-
-	symlinkPath := path.Join(resourceDirPath(parent, owner.Kind, &apimetav1.ObjectMeta{
-		Name: owner.Name,
-
-		// because of this line we can't check for `obj.Namespace == ""` in resourceDirPath
-		Namespace: obj.GetNamespace(),
-	}), strings.ToLower(objKind), obj.GetName())
-
-	if err := createPathParents(symlinkPath); err != nil {
-		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
-	}
-
-	if err := os.Symlink(relPath, symlinkPath); err != nil {
-		return fmt.Errorf("could not create symlink '%s': %w", symlinkPath, err)
-	}
-
-	return nil
-}
-
-func linkResourceOwners(parent string, kind string, obj apimetav1.Object) {
-	for _, owner := range obj.GetOwnerReferences() {
-		if err := linkToOwner(parent, owner, kind, obj); err != nil {
-			logrus.Errorf("could not link %s to owners '%s/%s/%s': %s", kind, owner.Kind, obj.GetNamespace(), owner.Name, err)
-		}
-	}
-}
-
-// todo: this has repeated code with linkToOwner
 func linkMatchedResource(parent string, matcher HandledResource, matched HandledResource) error {
 	matcherPath := resourceDirPath(parent, matcher.Kind, matcher.Object)
 	matcherKindPath := path.Join(matcherPath, strings.ToLower(matched.Kind))
@@ -146,10 +102,10 @@ func linkMatchedResource(parent string, matcher HandledResource, matched Handled
 	}), strings.ToLower(matched.Kind), matched.GetName())
 
 	if err := createPathParents(symlinkPath); err != nil {
-		return fmt.Errorf("unable to creata parents for symlnk '%s': %w", symlinkPath, err)
+		return fmt.Errorf("unable to create parents for symlnk '%s': %w", symlinkPath, err)
 	}
 
-	if err := os.Symlink(relPath, symlinkPath); err != nil {
+	if err := os.Symlink(relPath, symlinkPath); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("could not create symlink '%s': %w", symlinkPath, err)
 	}
 
