@@ -1,26 +1,13 @@
-package controller
+package kubedump
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apieventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-type Job struct {
-	id uuid.UUID
-	fn *func()
-}
-
-func NewJob(fn func()) Job {
-	return Job{
-		id: uuid.New(),
-		fn: &fn,
-	}
-}
 
 type HandleKind string
 
@@ -42,7 +29,7 @@ type HandledResource struct {
 }
 
 func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, error) {
-	// todo: client-go informer seems to drop TypeMeta info so we need to add that manually for no
+	// todo: client-go informer seems to drop TypeMeta info so we need to add that manually for now
 	switch resource := obj.(type) {
 	case *apieventsv1.Event:
 		return HandledResource{

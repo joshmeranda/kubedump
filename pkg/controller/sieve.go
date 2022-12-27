@@ -1,9 +1,12 @@
 package controller
 
-import "kubedump/pkg/filter"
+import (
+	kubedump "kubedump/pkg"
+	"kubedump/pkg/filter"
+)
 
 type Sieve interface {
-	Matches(obj interface{}) bool
+	Matches(resource kubedump.HandledResource) bool
 
 	Expression() filter.Expression
 }
@@ -18,9 +21,8 @@ type sieve struct {
 	filter filter.Expression
 }
 
-func (sieve *sieve) Matches(obj interface{}) bool {
-	// todo: handle parent filters
-	return sieve.filter.Matches(obj)
+func (sieve *sieve) Matches(resource kubedump.HandledResource) bool {
+	return sieve.filter.Matches(resource)
 }
 
 func (sieve *sieve) Expression() filter.Expression {

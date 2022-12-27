@@ -6,6 +6,7 @@ import (
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kubedump/pkg"
 	"os"
 	"path"
 	"path/filepath"
@@ -84,7 +85,7 @@ func containerLogFilePath(parentPath string, pod *apicorev1.Pod, container *apic
 	)
 }
 
-func linkMatchedResource(parent string, matcher HandledResource, matched HandledResource) error {
+func linkMatchedResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
 	matcherPath := resourceDirPath(parent, matcher.Kind, matcher.Object)
 	matcherKindPath := path.Join(matcherPath, strings.ToLower(matched.Kind))
 
@@ -112,7 +113,7 @@ func linkMatchedResource(parent string, matcher HandledResource, matched Handled
 	return nil
 }
 
-func dumpResourceDescription(parentPath string, objKind string, resource HandledResource) error {
+func dumpResourceDescription(parentPath string, objKind string, resource kubedump.HandledResource) error {
 	yamlPath := resourceFilePath(parentPath, objKind, resource.Object, resource.GetName()+".yaml")
 
 	if exists(yamlPath) {
@@ -146,7 +147,7 @@ func dumpResourceDescription(parentPath string, objKind string, resource Handled
 	return nil
 }
 
-func selectorFromHandled(handledResource HandledResource) (LabelMatcher, error) {
+func selectorFromHandled(handledResource kubedump.HandledResource) (LabelMatcher, error) {
 	switch resource := handledResource.Resource.(type) {
 	case *apicorev1.Service:
 		return MatcherFromLabels(resource.Spec.Selector)

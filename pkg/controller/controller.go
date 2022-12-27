@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -15,6 +16,18 @@ import (
 	"sync"
 	"time"
 )
+
+type Job struct {
+	id uuid.UUID
+	fn *func()
+}
+
+func NewJob(fn func()) Job {
+	return Job{
+		id: uuid.New(),
+		fn: &fn,
+	}
+}
 
 type Options struct {
 	ParentPath string

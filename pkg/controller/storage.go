@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/types"
+	"kubedump/pkg"
 	"sync"
 )
 
@@ -11,20 +12,20 @@ type pair[F any, S any] struct {
 	second S
 }
 
-type storePair pair[LabelMatcher, HandledResource]
+type storePair pair[LabelMatcher, kubedump.HandledResource]
 
 type Store interface {
 	// AddResource adds the given resource with the associated LabelSelector
-	AddResource(resource HandledResource, matcher LabelMatcher) error
+	AddResource(resource kubedump.HandledResource, matcher LabelMatcher) error
 
 	// GetResources fetches all resources whose LabelSelector matches the given Labels.
 	//
 	// Note: if the given resource matches a selector, and they are the same k8s object, that selector should not be
 	// included in the returned slice.
-	GetResources(resource HandledResource) ([]HandledResource, error)
+	GetResources(resource kubedump.HandledResource) ([]kubedump.HandledResource, error)
 
 	// RemoveResource deletes the given resourceId from storage. If no matching resource exists, it will do nothing.
-	RemoveResource(resource HandledResource) error
+	RemoveResource(resource kubedump.HandledResource) error
 }
 
 // NewStore constructs a store using the default implementation.
@@ -39,7 +40,7 @@ type memoryStore struct {
 	inner    map[types.UID]storePair
 }
 
-func (store *memoryStore) AddResource(resource HandledResource, matcher LabelMatcher) error {
+func (store *memoryStore) AddResource(resource kubedump.HandledResource, matcher LabelMatcher) error {
 	store.innerMut.Lock()
 	defer store.innerMut.Unlock()
 
@@ -51,8 +52,8 @@ func (store *memoryStore) AddResource(resource HandledResource, matcher LabelMat
 	return nil
 }
 
-func (store *memoryStore) GetResources(resource HandledResource) ([]HandledResource, error) {
-	resources := make([]HandledResource, 0)
+func (store *memoryStore) GetResources(resource kubedump.HandledResource) ([]kubedump.HandledResource, error) {
+	resources := make([]kubedump.HandledResource, 0)
 
 	for _, p := range store.inner {
 		if p.second.GetUID() == resource.GetUID() {
@@ -67,7 +68,7 @@ func (store *memoryStore) GetResources(resource HandledResource) ([]HandledResou
 	return resources, nil
 }
 
-func (store *memoryStore) RemoveResource(resource HandledResource) error {
+func (store *memoryStore) RemoveResource(resource kubedump.HandledResource) error {
 	_, found := store.inner[resource.GetUID()]
 
 	if !found {

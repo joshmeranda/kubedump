@@ -60,15 +60,15 @@ single_expr: RESOURCE PATTERN {
 
 		switch $1 {
 		case "pod":
-			$$ = podExpression { namePattern: namePattern, namespacePattern: namespacePattern }
+			$$ = resourceExpression { kind: "Pod", namePattern: namePattern, namespacePattern: namespacePattern }
 		case "job":
-			$$ = jobExpression { namePattern: namePattern, namespacePattern: namespacePattern }
+			$$ = resourceExpression { kind: "Job", namePattern: namePattern, namespacePattern: namespacePattern }
 		case "replicaset":
-			$$ = replicasetExpression { namePattern: namePattern, namespacePattern: namespacePattern }
+			$$ = resourceExpression { kind: "ReplicaSet", namePattern: namePattern, namespacePattern: namespacePattern }
 		case "deployment":
-			$$ = deploymentExpression { namePattern: namePattern, namespacePattern: namespacePattern }
+			$$ = resourceExpression { kind: "Deployment", namePattern: namePattern, namespacePattern: namespacePattern }
 		case "service":
-			$$ = serviceExpression { namePattern: namePattern, namespacePattern: namespacePattern }
+			$$ = resourceExpression { kind: "Service", namePattern: namePattern, namespacePattern: namespacePattern }
 		}
 	}
 	| NAMESPACE PATTERN   {
@@ -78,7 +78,7 @@ single_expr: RESOURCE PATTERN {
 
 		$$ = namespaceExpression{ namespacePattern: $2 }
 	}
-	| LABEL labels        { $$ = labelExpression{ labelPatterns: $2 } }
+	| LABEL labels        { $$ = labelExpression{ labels: $2 } }
 
 labels: PATTERN          {
 		key, val, err := splitLabelPattern($1)
