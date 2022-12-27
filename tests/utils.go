@@ -146,7 +146,7 @@ var SamplePodSpec = apicorev1.PodSpec{
 		{
 			Name:            "test-container",
 			Image:           "alpine:latest",
-			Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 5; done"},
+			Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 1; done"},
 			ImagePullPolicy: "",
 		},
 	},

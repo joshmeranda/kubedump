@@ -8,30 +8,11 @@ import (
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// todo: this will not work recursively
-func checkOwners(expr ResourceExpression, owners []apimetav1.OwnerReference, parentKind string, namespace string) bool {
-	if wildcard.MatchSimple(expr.NamespacePattern(), namespace) {
-		for _, owner := range owners {
-			if owner.Kind == parentKind && wildcard.MatchSimple(expr.NamePattern(), owner.Name) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
+// todo: this should take a handled resource
 
 type Expression interface {
 	// Matches should return true if the given value is of the correct type, and satisfies the expression's conditions.
 	Matches(v interface{}) bool
-}
-
-// todo: since we need this to provide storage we might want to replicate this for the other Expression types
-
-func NewLabelExpression(labels map[string]string) Expression {
-	return labelExpression{
-		labels: labels,
-	}
 }
 
 type ResourceExpression interface {
@@ -139,12 +120,6 @@ type jobExpression struct {
 
 func (expr jobExpression) Matches(v interface{}) bool {
 	switch v.(type) {
-	case apicorev1.Pod:
-		pod := v.(apicorev1.Pod)
-		return checkOwners(expr, pod.OwnerReferences, "Job", pod.Namespace)
-	case *apicorev1.Pod:
-		pod := v.(*apicorev1.Pod)
-		return checkOwners(expr, pod.OwnerReferences, "Job", pod.Namespace)
 	case apibatchv1.Job:
 		job := v.(apibatchv1.Job)
 		return wildcard.MatchSimple(expr.namespacePattern, job.Namespace) && wildcard.MatchSimple(expr.namePattern, job.Name)
@@ -172,12 +147,6 @@ type replicasetExpression struct {
 
 func (expr replicasetExpression) Matches(v interface{}) bool {
 	switch v.(type) {
-	case apicorev1.Pod:
-		pod := v.(apicorev1.Pod)
-		return checkOwners(expr, pod.OwnerReferences, "ReplicaSet", pod.Namespace)
-	case *apicorev1.Pod:
-		pod := v.(*apicorev1.Pod)
-		return checkOwners(expr, pod.OwnerReferences, "ReplicaSet", pod.Namespace)
 	case apiappsv1.ReplicaSet:
 		set := v.(apiappsv1.ReplicaSet)
 		return wildcard.MatchSimple(expr.namespacePattern, set.Namespace) && wildcard.MatchSimple(expr.namePattern, set.Name)
@@ -205,12 +174,6 @@ type deploymentExpression struct {
 
 func (expr deploymentExpression) Matches(v interface{}) bool {
 	switch v.(type) {
-	case apiappsv1.ReplicaSet:
-		set := v.(apiappsv1.ReplicaSet)
-		return checkOwners(expr, set.OwnerReferences, "Service", set.Namespace)
-	case *apiappsv1.ReplicaSet:
-		set := v.(*apiappsv1.ReplicaSet)
-		return checkOwners(expr, set.OwnerReferences, "Service", set.Namespace)
 	case apiappsv1.Deployment:
 		deployment := v.(apiappsv1.Deployment)
 		return wildcard.MatchSimple(expr.namespacePattern, deployment.Namespace) && wildcard.MatchSimple(expr.namePattern, deployment.Name)
