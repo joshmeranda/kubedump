@@ -289,15 +289,15 @@ func deleteOptions() apimetav1.DeleteOptions {
 func createResources(t *testing.T, client kubernetes.Interface) (func(), error) {
 	var aggregatedDefers []func() error
 
-	//_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apimetav1.CreateOptions{})
-	//aggregatedDefers = append(aggregatedDefers, func() error {
-	//	return client.CoreV1().Pods("default").Delete(context.TODO(), SamplePod.Name, deleteOptions())
-	//})
-	//if err != nil {
-	//	t.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
-	//}
+	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apimetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().Pods("default").Delete(context.TODO(), SamplePod.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
+	}
 
-	_, err := client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apimetav1.CreateOptions{})
+	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
 		return client.BatchV1().Jobs("default").Delete(context.TODO(), SampleJob.Name, deleteOptions())
 	})
@@ -305,37 +305,37 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		t.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
 	}
 
-	//_, err = client.AppsV1().ReplicaSets("default").Create(context.TODO(), &SampleReplicaSet, apimetav1.CreateOptions{})
-	//aggregatedDefers = append(aggregatedDefers, func() error {
-	//	return client.AppsV1().ReplicaSets("default").Delete(context.TODO(), SampleReplicaSet.Name, deleteOptions())
-	//})
-	//if err != nil {
-	//	t.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
-	//}
-	//
-	//_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apimetav1.CreateOptions{})
-	//aggregatedDefers = append(aggregatedDefers, func() error {
-	//	return client.AppsV1().Deployments("default").Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
-	//})
-	//if err != nil {
-	//	t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
-	//}
-	//
-	//_, err = client.CoreV1().Pods("default").Create(context.TODO(), &SampleServicePod, apimetav1.CreateOptions{})
-	//aggregatedDefers = append(aggregatedDefers, func() error {
-	//	return client.CoreV1().Pods("default").Delete(context.TODO(), SampleServicePod.Name, deleteOptions())
-	//})
-	//if err != nil {
-	//	t.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
-	//}
-	//
-	//_, err = client.CoreV1().Services("default").Create(context.TODO(), &SampleService, apimetav1.CreateOptions{})
-	//aggregatedDefers = append(aggregatedDefers, func() error {
-	//	return client.CoreV1().Services("default").Delete(context.TODO(), SampleService.Name, deleteOptions())
-	//})
-	//if err != nil {
-	//	t.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
-	//}
+	_, err = client.AppsV1().ReplicaSets("default").Create(context.TODO(), &SampleReplicaSet, apimetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.AppsV1().ReplicaSets("default").Delete(context.TODO(), SampleReplicaSet.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
+	}
+
+	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apimetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.AppsV1().Deployments("default").Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
+	}
+
+	_, err = client.CoreV1().Pods("default").Create(context.TODO(), &SampleServicePod, apimetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().Pods("default").Delete(context.TODO(), SampleServicePod.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
+	}
+
+	_, err = client.CoreV1().Services("default").Create(context.TODO(), &SampleService, apimetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().Services("default").Delete(context.TODO(), SampleService.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
+	}
 
 	return func() {
 		for _, deferred := range aggregatedDefers {

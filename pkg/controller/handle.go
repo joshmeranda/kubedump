@@ -160,7 +160,7 @@ func (controller *Controller) handlePod(kind HandleKind, pod *apicorev1.Pod) {
 }
 
 func (controller *Controller) handleResource(kind HandleKind, handledResource HandledResource) {
-	resources, err := controller.store.GetResources(handledResource.GetLabels())
+	resources, err := controller.store.GetResources(handledResource)
 	if err != nil {
 		logrus.Errorf("error fetching resources: %s", err)
 	}
@@ -174,10 +174,6 @@ func (controller *Controller) handleResource(kind HandleKind, handledResource Ha
 	if len(resources) == 0 && !controller.sieve.Matches(handledResource.Resource) {
 		return
 	}
-
-	//if kind == HandleAdd {
-	//	linkResourceOwners(controller.ParentPath, handledResource.Kind, handledResource)
-	//}
 
 	matcher, err := selectorFromHandled(handledResource)
 	if err != nil {

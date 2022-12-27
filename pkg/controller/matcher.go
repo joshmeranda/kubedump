@@ -6,13 +6,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-type Labels map[string]string
-
 type LabelMatcher interface {
-	Matches(labels Labels) bool
+	Matches(labels labels.Set) bool
 }
 
-func MatcherFromLabels(labels Labels) (LabelMatcher, error) {
+func MatcherFromLabels(labels labels.Set) (LabelMatcher, error) {
 	return &mapMatcher{
 		labels: labels,
 	}, nil
@@ -31,10 +29,10 @@ func MatcherFromLabelSelector(selector *apimetav1.LabelSelector) (LabelMatcher, 
 }
 
 type mapMatcher struct {
-	labels Labels
+	labels labels.Set
 }
 
-func (matcher mapMatcher) Matches(labels Labels) bool {
+func (matcher mapMatcher) Matches(labels labels.Set) bool {
 	for key, value := range labels {
 		if labelValue, found := labels[key]; !found || labelValue != value {
 			return false
@@ -48,6 +46,6 @@ type labelSelectorMatcher struct {
 	inner labels.Selector
 }
 
-func (matcher labelSelectorMatcher) Matches(l Labels) bool {
-	return matcher.inner.Matches(labels.Set(l))
+func (matcher labelSelectorMatcher) Matches(l labels.Set) bool {
+	return matcher.inner.Matches(l)
 }

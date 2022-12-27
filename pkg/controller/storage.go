@@ -13,14 +13,15 @@ type pair[F any, S any] struct {
 
 type storePair pair[LabelMatcher, HandledResource]
 
-// todo: handle when checking resource against it's own selectors.
-
 type Store interface {
 	// AddResource adds the given resource with the associated LabelSelector
 	AddResource(resource HandledResource, matcher LabelMatcher) error
 
 	// GetResources fetches all resources whose LabelSelector matches the given Labels.
-	GetResources(labels Labels) ([]HandledResource, error)
+	//
+	// Note: if the given resource matches a selector, and they are the same k8s object, that selector should not be
+	// included in the returned slice.
+	GetResources(resource HandledResource) ([]HandledResource, error)
 
 	// RemoveResource deletes the given resourceId from storage. If no matching resource exists, it will do nothing.
 	RemoveResource(resource HandledResource) error
@@ -50,11 +51,15 @@ func (store *memoryStore) AddResource(resource HandledResource, matcher LabelMat
 	return nil
 }
 
-func (store *memoryStore) GetResources(labels Labels) ([]HandledResource, error) {
+func (store *memoryStore) GetResources(resource HandledResource) ([]HandledResource, error) {
 	resources := make([]HandledResource, 0)
 
 	for _, p := range store.inner {
-		if p.first.Matches(labels) {
+		if p.second.GetUID() == resource.GetUID() {
+			continue
+		}
+
+		if p.first.Matches(resource.GetLabels()) {
 			resources = append(resources, p.second)
 		}
 	}
