@@ -1,12 +1,12 @@
 package kubedump
 
-// todo: use runtime.HandleError over logrus.Error
+// todo: use runtime.HandleError logrus
 
 import (
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"io"
@@ -27,9 +27,15 @@ const (
 	CategoryChartValues    = "Chart Values"
 )
 
+func init() {
+	CmdLogger = kubedump.NewLogger()
+}
+
 func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	if ctx.Bool("verbose") {
-		logrus.SetLevel(logrus.DebugLevel)
+		CmdLogger = kubedump.NewLogger(
+			kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
+		)
 	}
 
 	parentPath := ctx.String("destination")
@@ -40,8 +46,10 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	}
 
 	opts := controller.Options{
-		ParentPath: parentPath,
-		Filter:     f,
+		ParentPath:    parentPath,
+		Filter:        f,
+		ParentContext: ctx.Context,
+		Logger:        CmdLogger,
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
@@ -91,6 +99,8 @@ func Create(ctx *cli.Context) error {
 		return err
 	}
 
+	logger := kubedump.NewLogger()
+
 	chartValues := make(map[string]interface{})
 
 	if nodePort := ctx.Int("node-port"); nodePort > 0 {
@@ -98,7 +108,7 @@ func Create(ctx *cli.Context) error {
 			return fmt.Errorf("node port value '%d' is not in the range 30000-32767")
 		}
 
-		logrus.Infof("using user provided node port '%d'", nodePort)
+		logger.Infof("using user provided node port '%d'", nodePort)
 
 		chartValues["kubedumpServer"] = map[string]interface{}{"nodePort": nodePort}
 	}
@@ -124,7 +134,7 @@ func Create(ctx *cli.Context) error {
 
 	if err := actionConfig.Init(getter, kubedump.Namespace, os.Getenv("HELM_DRIVER"), func(f string, v ...interface{}) {
 	}); err != nil {
-		logrus.Errorf("could not Create action config: %s", err)
+		logger.Errorf("could not Create action config: %s", err)
 	}
 
 	installAction := action.NewInstall(actionConfig)
@@ -137,7 +147,7 @@ func Create(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not install chart: %w", err)
 	} else {
-		logrus.Infof("installed chart '%s'", release.Name)
+		logger.Infof("installed chart '%s'", release.Name)
 	}
 
 	return nil
@@ -163,7 +173,9 @@ func Start(ctx *cli.Context) error {
 		return fmt.Errorf("could not start kubedump at '%s': %s", u.String(), msg)
 	}
 
-	logrus.Infof("started remote kubedump at '%s'", u.String())
+	logger := kubedump.NewLogger()
+
+	logger.Infof("started remote kubedump at '%s'", u.String())
 
 	return nil
 }
@@ -182,7 +194,9 @@ func Stop(ctx *cli.Context) error {
 		return fmt.Errorf("could not stop kubedump at '%s': %w", u.String(), err)
 	}
 
-	logrus.Infof("stopped remote kubedump at '%s'", u.String())
+	logger := kubedump.NewLogger()
+
+	logger.Infof("stopped remote kubedump at '%s'", u.String())
 
 	return nil
 }
@@ -194,7 +208,9 @@ func Pull(ctx *cli.Context) error {
 		return err
 	}
 
-	logrus.Infof("pulling kubedump tar from '%s'", u.String())
+	logger := kubedump.NewLogger()
+
+	logger.Infof("pulling kubedump tar from '%s'", u.String())
 	httpClient := &http.Client{}
 	response, err := httpClient.Get(u.String())
 
@@ -230,7 +246,7 @@ func Pull(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("could not copy response body to file: %w", err)
 		}
-		logrus.Infof("copied tar to '%s'", tarPath)
+		logger.Infof("copied tar to '%s'", tarPath)
 	default:
 		return fmt.Errorf("unsupported Content-Type '%s'", contentType)
 	}
@@ -258,9 +274,11 @@ func Remove(ctx *cli.Context) error {
 
 	actionConfig := new(action.Configuration)
 
+	logger := kubedump.NewLogger()
+
 	if err := actionConfig.Init(getter, kubedump.Namespace, os.Getenv("HELM_DRIVER"), func(f string, v ...interface{}) {
 	}); err != nil {
-		logrus.Errorf("could not Create uninstallAction config: %s", err)
+		logger.Errorf("could not Create uninstallAction config: %s", err)
 	}
 
 	uninstallAction := action.NewUninstall(actionConfig)
@@ -271,13 +289,13 @@ func Remove(ctx *cli.Context) error {
 		return fmt.Errorf("could not uninstall chart '%s': %w", kubedump.HelmReleaseName, err)
 	}
 
-	logrus.Infof("uninstalled release '%s': %s", kubedump.HelmReleaseName, response.Info)
+	logger.Infof("uninstalled release '%s': %s", kubedump.HelmReleaseName, response.Info)
 
 	if err := kubeClient.CoreV1().Namespaces().Delete(context.TODO(), kubedump.Namespace, apimeta.DeleteOptions{}); err != nil {
 		return fmt.Errorf("could not delete Namespace '%s': %w", kubedump.Namespace, err)
 	}
 
-	logrus.Infof("deleted Namespace '%s'", kubedump.Namespace)
+	logger.Infof("deleted Namespace '%s'", kubedump.Namespace)
 
 	return nil
 }

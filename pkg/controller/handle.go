@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	apicorev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +26,7 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	case "Pod":
 		resource, err := controller.podInformer.Lister().Pods(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
-			logrus.Errorf("could not get Pod for event: %s", err)
+			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
 		handledResource, _ := kubedump.NewHandledResource("Pod", resource)
@@ -38,7 +37,7 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	case "Service":
 		resource, err := controller.serviceInformer.Lister().Services(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
-			logrus.Errorf("could not get Pod for event: %s", err)
+			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
 		handledResource, _ := kubedump.NewHandledResource("Service", resource)
@@ -49,7 +48,7 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	case "Job":
 		resource, err := controller.jobInformer.Lister().Jobs(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
-			logrus.Errorf("could not get Pod for event: %s", err)
+			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
 		handledResource, _ := kubedump.NewHandledResource("Job", resource)
@@ -60,7 +59,7 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	case "ReplicaSet":
 		resource, err := controller.replicasetInformer.Lister().ReplicaSets(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
-			logrus.Errorf("could not get Pod for event: %s", err)
+			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
 		handledResource, _ := kubedump.NewHandledResource("ReplicaSet", resource)
@@ -71,7 +70,7 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	case "Deployment":
 		resource, err := controller.deploymentInformer.Lister().Deployments(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
-			logrus.Errorf("could not get Pod for event: %s", err)
+			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
 		handledResource, _ := kubedump.NewHandledResource("Deployment", resource)
@@ -89,19 +88,19 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
-		logrus.Errorf("could not create job event file '%s': %s", eventFilePath, err)
+		controller.Logger.Errorf("could not create job event file '%s': %s", eventFilePath, err)
 	}
 
 	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
 
 	if err != nil {
-		logrus.Errorf("could not open job event file '%s': %s", eventFilePath, err)
+		controller.Logger.Errorf("could not open job event file '%s': %s", eventFilePath, err)
 	}
 
 	s := fmt.Sprintf(eventFormat, event.EventTime, event.Type, event.Reason, event.ReportingController, event.Note)
 
 	if _, err = eventFile.Write([]byte(s)); err != nil {
-		logrus.Errorf("could not write to event file '%s': %s", eventFilePath, err)
+		controller.Logger.Errorf("could not write to event file '%s': %s", eventFilePath, err)
 	}
 }
 
@@ -119,7 +118,7 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 				})
 
 				if err != nil {
-					logrus.Errorf("%s", err)
+					controller.Logger.Errorf("%s", err)
 					return
 				}
 
@@ -131,7 +130,7 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 
 				controller.workQueue.AddRateLimited(NewJob(func() {
 					if err := stream.Sync(); err != nil {
-						logrus.Errorf("%s", err)
+						controller.Logger.Errorf("%s", err)
 					}
 				}))
 			}))
@@ -146,12 +145,12 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 				stream, found := controller.logStreams[logStreamId]
 
 				if !found {
-					logrus.Errorf("bug: deleting containr which isn't being streamed")
+					controller.Logger.Errorf("bug: deleting containr which isn't being streamed")
 					return
 				}
 
 				if err := stream.Close(); err != nil {
-					logrus.Warnf("%s", err)
+					controller.Logger.Warnf("%s", err)
 				}
 
 				delete(controller.logStreams, logStreamId)
@@ -165,12 +164,12 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 func (controller *Controller) handleResource(kind kubedump.HandleKind, handledResource kubedump.HandledResource) {
 	resources, err := controller.store.GetResources(handledResource)
 	if err != nil {
-		logrus.Errorf("error fetching resources: %s", err)
+		controller.Logger.Errorf("error fetching resources: %s", err)
 	}
 
 	for _, resource := range resources {
 		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
-			logrus.Errorf("error: %s", err)
+			controller.Logger.Errorf("error: %s", err)
 		}
 	}
 
@@ -180,19 +179,19 @@ func (controller *Controller) handleResource(kind kubedump.HandleKind, handledRe
 
 	matcher, _ := selectorFromHandled(handledResource)
 	if matcher != nil {
-		logrus.Debugf("adding selector for resource '%s'", handledResource.String())
+		controller.Logger.Debugf("adding selector for resource '%s'", handledResource.String())
 
 		if err := controller.store.AddResource(handledResource, matcher); err != nil {
-			logrus.Errorf("error storing '%s' label matcher: %s", handledResource.Kind, err)
+			controller.Logger.Errorf("error storing '%s' label matcher: %s", handledResource.Kind, err)
 		}
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
 		if err := dumpResourceDescription(controller.ParentPath, handledResource.Kind, handledResource); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"namespace": handledResource.GetNamespace(),
-				"name":      handledResource.GetName(),
-			}).Errorf("could not dump pod description: %s", err)
+			controller.Logger.With(
+				"namespace", handledResource.GetNamespace(),
+				"name", handledResource.GetName(),
+			).Errorf("could not dump pod description: %s", err)
 		}
 	}))
 }
@@ -202,7 +201,7 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 	handledResource, err := kubedump.NewHandledResource(kind, obj)
 
 	if err != nil {
-		logrus.Errorf("error handling %s event for type %F: %s", kind, obj, err)
+		controller.Logger.Errorf("error handling %s event for type %F: %s", kind, obj, err)
 		return
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/gobwas/glob"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -85,8 +84,6 @@ func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 }
 
 func TestDump(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-
 	d, client, parentPath := controllerSetup(t)
 	defer controllerTeardown(t, d, parentPath)
 
@@ -95,6 +92,7 @@ func TestDump(t *testing.T) {
 	go func() {
 		app := kubedump.NewKubedumpApp(stopChan)
 
+		// add --verbose to see debug level log output
 		err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--destination", parentPath, "--filter", "namespace default"})
 		assert.NoError(t, err)
 	}()

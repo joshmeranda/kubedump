@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	informersappsv1 "k8s.io/client-go/informers/apps/v1"
@@ -34,6 +34,7 @@ type Options struct {
 	ParentPath    string
 	Filter        filter.Expression
 	ParentContext context.Context
+	Logger        *zap.SugaredLogger
 }
 
 type Controller struct {
@@ -153,9 +154,9 @@ func (controller *Controller) syncLogStreams() {
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
-			logrus.Errorf("error syncing container '%s': %s", id, err)
+			controller.Logger.Errorf("error syncing container '%s': %s", id, err)
 		} else {
-			logrus.Debugf("synced logs for containr '%s'", id)
+			controller.Logger.Debugf("synced logs for containr '%s'", id)
 		}
 	}
 
@@ -171,7 +172,6 @@ func (controller *Controller) syncLogStreams() {
 func (controller *Controller) processNextWorkItem() bool {
 	obj, shutdown := controller.workQueue.Get()
 
-	logrus.Debugf("shutting down? %v", shutdown)
 	if shutdown {
 		return false
 	}
@@ -179,7 +179,7 @@ func (controller *Controller) processNextWorkItem() bool {
 	job, ok := obj.(Job)
 
 	if !ok {
-		logrus.Errorf("could not understand worker function")
+		controller.Logger.Errorf("could not understand worker function")
 		controller.workQueue.Forget(obj)
 		return false
 	}
@@ -203,22 +203,22 @@ func (controller *Controller) Start(nWorkers int) error {
 
 	controller.stopChan = make(chan struct{})
 
-	logrus.Infof("starting controller")
+	controller.Logger.Infof("starting controller")
 
 	controller.informerFactory.Start(controller.stopChan)
 
-	logrus.Infof("waiting for informer caches to sync")
+	controller.Logger.Infof("waiting for informer caches to sync")
 	if ok := cache.WaitForCacheSync(controller.stopChan, controller.informersSynced...); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
 	controller.startTime = time.Now().UTC()
 
-	logrus.Infof("starting workers")
+	controller.Logger.Infof("starting workers")
 	for i := 0; i < nWorkers; i++ {
 		n := i
 		go func() {
-			logrus.Debugf("starting worker #%d", n)
+			controller.Logger.Debugf("starting worker #%d", n)
 			for controller.processNextWorkItem() {
 				/* do nothing */
 			}
@@ -229,7 +229,7 @@ func (controller *Controller) Start(nWorkers int) error {
 		controller.syncLogStreams()
 	}))
 
-	logrus.Infof("Started controller")
+	controller.Logger.Infof("Started controller")
 
 	return nil
 }
@@ -242,7 +242,7 @@ func (controller *Controller) Stop() error {
 	close(controller.stopChan)
 	controller.workQueue.ShutDown()
 
-	logrus.Infof("Stopping controller")
+	controller.Logger.Infof("Stopping controller")
 	controller.stopChan = nil
 
 	return nil

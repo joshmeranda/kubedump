@@ -4,8 +4,8 @@ import (
 	"archive/tar"
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +30,8 @@ var (
 	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", appVersion, chartVersion)
 
 	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
+
+	CmdLogger *zap.SugaredLogger
 )
 
 func getClusterHostFromConfig(config *rest.Config) (string, error) {
@@ -160,7 +162,7 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 
 	fileName := path.Join(dir, filepath.Base(parsedUrl.Path))
 
-	logrus.Infof("getting chart from: %s", rawUrl)
+	CmdLogger.Infof("getting chart from: %s", rawUrl)
 	resp, err := http.Get(rawUrl)
 	if err != nil {
 		return "", fmt.Errorf("could not Pull chart tat '%s': %w", rawUrl, err)
@@ -196,19 +198,6 @@ func ensureDefaultChart() (string, error) {
 	}
 
 	return chartFile, nil
-}
-
-func errorResponse(w http.ResponseWriter, message string, statusCode int) {
-	logrus.Errorf(message)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	response := make(map[string]string)
-	response["message"] = message
-
-	jsonResponse, _ := json.Marshal(response)
-	w.Write(jsonResponse)
 }
 
 func getArchivePath(dir string, name string) string {
