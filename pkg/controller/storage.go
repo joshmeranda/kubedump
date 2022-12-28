@@ -55,7 +55,9 @@ func (store *memoryStore) AddResource(resource kubedump.HandledResource, matcher
 func (store *memoryStore) GetResources(resource kubedump.HandledResource) ([]kubedump.HandledResource, error) {
 	resources := make([]kubedump.HandledResource, 0)
 
-	// todo: we need to add a read lock here
+	store.innerMut.RLock()
+	defer store.innerMut.RUnlock()
+
 	for _, p := range store.inner {
 		if p.second.GetUID() == resource.GetUID() {
 			continue

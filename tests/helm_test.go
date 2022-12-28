@@ -92,7 +92,7 @@ func helmTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 func TestHelm(t *testing.T) {
 	t.Skip("doesn't work consistently yet")
 
-	d, client, config, parentPath := helmSetup(t)
+	d, client, _, parentPath := helmSetup(t)
 	defer helmTeardown(t, d, parentPath)
 
 	app := kubedump.NewKubedumpApp(nil)
@@ -117,6 +117,4 @@ func TestHelm(t *testing.T) {
 
 	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "remove"})
 	assert.NoError(t, err)
-
-	_ = config
 }
