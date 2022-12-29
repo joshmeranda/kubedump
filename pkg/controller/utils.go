@@ -58,7 +58,8 @@ func isNamespaced(resourceKind string) bool {
 		"PriorityClass",
 		"CSIDriver",
 		"CSINode",
-		"StorageClass", "VolumeAttachment":
+		"StorageClass",
+		"VolumeAttachment":
 		return false
 	default:
 		return true
@@ -85,22 +86,27 @@ func containerLogFilePath(parentPath string, pod *apicorev1.Pod, container *apic
 	)
 }
 
-func linkMatchedResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
-	matcherPath := resourceDirPath(parent, matcher.Kind, matcher.Object)
-	matcherKindPath := path.Join(matcherPath, strings.ToLower(matched.Kind))
+func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kubedump.HandledResource) (string, string, error) {
+	parentPath := resourceDirPath(basePath, parent.Kind, parent)
+	childPath := resourceDirPath(basePath, child.Kind, child)
 
-	matchedPath := resourceDirPath(parent, matched.Kind, matched)
+	linkDir := path.Join(parentPath, strings.ToLower(child.Kind))
 
-	relPath, err := filepath.Rel(matcherKindPath, matchedPath)
+	relPath, err := filepath.Rel(linkDir, childPath)
 	if err != nil {
-		return fmt.Errorf("could not get basepath for matched and matcher: %w", err)
+		return "", "", fmt.Errorf("could not get basepath for matched and matcher: %w", err)
 	}
 
-	symlinkPath := path.Join(resourceDirPath(parent, matcher.Kind, &apimetav1.ObjectMeta{
-		Name: matcher.GetName(),
+	symlinkPath := path.Join(linkDir, child.GetName())
 
-		Namespace: matched.GetNamespace(),
-	}), strings.ToLower(matched.Kind), matched.GetName())
+	return symlinkPath, relPath, nil
+}
+
+func linkMatchedResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
+	symlinkPath, relPath, err := getSymlinkPaths(parent, matcher, matched)
+	if err != nil {
+		return fmt.Errorf("")
+	}
 
 	if err := createPathParents(symlinkPath); err != nil {
 		return fmt.Errorf("unable to create parents for symlnk '%s': %w", symlinkPath, err)
@@ -113,8 +119,8 @@ func linkMatchedResource(parent string, matcher kubedump.HandledResource, matche
 	return nil
 }
 
-func dumpResourceDescription(parentPath string, objKind string, resource kubedump.HandledResource) error {
-	yamlPath := resourceFilePath(parentPath, objKind, resource.Object, resource.GetName()+".yaml")
+func dumpResourceDescription(parentPath string, resource kubedump.HandledResource) error {
+	yamlPath := resourceFilePath(parentPath, resource.Kind, resource.Object, resource.GetName()+".yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
@@ -135,13 +141,13 @@ func dumpResourceDescription(parentPath string, objKind string, resource kubedum
 	data, err := yaml.Marshal(resource.Resource)
 
 	if err != nil {
-		return fmt.Errorf("could not marshal %s: %w", objKind, err)
+		return fmt.Errorf("could not marshal %s: %w", resource.Kind, err)
 	}
 
 	_, err = f.Write(data)
 
 	if err != nil {
-		return fmt.Errorf("could not write %s to file '%s': %w", objKind, yamlPath, err)
+		return fmt.Errorf("could not write %s to file '%s': %w", resource.Kind, yamlPath, err)
 	}
 
 	return nil

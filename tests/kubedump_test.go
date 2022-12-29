@@ -104,6 +104,9 @@ func TestDump(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	close(stopChan)
 
+	//displayTree(t, parentPath)
+	copyTree(t, parentPath, d.Name()+".dump")
+
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
 
 	assertResourceFile(t, "Job", path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, SampleJob.Name+".yaml"), SampleJob.GetObjectMeta())
@@ -115,7 +118,4 @@ func TestDump(t *testing.T) {
 	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	assertResourceFile(t, "Service", path.Join(parentPath, SampleService.Namespace, "service", SampleService.Name, SampleService.Name+".yaml"), SampleService.GetObjectMeta())
-
-	//displayTree(t, parentPath)
-	//copyTree(t, parentPath, d.Name()+".dump")
 }

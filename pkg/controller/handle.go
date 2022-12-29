@@ -187,7 +187,7 @@ func (controller *Controller) handleResource(kind kubedump.HandleKind, handledRe
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(controller.ParentPath, handledResource.Kind, handledResource); err != nil {
+		if err := dumpResourceDescription(controller.ParentPath, handledResource); err != nil {
 			controller.Logger.With(
 				"namespace", handledResource.GetNamespace(),
 				"name", handledResource.GetName(),

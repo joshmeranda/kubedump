@@ -29,7 +29,7 @@ type HandledResource struct {
 }
 
 func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, error) {
-	// todo: client-go informer seems to drop TypeMeta info so we need to add that manually for now
+	// todo: client-go informer seems to drop TypeMeta info, so we need to add that manually for now
 	switch resource := obj.(type) {
 	case *apieventsv1.Event:
 		return HandledResource{
