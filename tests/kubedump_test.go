@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/gobwas/glob"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubedump "kubedump/pkg/cmd"
@@ -51,17 +51,18 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 		parentPath = path.Join(dir, "kubedump-test")
 	}
 
-	for {
+	stopChan := make(chan struct{})
+	wait.Until(func() {
 		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apimetav1.GetOptions{})
 
 		if err == nil {
-			break
+			close(stopChan)
+			return
 		}
 
 		t.Log("cluster not yet ready")
 
-		time.Sleep(5 * time.Second)
-	}
+	}, time.Second*5, stopChan)
 
 	t.Log("cluster is ready")
 
@@ -83,8 +84,6 @@ func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 }
 
 func TestDump(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-
 	d, client, parentPath := controllerSetup(t)
 	defer controllerTeardown(t, d, parentPath)
 
@@ -93,6 +92,7 @@ func TestDump(t *testing.T) {
 	go func() {
 		app := kubedump.NewKubedumpApp(stopChan)
 
+		// add --verbose to see debug level log output
 		err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--destination", parentPath, "--filter", "namespace default"})
 		assert.NoError(t, err)
 	}()
@@ -103,6 +103,9 @@ func TestDump(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 	close(stopChan)
+
+	//displayTree(t, parentPath)
+	copyTree(t, parentPath, d.Name()+".dump")
 
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
 
@@ -115,7 +118,4 @@ func TestDump(t *testing.T) {
 	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	assertResourceFile(t, "Service", path.Join(parentPath, SampleService.Namespace, "service", SampleService.Name, SampleService.Name+".yaml"), SampleService.GetObjectMeta())
-
-	//displayTree(t, parentPath)
-	//copyTree(t, parentPath, d.Name()+".dump")
 }

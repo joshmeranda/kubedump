@@ -2,25 +2,31 @@ package kubedump
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 	kubedump "kubedump/pkg"
 	"net/http"
 )
 
+func init() {
+	CmdLogger = kubedump.NewLogger()
+}
+
 func ServeKubedump(ctx *cli.Context) error {
 	if ctx.Bool("verbose") {
-		logrus.SetLevel(logrus.DebugLevel)
+		CmdLogger = kubedump.NewLogger(
+			kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
+		)
 	}
 
-	handler := NewHandler()
+	handler := NewHandler(CmdLogger)
 
-	logrus.Infof("starting server...")
+	CmdLogger.Infof("starting server...")
 
 	err := http.ListenAndServe(fmt.Sprintf(":%d", kubedump.Port), &handler)
 
 	if err != nil {
-		logrus.Fatal("error starting http server: %s", err)
+		CmdLogger.Fatal("error starting http server: %s", err)
 	}
 
 	return nil

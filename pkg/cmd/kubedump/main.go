@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
-	kubedump "kubedump/pkg/cmd"
+	kubedumpcmd "kubedump/pkg/cmd"
 	"os"
 	"os/signal"
 )
@@ -15,15 +14,14 @@ func main() {
 	stopChan := make(chan interface{})
 	go func() {
 		<-signalChan
-		logrus.Infof("recevied interrupt, stopping kubedump")
+		fmt.Printf("recevied interrupt, stopping kubedumpcmd")
 		close(stopChan)
 	}()
 
-	app := kubedump.NewKubedumpApp(stopChan)
+	app := kubedumpcmd.NewKubedumpApp(stopChan)
 
-	//if err := app.Run(os.Args); err != nil {
-	if err := app.Run([]string{"bin/kubedump", "--kubeconfig", "/home/wrinkle/.kube/config", "dump", "--filter", "namespace default"}); err != nil {
-		fmt.Printf("%s", err)
+	if err := app.Run(os.Args); err != nil {
+		kubedumpcmd.CmdLogger.Infof("%s", err)
 		os.Exit(1)
 	}
 }

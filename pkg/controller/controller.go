@@ -1,9 +1,10 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	informersappsv1 "k8s.io/client-go/informers/apps/v1"
@@ -30,8 +31,10 @@ func NewJob(fn func()) Job {
 }
 
 type Options struct {
-	ParentPath string
-	Filter     filter.Expression
+	ParentPath    string
+	Filter        filter.Expression
+	ParentContext context.Context
+	Logger        *zap.SugaredLogger
 }
 
 type Controller struct {
@@ -50,6 +53,9 @@ type Controller struct {
 	logStreamsMu sync.Mutex
 
 	workQueue workqueue.RateLimitingInterface
+
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	store Store
 
@@ -73,6 +79,14 @@ func NewController(
 		return nil, fmt.Errorf("could not create resource filter: %w", err)
 	}
 
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if opts.ParentContext != nil {
+		ctx, cancel = context.WithCancel(opts.ParentContext)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+
 	controller := &Controller{
 		Options:       opts,
 		kubeclientset: kubeclientset,
@@ -85,6 +99,9 @@ func NewController(
 		logStreams: make(map[string]Stream),
 
 		workQueue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+
+		ctx:    ctx,
+		cancel: cancel,
 
 		store: NewStore(),
 
@@ -137,9 +154,9 @@ func (controller *Controller) syncLogStreams() {
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
-			logrus.Errorf("error syncing container '%s': %s", id, err)
+			controller.Logger.Errorf("error syncing container '%s': %s", id, err)
 		} else {
-			logrus.Debugf("synced logs for containr '%s'", id)
+			controller.Logger.Debugf("synced logs for containr '%s'", id)
 		}
 	}
 
@@ -162,7 +179,7 @@ func (controller *Controller) processNextWorkItem() bool {
 	job, ok := obj.(Job)
 
 	if !ok {
-		logrus.Errorf("could not understand worker function")
+		controller.Logger.Errorf("could not understand worker function")
 		controller.workQueue.Forget(obj)
 		return false
 	}
@@ -186,22 +203,22 @@ func (controller *Controller) Start(nWorkers int) error {
 
 	controller.stopChan = make(chan struct{})
 
-	logrus.Infof("starting controller")
+	controller.Logger.Infof("starting controller")
 
 	controller.informerFactory.Start(controller.stopChan)
 
-	logrus.Infof("waiting for informer caches to sync")
+	controller.Logger.Infof("waiting for informer caches to sync")
 	if ok := cache.WaitForCacheSync(controller.stopChan, controller.informersSynced...); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
 	controller.startTime = time.Now().UTC()
 
-	logrus.Infof("starting workers")
+	controller.Logger.Infof("starting workers")
 	for i := 0; i < nWorkers; i++ {
 		n := i
 		go func() {
-			logrus.Debugf("starting worker #%d", n)
+			controller.Logger.Debugf("starting worker #%d", n)
 			for controller.processNextWorkItem() {
 				/* do nothing */
 			}
@@ -212,7 +229,7 @@ func (controller *Controller) Start(nWorkers int) error {
 		controller.syncLogStreams()
 	}))
 
-	logrus.Infof("Started controller")
+	controller.Logger.Infof("Started controller")
 
 	return nil
 }
@@ -222,11 +239,11 @@ func (controller *Controller) Stop() error {
 		return fmt.Errorf("controller was not running")
 	}
 
-	logrus.Infof("Stopping controller")
-
 	close(controller.stopChan)
-	controller.stopChan = nil
 	controller.workQueue.ShutDown()
+
+	controller.Logger.Infof("Stopping controller")
+	controller.stopChan = nil
 
 	return nil
 }
