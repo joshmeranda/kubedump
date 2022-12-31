@@ -9,7 +9,6 @@ args:
 
 log_file=/tmp/kubedump-verify.log
 version="$(tools/version.bash get)"
-docker_image="joshmeranda/kubedump-server:$version"
 
 passed=0
 failed=0
@@ -69,8 +68,8 @@ function check_gofmt() {
   fi
 }
 
-function check_app_version() {
-  app_version=$(yq eval '.appVersion' charts/kubedump-server/Chart.yaml | tr --delete '"')
+function check_helm_version() {
+  app_version=$(yq eval '.version' charts/kubedump-server/Chart.yaml | tr --delete '"')
 
   if [ "$app_version" != "$version" ]; then
     echo "$app_version != $version"
@@ -94,14 +93,22 @@ function check_remote_tag() {
   fi
 }
 
+function check_docker_images() {
+  images=("joshmeranda/kubedump-server:$version")
+
+  for image in "${images[@]}"; do
+    docker manifest inspect "$image" || return 1
+  done
+}
+
 check 'CLEAN WORKSPACE          ' 'check_git_clean'
 check 'GO BUILD KUBEDUMP        ' 'make kubedump'
 check 'GO BUILD KUBEDUMP-SERVER ' 'make kubedump'
 check 'GO TEST                  ' 'make test'
 check 'GO FMT                   ' 'check_gofmt'
 check 'HELM LINT                ' 'helm lint charts/kubedump-server'
-check 'HELM APP VERSION         ' 'check_app_version'
-check 'DOCKER IMAGE             ' "docker manifest inspect $docker_image"
+check 'HELM VERSION             ' 'check_helm_version'
+check 'DOCKER IMAGE             ' 'check_docker_images'
 check 'REMOTE GIT VERSION TAG   ' 'check_remote_tag'
 
 echo -e "\nPASSED: $passed\tFAILED: $failed"

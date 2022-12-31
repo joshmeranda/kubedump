@@ -24,10 +24,10 @@ import (
 )
 
 var (
-	chartVersion = "0.1.0"
-	appVersion   = "0.2.0"
+	// todo: we might want to pass this via build flag
+	version = "0.3.9"
 
-	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", appVersion, chartVersion)
+	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", version, version)
 
 	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
 
@@ -138,7 +138,7 @@ func getChartPath() (string, error) {
 		return "", fmt.Errorf("could not determine location for chart: %w", err)
 	}
 
-	return path.Join(dataDir, fmt.Sprintf("%s-%s.tgz", kubedump.HelmReleaseName, chartVersion)), nil
+	return path.Join(dataDir, fmt.Sprintf("%s-%s.tgz", kubedump.HelmReleaseName, version)), nil
 }
 
 func pullChart(rawUrl string) (string, error) {

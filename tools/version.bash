@@ -24,7 +24,7 @@ function get_version() {
   if [ -n "$head_tag" ]; then
     echo "$head_tag"
   else
-    local most_recent_tag="$(git tag --list | tail --lines 1)"
+    local most_recent_tag="$(git tag --sort version:refname --list | tail --lines 1)"
     local commits_since_last="$(git log --oneline $most_recent_tag..HEAD | wc --lines)"
 
     echo "$most_recent_tag-dev-$commits_since_last"

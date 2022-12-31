@@ -106,7 +106,7 @@ func Create(ctx *cli.Context) error {
 
 	if nodePort := ctx.Int("node-port"); nodePort > 0 {
 		if nodePort < 30000 || nodePort > 32767 {
-			return fmt.Errorf("node port value '%d' is not in the range 30000-32767")
+			return fmt.Errorf("node port value '%d' is not in the range 30000-32767", nodePort)
 		}
 
 		logger.Infof("using user provided node port '%d'", nodePort)
