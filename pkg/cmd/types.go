@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 type RESTClientGetter struct {
@@ -76,14 +77,20 @@ func (getter *RESTClientGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
 }
 
+type HandlerOptions struct {
+	LogSyncTimeout time.Duration
+}
+
 type Handler struct {
+	HandlerOptions
+
 	clusterController *controller.Controller
 	lock              *sync.Mutex
 
 	logger *zap.SugaredLogger
 }
 
-func NewHandler(logger *zap.SugaredLogger) Handler {
+func NewHandler(logger *zap.SugaredLogger, opts HandlerOptions) Handler {
 	return Handler{
 		lock:   &sync.Mutex{},
 		logger: logger.Named("http"),
@@ -186,8 +193,9 @@ func (handler *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 		}
 
 		opts := controller.Options{
-			ParentPath: ParentPath,
-			Filter:     f,
+			ParentPath:     ParentPath,
+			Filter:         f,
+			LogSyncTimeout: handler.LogSyncTimeout,
 		}
 
 		config, err := rest.InClusterConfig()

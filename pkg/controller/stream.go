@@ -25,6 +25,7 @@ type LogStreamOptions struct {
 	Context       context.Context
 	KubeClientSet kubernetes.Interface
 	ParentPath    string
+	Timeout       time.Duration
 }
 
 type logStream struct {
@@ -49,19 +50,14 @@ func NewLogStream(opts LogStreamOptions) (Stream, error) {
 		return nil, fmt.Errorf("could not create log file '%s': %w", logFilePath, err)
 	}
 
-	ctx, cancel := context.WithCancel(opts.Context)
-	opts.Context = ctx
-
 	return &logStream{
 		LogStreamOptions: opts,
-		cancel:           cancel,
 		out:              logFile,
 		lastRead:         time.Time{},
 	}, nil
 }
 
 func (stream *logStream) Sync() error {
-	// todo: stream.lastRead may not be set immediately and cause race conditions
 	request := stream.KubeClientSet.CoreV1().Pods(stream.Pod.Namespace).GetLogs(stream.Pod.Name, &apicorev1.PodLogOptions{
 		Container: stream.Container.Name,
 		Follow:    false,
@@ -69,12 +65,15 @@ func (stream *logStream) Sync() error {
 		SinceTime: &apimetav1.Time{
 			Time: stream.lastRead,
 		},
-		// todo: this might be interesting if we only want to collect logs while the logs are collected
-		Timestamps: true,
 	})
 
+	ctx, cancel := context.WithTimeout(stream.Context, stream.Timeout)
+	defer cancel()
+
+	// todo: stream.lastRead may not be set immediately and cause race conditions
 	stream.lastRead = time.Now()
-	response := request.Do(stream.Context)
+
+	response := request.Do(ctx)
 	if err := response.Error(); err != nil {
 		return fmt.Errorf("error requesting logs: %w", err)
 	}
@@ -93,8 +92,6 @@ func (stream *logStream) Sync() error {
 }
 
 func (stream *logStream) Close() error {
-	stream.cancel()
-
 	err := stream.out.Close()
 
 	return err

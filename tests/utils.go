@@ -141,6 +141,11 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 	}
 }
 
+const (
+	kubedumpTestLabelKey   = "kubedump-test"
+	kubedumpTestLabelValue = ""
+)
+
 var SamplePodSpec = apicorev1.PodSpec{
 	Containers: []apicorev1.Container{
 		{
@@ -157,6 +162,9 @@ var SamplePod = apicorev1.Pod{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-pod",
 		Namespace: "default",
+		Labels: map[string]string{
+			kubedumpTestLabelKey: kubedumpTestLabelValue,
+		},
 	},
 	Spec: SamplePodSpec,
 }
@@ -165,6 +173,9 @@ var SampleJob = apibatchv1.Job{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-job",
 		Namespace: "default",
+		Labels: map[string]string{
+			kubedumpTestLabelKey: kubedumpTestLabelValue,
+		},
 	},
 	Spec: apibatchv1.JobSpec{
 		Template: apicorev1.PodTemplateSpec{
@@ -180,6 +191,9 @@ var SampleReplicaSet = apiappsv1.ReplicaSet{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-replicaset",
 		Namespace: "default",
+		Labels: map[string]string{
+			kubedumpTestLabelKey: kubedumpTestLabelValue,
+		},
 	},
 	Spec: apiappsv1.ReplicaSetSpec{
 		Selector: &apimetav1.LabelSelector{
@@ -261,7 +275,8 @@ var SampleService = apicorev1.Service{
 		Name:      "test-service",
 		Namespace: "default",
 		Labels: map[string]string{
-			"app": "test-service",
+			"app":                "test-service",
+			kubedumpTestLabelKey: kubedumpTestLabelValue,
 		},
 	},
 	Spec: apicorev1.ServiceSpec{

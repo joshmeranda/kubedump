@@ -115,6 +115,7 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 					Context:       controller.ctx,
 					KubeClientSet: controller.kubeclientset,
 					ParentPath:    controller.ParentPath,
+					Timeout:       controller.LogSyncTimeout,
 				})
 
 				if err != nil {
@@ -127,12 +128,6 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 				controller.logStreamsMu.Lock()
 				controller.logStreams[logStreamId] = stream
 				controller.logStreamsMu.Unlock()
-
-				controller.workQueue.AddRateLimited(NewJob(func() {
-					if err := stream.Sync(); err != nil {
-						controller.Logger.Errorf("%s", err)
-					}
-				}))
 			}))
 		}
 	case kubedump.HandleDelete:
@@ -145,7 +140,7 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 				stream, found := controller.logStreams[logStreamId]
 
 				if !found {
-					controller.Logger.Errorf("bug: deleting containr which isn't being streamed")
+					controller.Logger.Errorf("bug: deleting container which isn't being streamed")
 					return
 				}
 
@@ -161,7 +156,7 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 	}
 }
 
-func (controller *Controller) handleResource(kind kubedump.HandleKind, handledResource kubedump.HandledResource) {
+func (controller *Controller) handleResource(_ kubedump.HandleKind, handledResource kubedump.HandledResource) {
 	resources, err := controller.store.GetResources(handledResource)
 	if err != nil {
 		controller.Logger.Errorf("error fetching resources: %s", err)

@@ -46,10 +46,11 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	}
 
 	opts := controller.Options{
-		ParentPath:    parentPath,
-		Filter:        f,
-		ParentContext: ctx.Context,
-		Logger:        CmdLogger,
+		ParentPath:     parentPath,
+		Filter:         f,
+		ParentContext:  ctx.Context,
+		Logger:         CmdLogger,
+		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
@@ -70,7 +71,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		return fmt.Errorf("could not create controller: %w", err)
 	}
 
-	if err = c.Start(5); err != nil {
+	if err = c.Start(ctx.Int("workers")); err != nil {
 		return fmt.Errorf("could not Start controller: %w", err)
 	}
 
@@ -334,6 +335,14 @@ func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 						Aliases: []string{"V"},
 						EnvVars: []string{"KUBEDUMP_VERBOSE"},
 					},
+					&cli.IntFlag{
+						Name:    "workers",
+						Usage:   "specify how many workers should run concurrently to process dump operations",
+						Value:   5,
+						Aliases: []string{"w"},
+						EnvVars: []string{"KUBEUDMP_N_WORKERS"},
+					},
+					&flagLogSyncTimeout,
 				},
 			},
 			{
