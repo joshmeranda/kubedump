@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"kubedump/pkg/filter"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,10 +32,11 @@ func NewJob(fn func()) Job {
 }
 
 type Options struct {
-	ParentPath    string
-	Filter        filter.Expression
-	ParentContext context.Context
-	Logger        *zap.SugaredLogger
+	ParentPath     string
+	Filter         filter.Expression
+	ParentContext  context.Context
+	Logger         *zap.SugaredLogger
+	LogSyncTimeout time.Duration
 }
 
 type Controller struct {
@@ -48,7 +50,7 @@ type Controller struct {
 
 	sieve Sieve
 
-	// logStreams is a store of logStreams mappe to a unique identifier for the associated container.
+	// logStreams is a store of logStreams mapped to a unique identifier for the associated container.
 	logStreams   map[string]Stream
 	logStreamsMu sync.Mutex
 
@@ -151,18 +153,21 @@ func (controller *Controller) syncLogStreams() {
 	}
 
 	controller.logStreamsMu.Lock()
+	controller.Logger.Infof("syncing container logs")
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
-			controller.Logger.Errorf("error syncing container '%s': %s", id, err)
+			if strings.Contains(err.Error(), "ContainerCreating") {
+				controller.Logger.Debugf("error syncing container '%s': %s", id, err)
+			} else {
+				controller.Logger.Errorf("error syncing container '%s': %s", id, err)
+			}
 		} else {
-			controller.Logger.Debugf("synced logs for containr '%s'", id)
+			controller.Logger.Debugf("synced logs for container '%s'", id)
 		}
 	}
 
 	controller.logStreamsMu.Unlock()
-
-	time.Sleep(time.Second)
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
 		controller.syncLogStreams()
@@ -170,16 +175,16 @@ func (controller *Controller) syncLogStreams() {
 }
 
 func (controller *Controller) processNextWorkItem() bool {
-	obj, shutdown := controller.workQueue.Get()
+	obj, _ := controller.workQueue.Get()
 
-	if shutdown {
-		return false
+	if obj == nil {
+		return true
 	}
 
 	job, ok := obj.(Job)
 
 	if !ok {
-		controller.Logger.Errorf("could not understand worker function")
+		controller.Logger.Errorf("could not understand worker function of type '%T'", obj)
 		controller.workQueue.Forget(obj)
 		return false
 	}
@@ -219,9 +224,10 @@ func (controller *Controller) Start(nWorkers int) error {
 		n := i
 		go func() {
 			controller.Logger.Debugf("starting worker #%d", n)
-			for controller.processNextWorkItem() {
-				/* do nothing */
+			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
+				controller.processNextWorkItem()
 			}
+			controller.Logger.Debugf("stopping worker #%d", n)
 		}()
 	}
 
@@ -235,15 +241,16 @@ func (controller *Controller) Start(nWorkers int) error {
 }
 
 func (controller *Controller) Stop() error {
+	controller.Logger.Infof("Stopping controller")
+
 	if controller.stopChan == nil {
 		return fmt.Errorf("controller was not running")
 	}
 
 	close(controller.stopChan)
-	controller.workQueue.ShutDown()
-
-	controller.Logger.Infof("Stopping controller")
 	controller.stopChan = nil
+
+	controller.workQueue.ShutDownWithDrain()
 
 	return nil
 }

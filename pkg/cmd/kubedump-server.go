@@ -19,7 +19,11 @@ func ServeKubedump(ctx *cli.Context) error {
 		)
 	}
 
-	handler := NewHandler(CmdLogger)
+	opts := HandlerOptions{
+		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
+	}
+
+	handler := NewHandler(CmdLogger, opts)
 
 	CmdLogger.Infof("starting server...")
 
@@ -45,6 +49,7 @@ func NewKubedumpServerApp() *cli.App {
 				Aliases: []string{"V"},
 				EnvVars: []string{"KUBEDUMP_SERVER_DEBUG"},
 			},
+			&flagLogSyncTimeout,
 		},
 	}
 }

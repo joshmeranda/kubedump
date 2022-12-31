@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
+	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -83,29 +84,75 @@ func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 	}
 }
 
+func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) {
+	list, err := client.CoreV1().Pods("default").List(context.Background(), apimetav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s", kubedumpTestLabelKey, kubedumpTestLabelValue),
+	})
+
+	if err != nil {
+		t.Errorf("failed to list pods: %s", err)
+		close(stopCh)
+	}
+
+	for _, pod := range list.Items {
+		if pod.Status.Phase != apicorev1.PodRunning {
+			t.Logf("pod '%s/%s' is not running", pod.Namespace, pod.Name)
+			continue
+		}
+
+		for _, container := range pod.Status.ContainerStatuses {
+			if container.State.Running == nil {
+				t.Logf("container '%s' in pod '%s/%s' is not runnig", container.Name, pod.Namespace, pod.Name)
+			}
+		}
+	}
+
+	close(stopCh)
+}
+
 func TestDump(t *testing.T) {
 	d, client, parentPath := controllerSetup(t)
 	defer controllerTeardown(t, d, parentPath)
-
-	stopChan := make(chan interface{})
-
-	go func() {
-		app := kubedump.NewKubedumpApp(stopChan)
-
-		// add --verbose to see debug level log output
-		err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--destination", parentPath, "--filter", "namespace default"})
-		assert.NoError(t, err)
-	}()
 
 	deferred, err := createResources(t, client)
 	assert.NoError(t, err)
 	defer deferred()
 
-	time.Sleep(5 * time.Second)
+	// block until pods are running
+	stopCh := make(chan struct{})
+	wait.Until(func() { checkPods(t, client, stopCh) }, time.Second*5, stopCh)
+	<-stopCh
+
+	stopChan := make(chan interface{})
+	done := make(chan interface{})
+
+	go func() {
+		verbose := false
+		nWorkers := fmt.Sprintf("%d", 10)
+
+		app := kubedump.NewKubedumpApp(stopChan)
+
+		var err error
+		if verbose {
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", parentPath, "--filter", "namespace default"})
+		} else {
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", parentPath, "--filter", "namespace default"})
+		}
+
+		assert.NoError(t, err)
+
+		close(done)
+
+		t.Log("kubedump is finished")
+	}()
+
+	time.Sleep(30 * time.Second)
+
 	close(stopChan)
+	<-done
 
 	//displayTree(t, parentPath)
-	copyTree(t, parentPath, d.Name()+".dump")
+	//copyTree(t, parentPath, d.Name()+".dump")
 
 	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
 
