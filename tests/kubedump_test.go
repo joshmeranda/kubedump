@@ -164,6 +164,8 @@ func TestDump(t *testing.T) {
 
 	assertResource(t, parentPath, newHandledResourceNoErr(&SampleService), false)
 
+	assertResource(t, parentPath, newHandledResourceNoErr(&SampleConfigMap), false)
+
 	if t.Failed() {
 		copyTree(t, parentPath, d.Name()+".dump")
 	}

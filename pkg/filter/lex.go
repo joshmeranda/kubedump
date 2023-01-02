@@ -56,7 +56,7 @@ func (lexer *Lexer) Lex(lval *yySymType) int {
 
 	lval.s = body
 	switch body {
-	case "pod", "job", "deployment", "replicaset", "service":
+	case "pod", "job", "deployment", "replicaset", "service", "configmap":
 		return RESOURCE
 	case "namespace":
 		return NAMESPACE

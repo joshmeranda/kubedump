@@ -105,6 +105,7 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 }
 
 func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1.Pod) {
+	// todo: check pod for configmap mounts and link if available
 	switch kind {
 	case kubedump.HandleAdd:
 		for _, container := range pod.Spec.Containers {
@@ -208,7 +209,7 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 	case "Pod":
 		controller.handlePod(kind, handledResource.Resource.(*apicorev1.Pod))
 		fallthrough
-	case "Service", "Job", "ReplicaSet", "Deployment":
+	case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap":
 		controller.handleResource(kind, handledResource)
 	default:
 		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj))

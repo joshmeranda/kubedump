@@ -91,6 +91,16 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 			Resource:        resource,
 			HandleEventKind: kind,
 		}, nil
+	case *apicorev1.ConfigMap:
+		return HandledResource{
+			Object: resource,
+			TypeMeta: apimetav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+			},
+			Resource:        resource,
+			HandleEventKind: kind,
+		}, nil
 	default:
 		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
 	}

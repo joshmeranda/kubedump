@@ -117,6 +117,10 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apimetav
 		var service apicorev1.Service
 		err = unmarshalFile(fileName, &service)
 		fsObj = service.ObjectMeta
+	case "ConfigMap":
+		var configmap apicorev1.ConfigMap
+		err = unmarshalFile(fileName, &configmap)
+		fsObj = configmap.ObjectMeta
 	default:
 		t.Errorf("unsupported kind '%s' encountered", kind)
 	}
@@ -145,6 +149,8 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 }
 
 const (
+	ResourceNamespace = "default"
+
 	kubedumpTestLabelKey   = "kubedump-test"
 	kubedumpTestLabelValue = ""
 )
@@ -164,7 +170,7 @@ var SamplePodSpec = apicorev1.PodSpec{
 var SamplePod = apicorev1.Pod{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-pod",
-		Namespace: "default",
+		Namespace: ResourceNamespace,
 		Labels: map[string]string{
 			kubedumpTestLabelKey: kubedumpTestLabelValue,
 		},
@@ -175,7 +181,7 @@ var SamplePod = apicorev1.Pod{
 var SampleJob = apibatchv1.Job{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-job",
-		Namespace: "default",
+		Namespace: ResourceNamespace,
 		Labels: map[string]string{
 			kubedumpTestLabelKey: kubedumpTestLabelValue,
 		},
@@ -183,7 +189,7 @@ var SampleJob = apibatchv1.Job{
 	Spec: apibatchv1.JobSpec{
 		Template: apicorev1.PodTemplateSpec{
 			ObjectMeta: apimetav1.ObjectMeta{
-				Namespace: "default",
+				Namespace: ResourceNamespace,
 			},
 			Spec: SamplePodSpec,
 		},
@@ -193,7 +199,7 @@ var SampleJob = apibatchv1.Job{
 var SampleReplicaSet = apiappsv1.ReplicaSet{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-replicaset",
-		Namespace: "default",
+		Namespace: ResourceNamespace,
 		Labels: map[string]string{
 			kubedumpTestLabelKey: kubedumpTestLabelValue,
 		},
@@ -207,7 +213,7 @@ var SampleReplicaSet = apiappsv1.ReplicaSet{
 		},
 		Template: apicorev1.PodTemplateSpec{
 			ObjectMeta: apimetav1.ObjectMeta{
-				Namespace: "default",
+				Namespace: ResourceNamespace,
 				Labels: map[string]string{
 					"app": "test-replicaset",
 				},
@@ -229,7 +235,7 @@ var SampleReplicaSet = apiappsv1.ReplicaSet{
 var SampleDeployment = apiappsv1.Deployment{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-deployment",
-		Namespace: "default",
+		Namespace: ResourceNamespace,
 		Labels: map[string]string{
 			"app": "test-deployment",
 		},
@@ -243,7 +249,7 @@ var SampleDeployment = apiappsv1.Deployment{
 		},
 		Template: apicorev1.PodTemplateSpec{
 			ObjectMeta: apimetav1.ObjectMeta{
-				Namespace: "default",
+				Namespace: ResourceNamespace,
 				Labels: map[string]string{
 					"app": "test-deployment",
 				},
@@ -265,7 +271,7 @@ var SampleDeployment = apiappsv1.Deployment{
 var SampleServicePod = apicorev1.Pod{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-service-pod",
-		Namespace: "default",
+		Namespace: ResourceNamespace,
 		Labels: map[string]string{
 			"app": "test-service",
 		},
@@ -276,7 +282,7 @@ var SampleServicePod = apicorev1.Pod{
 var SampleService = apicorev1.Service{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-service",
-		Namespace: "default",
+		Namespace: ResourceNamespace,
 		Labels: map[string]string{
 			"app":                "test-service",
 			kubedumpTestLabelKey: kubedumpTestLabelValue,
@@ -295,6 +301,20 @@ var SampleService = apicorev1.Service{
 	},
 }
 
+var SampleConfigMap = apicorev1.ConfigMap{
+	ObjectMeta: apimetav1.ObjectMeta{
+		Name:      "test-configmap",
+		Namespace: ResourceNamespace,
+	},
+	Immutable: nil,
+	Data: map[string]string{
+		"a": "A",
+		"b": "B",
+		"c": "C",
+	},
+	BinaryData: nil,
+}
+
 func deleteOptions() apimetav1.DeleteOptions {
 	policy := apimetav1.DeletePropagationBackground
 
@@ -307,52 +327,60 @@ func deleteOptions() apimetav1.DeleteOptions {
 func createResources(t *testing.T, client kubernetes.Interface) (func(), error) {
 	var aggregatedDefers []func() error
 
-	_, err := client.CoreV1().Pods("default").Create(context.TODO(), &SamplePod, apimetav1.CreateOptions{})
+	_, err := client.CoreV1().Pods(ResourceNamespace).Create(context.TODO(), &SamplePod, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods("default").Delete(context.TODO(), SamplePod.Name, deleteOptions())
+		return client.CoreV1().Pods(ResourceNamespace).Delete(context.TODO(), SamplePod.Name, deleteOptions())
 	})
 	if err != nil {
 		t.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
 	}
 
-	_, err = client.BatchV1().Jobs("default").Create(context.TODO(), &SampleJob, apimetav1.CreateOptions{})
+	_, err = client.BatchV1().Jobs(ResourceNamespace).Create(context.TODO(), &SampleJob, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.BatchV1().Jobs("default").Delete(context.TODO(), SampleJob.Name, deleteOptions())
+		return client.BatchV1().Jobs(ResourceNamespace).Delete(context.TODO(), SampleJob.Name, deleteOptions())
 	})
 	if err != nil {
 		t.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
 	}
 
-	_, err = client.AppsV1().ReplicaSets("default").Create(context.TODO(), &SampleReplicaSet, apimetav1.CreateOptions{})
+	_, err = client.AppsV1().ReplicaSets(ResourceNamespace).Create(context.TODO(), &SampleReplicaSet, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.AppsV1().ReplicaSets("default").Delete(context.TODO(), SampleReplicaSet.Name, deleteOptions())
+		return client.AppsV1().ReplicaSets(ResourceNamespace).Delete(context.TODO(), SampleReplicaSet.Name, deleteOptions())
 	})
 	if err != nil {
 		t.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
 	}
 
-	_, err = client.AppsV1().Deployments("default").Create(context.TODO(), &SampleDeployment, apimetav1.CreateOptions{})
+	_, err = client.AppsV1().Deployments(ResourceNamespace).Create(context.TODO(), &SampleDeployment, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.AppsV1().Deployments("default").Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
+		return client.AppsV1().Deployments(ResourceNamespace).Delete(context.TODO(), SampleDeployment.Name, deleteOptions())
 	})
 	if err != nil {
 		t.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
 	}
 
-	_, err = client.CoreV1().Pods("default").Create(context.TODO(), &SampleServicePod, apimetav1.CreateOptions{})
+	_, err = client.CoreV1().Pods(ResourceNamespace).Create(context.TODO(), &SampleServicePod, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods("default").Delete(context.TODO(), SampleServicePod.Name, deleteOptions())
+		return client.CoreV1().Pods(ResourceNamespace).Delete(context.TODO(), SampleServicePod.Name, deleteOptions())
 	})
 	if err != nil {
 		t.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
 	}
 
-	_, err = client.CoreV1().Services("default").Create(context.TODO(), &SampleService, apimetav1.CreateOptions{})
+	_, err = client.CoreV1().Services(ResourceNamespace).Create(context.TODO(), &SampleService, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Services("default").Delete(context.TODO(), SampleService.Name, deleteOptions())
+		return client.CoreV1().Services(ResourceNamespace).Delete(context.TODO(), SampleService.Name, deleteOptions())
 	})
 	if err != nil {
 		t.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
+	}
+
+	_, err = client.CoreV1().ConfigMaps(ResourceNamespace).Create(context.TODO(), &SampleConfigMap, apimetav1.CreateOptions{})
+	aggregatedDefers = append(aggregatedDefers, func() error {
+		return client.CoreV1().ConfigMaps(ResourceNamespace).Delete(context.TODO(), SampleConfigMap.Name, deleteOptions())
+	})
+	if err != nil {
+		t.Errorf("could not create config map '%s/%s': %s", SampleConfigMap.Namespace, SampleConfigMap.Name, err)
 	}
 
 	return func() {
