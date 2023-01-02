@@ -37,7 +37,7 @@ type mapMatcher struct {
 }
 
 func (matcher mapMatcher) Matches(labels labels.Set) bool {
-	for key, value := range labels {
+	for key, value := range matcher.labels {
 		if labelValue, found := labels[key]; !found || labelValue != value {
 			return false
 		}

@@ -59,7 +59,7 @@ func (store *memoryStore) GetResources(resource kubedump.HandledResource) ([]kub
 	defer store.innerMut.RUnlock()
 
 	for _, p := range store.inner {
-		if p.second.GetUID() == resource.GetUID() {
+		if p.second.GetUID() == resource.GetUID() || p.second.GetNamespace() == resource.GetNamespace() {
 			continue
 		}
 

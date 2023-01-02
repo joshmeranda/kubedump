@@ -195,6 +195,15 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 		return
 	}
 
+	controller.Logger.Infof("handling resource: %s", handledResource.String())
+	if len(resources) > 0 {
+		for _, resource := range resources {
+			controller.Logger.Infof("    matched resource: %s", resource.String())
+		}
+	} else if controller.sieve.Matches(handledResource) {
+		controller.Logger.Infof("    matched filter")
+	}
+
 	for _, resource := range resources {
 		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
 			controller.Logger.Errorf("error: %s", err)

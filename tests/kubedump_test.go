@@ -31,7 +31,7 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 	}
 
 	if out, err := d.Up(); err != nil {
-		t.Fatalf("could not deployer cluster: %s\nOutput:\n%s", err, out)
+		t.Fatalf("could not deploy cluster: %s\nOutput:\n%s", err, out)
 	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", d.Kubeconfig())
@@ -61,11 +61,11 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 			return
 		}
 
-		t.Log("cluster not yet ready")
+		t.Logf("cluster '%s' not yet ready", d.Name())
 
 	}, time.Second*5, stopChan)
 
-	t.Log("cluster is ready")
+	t.Logf("cluster '%s' is ready", d.Name())
 
 	return
 }
@@ -118,7 +118,7 @@ func TestDump(t *testing.T) {
 	assert.NoError(t, err)
 	defer deferred()
 
-	// block until pods are running
+	//block until pods are running
 	stopCh := make(chan struct{})
 	wait.Until(func() { checkPods(t, client, stopCh) }, time.Second*5, stopCh)
 	<-stopCh
@@ -128,15 +128,16 @@ func TestDump(t *testing.T) {
 
 	go func() {
 		verbose := false
-		nWorkers := fmt.Sprintf("%d", 10)
+		nWorkers := fmt.Sprintf("%d", 5)
+		filter := "namespace default"
 
 		app := kubedump.NewKubedumpApp(stopChan)
 
 		var err error
 		if verbose {
-			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", parentPath, "--filter", "namespace default"})
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", parentPath, "--filter", filter})
 		} else {
-			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", parentPath, "--filter", "namespace default"})
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", parentPath, "--filter", filter})
 		}
 
 		assert.NoError(t, err)
@@ -152,17 +153,18 @@ func TestDump(t *testing.T) {
 	<-done
 
 	//displayTree(t, parentPath)
-	//copyTree(t, parentPath, d.Name()+".dump")
+	copyTree(t, parentPath, d.Name()+".dump")
 
-	assertResourceFile(t, "Pod", path.Join(parentPath, SamplePod.Namespace, "pod", SamplePod.Name, SamplePod.Name+".yaml"), SamplePod.GetObjectMeta())
+	assertResource(t, parentPath, newHandledResourceNoErr(&SamplePod), true)
 
-	assertResourceFile(t, "Job", path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, SampleJob.Name+".yaml"), SampleJob.GetObjectMeta())
+	assertResource(t, parentPath, newHandledResourceNoErr(&SampleJob), true)
 	assertLinkGlob(t, path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
-	assertResourceFile(t, "ReplicaSet", path.Join(parentPath, SampleReplicaSet.Namespace, "replicaset", SampleReplicaSet.Name, SampleReplicaSet.Name+".yaml"), SampleReplicaSet.GetObjectMeta())
+	assertResource(t, parentPath, newHandledResourceNoErr(&SampleReplicaSet), true)
 
-	assertResourceFile(t, "Deployment", path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, SampleDeployment.Name+".yaml"), SampleDeployment.GetObjectMeta())
+	assertResource(t, parentPath, newHandledResourceNoErr(&SampleDeployment), true)
 	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	assertResourceFile(t, "Service", path.Join(parentPath, SampleService.Namespace, "service", SampleService.Name, SampleService.Name+".yaml"), SampleService.GetObjectMeta())
+	assertResource(t, parentPath, newHandledResourceNoErr(&SampleService), false)
+	_ = client
 }
