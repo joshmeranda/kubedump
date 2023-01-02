@@ -24,7 +24,7 @@ type LogStreamOptions struct {
 	Container     *apicorev1.Container
 	Context       context.Context
 	KubeClientSet kubernetes.Interface
-	ParentPath    string
+	BasePath      string
 	Timeout       time.Duration
 }
 
@@ -39,7 +39,7 @@ type logStream struct {
 }
 
 func NewLogStream(opts LogStreamOptions) (Stream, error) {
-	logFilePath := containerLogFilePath(opts.ParentPath, opts.Pod, opts.Container)
+	logFilePath := containerLogFilePath(opts.BasePath, opts.Pod, opts.Container)
 
 	if err := createPathParents(logFilePath); err != nil {
 		return nil, fmt.Errorf("could not create log file '%s': %w", logFilePath, err)

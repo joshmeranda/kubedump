@@ -38,7 +38,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		)
 	}
 
-	parentPath := ctx.String("destination")
+	basePath := ctx.String("destination")
 	f, err := filter.Parse(ctx.String("filter"))
 
 	if err != nil {
@@ -46,7 +46,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	}
 
 	opts := controller.Options{
-		ParentPath:     parentPath,
+		BasePath:       basePath,
 		Filter:         f,
 		ParentContext:  ctx.Context,
 		Logger:         CmdLogger,

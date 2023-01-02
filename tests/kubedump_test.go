@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, parentPath string) {
+func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, basePath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -49,7 +49,7 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 	if dir, err := os.MkdirTemp("", ""); err != nil {
 		t.Fatalf("could not create temporary file")
 	} else {
-		parentPath = path.Join(dir, "kubedump-test")
+		basePath = path.Join(dir, "kubedump-test")
 	}
 
 	stopChan := make(chan struct{})
@@ -111,8 +111,8 @@ func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) 
 }
 
 func TestDump(t *testing.T) {
-	d, client, parentPath := controllerSetup(t)
-	defer controllerTeardown(t, d, parentPath)
+	d, client, basePath := controllerSetup(t)
+	defer controllerTeardown(t, d, basePath)
 
 	deferred, err := createResources(t, client)
 	defer deferred()
@@ -138,9 +138,9 @@ func TestDump(t *testing.T) {
 
 		var err error
 		if verbose {
-			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", parentPath, "--filter", filter})
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", basePath, "--filter", filter})
 		} else {
-			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", parentPath, "--filter", filter})
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", basePath, "--filter", filter})
 		}
 
 		assert.NoError(t, err)
@@ -155,21 +155,21 @@ func TestDump(t *testing.T) {
 	close(stopChan)
 	<-done
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SamplePod), true)
+	assertResource(t, basePath, newHandledResourceNoErr(&SamplePod), true)
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleJob), true)
-	assertLinkGlob(t, path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
+	assertResource(t, basePath, newHandledResourceNoErr(&SampleJob), true)
+	assertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleReplicaSet), true)
+	assertResource(t, basePath, newHandledResourceNoErr(&SampleReplicaSet), true)
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleDeployment), true)
-	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
+	assertResource(t, basePath, newHandledResourceNoErr(&SampleDeployment), true)
+	assertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleService), false)
+	assertResource(t, basePath, newHandledResourceNoErr(&SampleService), false)
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleConfigMap), false)
+	assertResource(t, basePath, newHandledResourceNoErr(&SampleConfigMap), false)
 
 	if t.Failed() {
-		copyTree(t, parentPath, d.Name()+".dump")
+		copyTree(t, basePath, d.Name()+".dump")
 	}
 }

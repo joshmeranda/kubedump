@@ -32,7 +32,7 @@ func NewJob(fn func()) Job {
 }
 
 type Options struct {
-	ParentPath     string
+	BasePath       string
 	Filter         filter.Expression
 	ParentContext  context.Context
 	Logger         *zap.SugaredLogger

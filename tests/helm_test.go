@@ -20,7 +20,7 @@ import (
 
 var kubedumpChartPath = path.Join("..", "charts", "kubedump-server")
 
-func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, config *rest.Config, parentPath string) {
+func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, config *rest.Config, basePath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -50,7 +50,7 @@ func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, 
 	if dir, err := os.MkdirTemp("", ""); err != nil {
 		t.Fatalf("could not create temporary file")
 	} else {
-		parentPath = path.Join(dir, "kubedump-test")
+		basePath = path.Join(dir, "kubedump-test")
 	}
 
 	readyChan := make(chan struct{})
@@ -92,8 +92,8 @@ func helmTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
 func TestHelm(t *testing.T) {
 	t.Skip("doesn't work consistently yet")
 
-	d, client, _, parentPath := helmSetup(t)
-	defer helmTeardown(t, d, parentPath)
+	d, client, _, basePath := helmSetup(t)
+	defer helmTeardown(t, d, basePath)
 
 	app := kubedump.NewKubedumpApp(nil)
 

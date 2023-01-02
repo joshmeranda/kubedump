@@ -29,7 +29,7 @@ var (
 
 	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", version, version)
 
-	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
+	BasePath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
 
 	CmdLogger *zap.SugaredLogger
 )
@@ -201,8 +201,8 @@ func ensureDefaultChart() (string, error) {
 }
 
 func getArchivePath(dir string, name string) string {
-	trimmed := strings.TrimPrefix(dir, ParentPath)
-	return path.Join(path.Base(ParentPath), trimmed, name)
+	trimmed := strings.TrimPrefix(dir, BasePath)
+	return path.Join(path.Base(BasePath), trimmed, name)
 }
 
 func archiveTree(dir string, writer *tar.Writer) error {

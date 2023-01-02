@@ -84,7 +84,7 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 		return
 	}
 
-	resourceDir := resourceDirPath(controller.ParentPath, event.Regarding.Kind, obj)
+	resourceDir := resourceDirPath(controller.BasePath, event.Regarding.Kind, obj)
 
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
@@ -118,7 +118,7 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 					Container:     &container,
 					Context:       controller.ctx,
 					KubeClientSet: controller.kubeclientset,
-					ParentPath:    controller.ParentPath,
+					BasePath:      controller.BasePath,
 					Timeout:       controller.LogSyncTimeout,
 				})
 
@@ -150,7 +150,7 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 							HandleEventKind: handledPod.HandleEventKind,
 						}
 
-						if err := linkResource(controller.ParentPath, handledPod, handledConfigMap); err != nil {
+						if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
 							controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
 						}
 					}
@@ -196,7 +196,7 @@ func (controller *Controller) handleResource(_ kubedump.HandleKind, handledResou
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(controller.ParentPath, handledResource); err != nil {
+		if err := dumpResourceDescription(controller.BasePath, handledResource); err != nil {
 			controller.Logger.With(
 				"namespace", handledResource.GetNamespace(),
 				"name", handledResource.GetName(),
@@ -223,7 +223,7 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 	}
 
 	for _, resource := range resources {
-		if err := linkResource(controller.ParentPath, resource, handledResource); err != nil {
+		if err := linkResource(controller.BasePath, resource, handledResource); err != nil {
 			controller.Logger.Errorf("error: %s", err)
 		}
 	}

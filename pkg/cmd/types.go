@@ -147,10 +147,10 @@ func (handler *Handler) handleTar(w http.ResponseWriter, r *http.Request) {
 		compressor := gzip.NewWriter(file)
 		archiver := tar.NewWriter(compressor)
 
-		err = archiveTree(ParentPath, archiver)
+		err = archiveTree(BasePath, archiver)
 
 		if err != nil {
-			handler.errorResponse(w, fmt.Sprintf("could not archive '%s': %s", ParentPath, err), http.StatusInternalServerError)
+			handler.errorResponse(w, fmt.Sprintf("could not archive '%s': %s", BasePath, err), http.StatusInternalServerError)
 			return
 		}
 
@@ -193,7 +193,7 @@ func (handler *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 		}
 
 		opts := controller.Options{
-			ParentPath:     ParentPath,
+			BasePath:       BasePath,
 			Filter:         f,
 			LogSyncTimeout: handler.LogSyncTimeout,
 		}

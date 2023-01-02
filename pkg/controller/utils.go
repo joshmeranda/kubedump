@@ -79,18 +79,18 @@ func resourceFilePath(parent string, objKind string, obj apimetav1.Object, fileN
 	return path.Join(resourceDirPath(parent, objKind, obj), fileName)
 }
 
-func containerLogFilePath(parentPath string, pod *apicorev1.Pod, container *apicorev1.Container) string {
+func containerLogFilePath(basePath string, pod *apicorev1.Pod, container *apicorev1.Container) string {
 	return path.Join(
-		resourceDirPath(parentPath, "Pod", pod),
+		resourceDirPath(basePath, "Pod", pod),
 		container.Name+".log",
 	)
 }
 
 func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kubedump.HandledResource) (string, string, error) {
-	parentPath := resourceDirPath(basePath, parent.Kind, parent)
+	resourceBasePath := resourceDirPath(basePath, parent.Kind, parent)
 	childPath := resourceDirPath(basePath, child.Kind, child)
 
-	linkDir := path.Join(parentPath, strings.ToLower(child.Kind))
+	linkDir := path.Join(resourceBasePath, strings.ToLower(child.Kind))
 
 	relPath, err := filepath.Rel(linkDir, childPath)
 	if err != nil {
@@ -119,8 +119,8 @@ func linkResource(parent string, matcher kubedump.HandledResource, matched kubed
 	return nil
 }
 
-func dumpResourceDescription(parentPath string, resource kubedump.HandledResource) error {
-	yamlPath := resourceFilePath(parentPath, resource.Kind, resource.Object, resource.GetName()+".yaml")
+func dumpResourceDescription(basePath string, resource kubedump.HandledResource) error {
+	yamlPath := resourceFilePath(basePath, resource.Kind, resource.Object, resource.GetName()+".yaml")
 
 	if exists(yamlPath) {
 		if err := os.Truncate(yamlPath, 0); err != nil {
