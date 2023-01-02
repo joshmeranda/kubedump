@@ -11,6 +11,10 @@ type LabelMatcher interface {
 }
 
 func MatcherFromLabels(labels labels.Set) (LabelMatcher, error) {
+	if len(labels) == 0 {
+		return nil, fmt.Errorf("received empty label set")
+	}
+
 	return &mapMatcher{
 		labels: labels,
 	}, nil
@@ -33,7 +37,7 @@ type mapMatcher struct {
 }
 
 func (matcher mapMatcher) Matches(labels labels.Set) bool {
-	for key, value := range labels {
+	for key, value := range matcher.labels {
 		if labelValue, found := labels[key]; !found || labelValue != value {
 			return false
 		}
