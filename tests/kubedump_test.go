@@ -152,9 +152,6 @@ func TestDump(t *testing.T) {
 	close(stopChan)
 	<-done
 
-	//displayTree(t, parentPath)
-	copyTree(t, parentPath, d.Name()+".dump")
-
 	assertResource(t, parentPath, newHandledResourceNoErr(&SamplePod), true)
 
 	assertResource(t, parentPath, newHandledResourceNoErr(&SampleJob), true)
@@ -166,5 +163,8 @@ func TestDump(t *testing.T) {
 	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	assertResource(t, parentPath, newHandledResourceNoErr(&SampleService), false)
-	_ = client
+
+	if t.Failed() {
+		copyTree(t, parentPath, d.Name()+".dump")
+	}
 }

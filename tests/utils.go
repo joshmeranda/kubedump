@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
@@ -30,24 +29,6 @@ func isSymlink(filePath string) (bool, error) {
 	}
 
 	return info.Mode()&os.ModeSymlink == os.ModeSymlink, nil
-}
-
-// displayTree will display the entire directory structure pointed to by dir.
-func displayTree(t *testing.T, dir string) {
-	t.Log()
-	err := filepath.Walk(dir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			t.Log(path)
-			return nil
-		})
-	t.Log()
-
-	if err != nil {
-		t.Logf("error walking directory '%s': %s", dir, err)
-	}
 }
 
 // copyTree will copy the target directory to the destination directory.
