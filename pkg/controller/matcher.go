@@ -11,6 +11,10 @@ type LabelMatcher interface {
 }
 
 func MatcherFromLabels(labels labels.Set) (LabelMatcher, error) {
+	if len(labels) == 0 {
+		return nil, fmt.Errorf("received empty label set")
+	}
+
 	return &mapMatcher{
 		labels: labels,
 	}, nil
