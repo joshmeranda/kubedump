@@ -102,14 +102,14 @@ func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kub
 	return symlinkPath, relPath, nil
 }
 
-func linkMatchedResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
+func linkResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
 	symlinkPath, relPath, err := getSymlinkPaths(parent, matcher, matched)
 	if err != nil {
 		return fmt.Errorf("")
 	}
 
 	if err := createPathParents(symlinkPath); err != nil {
-		return fmt.Errorf("unable to create parents for symlnk '%s': %w", symlinkPath, err)
+		return fmt.Errorf("unable to create parents for symlink '%s': %w", symlinkPath, err)
 	}
 
 	if err := os.Symlink(relPath, symlinkPath); err != nil && !os.IsExist(err) {

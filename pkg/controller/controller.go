@@ -65,6 +65,7 @@ type Controller struct {
 
 	podInformer        informerscorev1.PodInformer
 	serviceInformer    informerscorev1.ServiceInformer
+	configMapInformer  informerscorev1.ConfigMapInformer
 	jobInformer        informersbatchv1.JobInformer
 	replicasetInformer informersappsv1.ReplicaSetInformer
 	deploymentInformer informersappsv1.DeploymentInformer
@@ -109,6 +110,7 @@ func NewController(
 
 		podInformer:        informerFactory.Core().V1().Pods(),
 		serviceInformer:    informerFactory.Core().V1().Services(),
+		configMapInformer:  informerFactory.Core().V1().ConfigMaps(),
 		jobInformer:        informerFactory.Batch().V1().Jobs(),
 		replicasetInformer: informerFactory.Apps().V1().ReplicaSets(),
 		deploymentInformer: informerFactory.Apps().V1().Deployments(),
@@ -121,6 +123,7 @@ func NewController(
 
 		controller.podInformer.Informer().HasSynced,
 		controller.serviceInformer.Informer().HasSynced,
+		controller.configMapInformer.Informer().HasSynced,
 		controller.jobInformer.Informer().HasSynced,
 		controller.replicasetInformer.Informer().HasSynced,
 		controller.deploymentInformer.Informer().HasSynced,
@@ -136,6 +139,7 @@ func NewController(
 
 	controller.podInformer.Informer().AddEventHandler(handler)
 	controller.serviceInformer.Informer().AddEventHandler(handler)
+	controller.configMapInformer.Informer().AddEventHandler(handler)
 
 	controller.jobInformer.Informer().AddEventHandler(handler)
 

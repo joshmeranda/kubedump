@@ -115,8 +115,11 @@ func TestDump(t *testing.T) {
 	defer controllerTeardown(t, d, parentPath)
 
 	deferred, err := createResources(t, client)
-	assert.NoError(t, err)
 	defer deferred()
+	if err != nil {
+		t.Fatalf("failed to create all resources: %s", err)
+		return
+	}
 
 	//block until pods are running
 	stopCh := make(chan struct{})
@@ -163,6 +166,8 @@ func TestDump(t *testing.T) {
 	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	assertResource(t, parentPath, newHandledResourceNoErr(&SampleService), false)
+
+	assertResource(t, parentPath, newHandledResourceNoErr(&SampleConfigMap), false)
 
 	if t.Failed() {
 		copyTree(t, parentPath, d.Name()+".dump")

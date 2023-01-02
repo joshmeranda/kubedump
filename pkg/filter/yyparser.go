@@ -59,7 +59,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyInitialStackSize = 16
 
-//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:103
+//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:105
 
 //line yacctab:1
 var yyExca = [...]int8{
@@ -530,11 +530,13 @@ yydefault:
 				yyVAL.expression = resourceExpression{kind: "Deployment", namePattern: namePattern, namespacePattern: namespacePattern}
 			case "service":
 				yyVAL.expression = resourceExpression{kind: "Service", namePattern: namePattern, namespacePattern: namespacePattern}
+			case "configmap":
+				yyVAL.expression = resourceExpression{kind: "ConfigMap", namePattern: namePattern, namespacePattern: namespacePattern}
 			}
 		}
 	case 10:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:74
+//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:76
 		{
 			if err := validateNamespace(yyDollar[2].s); err != nil {
 				yylex.Error(couldNotParseErr(err).Error())
@@ -544,13 +546,13 @@ yydefault:
 		}
 	case 11:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:81
+//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:83
 		{
 			yyVAL.expression = labelExpression{labels: yyDollar[2].labels}
 		}
 	case 12:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:83
+//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:85
 		{
 			key, val, err := splitLabelPattern(yyDollar[1].s)
 
@@ -562,7 +564,7 @@ yydefault:
 		}
 	case 13:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:92
+//line /home/jmeranda/GolandProjects/kubedump/pkg/codegen/parser.y:94
 		{
 			key, val, err := splitLabelPattern(yyDollar[2].s)
 

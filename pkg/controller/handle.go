@@ -15,7 +15,8 @@ const (
 	eventFormat = "[%s] %s %s %s %s\n"
 )
 
-func (controller *Controller) handleEvent(event *eventsv1.Event) {
+func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource) {
+	event := handledEvent.Resource.(*eventsv1.Event)
 	if event.EventTime.Time.Before(controller.startTime) {
 		return
 	}
@@ -104,8 +105,11 @@ func (controller *Controller) handleEvent(event *eventsv1.Event) {
 	}
 }
 
-func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1.Pod) {
-	switch kind {
+func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
+	pod := handledPod.Resource.(*apicorev1.Pod)
+
+	// todo: check pod for configmap mounts and link if available
+	switch handledPod.HandleEventKind {
 	case kubedump.HandleAdd:
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
@@ -128,6 +132,29 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 				controller.logStreamsMu.Lock()
 				controller.logStreams[logStreamId] = stream
 				controller.logStreamsMu.Unlock()
+			}))
+
+			controller.workQueue.AddRateLimited(NewJob(func() {
+				for _, volume := range pod.Spec.Volumes {
+					if volume.ConfigMap != nil {
+						handledConfigMap := kubedump.HandledResource{
+							Object: &apimetav1.ObjectMeta{
+								Name:      volume.ConfigMap.Name,
+								Namespace: handledPod.GetNamespace(),
+							},
+							TypeMeta: apimetav1.TypeMeta{
+								Kind:       "ConfigMap",
+								APIVersion: "v1",
+							},
+							Resource:        nil, // the actual resource is not used when creating resource symlinks
+							HandleEventKind: handledPod.HandleEventKind,
+						}
+
+						if err := linkResource(controller.ParentPath, handledPod, handledConfigMap); err != nil {
+							controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
+						}
+					}
+				}
 			}))
 		}
 	case kubedump.HandleDelete:
@@ -196,19 +223,19 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 	}
 
 	for _, resource := range resources {
-		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
+		if err := linkResource(controller.ParentPath, resource, handledResource); err != nil {
 			controller.Logger.Errorf("error: %s", err)
 		}
 	}
 
 	switch handledResource.Kind {
 	case "Event":
-		controller.handleEvent(handledResource.Resource.(*eventsv1.Event))
+		controller.handleEvent(handledResource)
 		return
 	case "Pod":
-		controller.handlePod(kind, handledResource.Resource.(*apicorev1.Pod))
+		controller.handlePod(handledResource)
 		fallthrough
-	case "Service", "Job", "ReplicaSet", "Deployment":
+	case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap":
 		controller.handleResource(kind, handledResource)
 	default:
 		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj))
