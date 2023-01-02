@@ -11,11 +11,12 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	kubedump "kubedump/pkg"
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"sigs.k8s.io/yaml"
+	"strings"
 	"testing"
 )
 
@@ -28,24 +29,6 @@ func isSymlink(filePath string) (bool, error) {
 	}
 
 	return info.Mode()&os.ModeSymlink == os.ModeSymlink, nil
-}
-
-// displayTree will display the entire directory structure pointed to by dir.
-func displayTree(t *testing.T, dir string) {
-	t.Log()
-	err := filepath.Walk(dir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			t.Log(path)
-			return nil
-		})
-	t.Log()
-
-	if err != nil {
-		t.Logf("error walking directory '%s': %s", dir, err)
-	}
 }
 
 // copyTree will copy the target directory to the destination directory.
@@ -86,6 +69,26 @@ func findGlobsIn(parent string, pattern glob.Glob) ([]string, error) {
 	}
 
 	return found, nil
+}
+
+func newHandledResourceNoErr(obj interface{}) kubedump.HandledResource {
+	resource, err := kubedump.NewHandledResource("", obj)
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return resource
+}
+
+func assertResource(t *testing.T, basePath string, resource kubedump.HandledResource, hasEvents bool) {
+	resourceDir := path.Join(basePath, resource.GetNamespace(), strings.ToLower(resource.Kind), resource.GetName())
+
+	assertResourceFile(t, resource.Kind, path.Join(resourceDir, resource.GetName()+".yaml"), resource)
+
+	if hasEvents {
+		assert.FileExists(t, path.Join(resourceDir, resource.GetName()+".events"))
+	}
 }
 
 // assertResourceFile will assert if the expected iven object matches the file as stored to the filesystem.

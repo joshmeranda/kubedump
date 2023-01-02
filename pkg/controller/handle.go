@@ -157,23 +157,10 @@ func (controller *Controller) handlePod(kind kubedump.HandleKind, pod *apicorev1
 }
 
 func (controller *Controller) handleResource(_ kubedump.HandleKind, handledResource kubedump.HandledResource) {
-	resources, err := controller.store.GetResources(handledResource)
+	matcher, err := selectorFromHandled(handledResource)
 	if err != nil {
-		controller.Logger.Errorf("error fetching resources: %s", err)
-	}
-
-	for _, resource := range resources {
-		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
-			controller.Logger.Errorf("error: %s", err)
-		}
-	}
-
-	if len(resources) == 0 && !controller.sieve.Matches(handledResource) {
-		return
-	}
-
-	matcher, _ := selectorFromHandled(handledResource)
-	if matcher != nil {
+		controller.Logger.Debugf("could not create matcher for resource '%s': %s", handledResource.String(), err)
+	} else {
 		controller.Logger.Debugf("adding selector for resource '%s'", handledResource.String())
 
 		if err := controller.store.AddResource(handledResource, matcher); err != nil {
@@ -194,10 +181,24 @@ func (controller *Controller) handleResource(_ kubedump.HandleKind, handledResou
 // resourceHandlerFunc is the entrypoint for handling all resources after filtering.
 func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj interface{}) {
 	handledResource, err := kubedump.NewHandledResource(kind, obj)
-
 	if err != nil {
 		controller.Logger.Errorf("error handling %s event for type %F: %s", kind, obj, err)
 		return
+	}
+
+	resources, err := controller.store.GetResources(handledResource)
+	if err != nil {
+		controller.Logger.Errorf("error fetching resources: %s", err)
+	}
+
+	if len(resources) == 0 && !controller.sieve.Matches(handledResource) {
+		return
+	}
+
+	for _, resource := range resources {
+		if err := linkMatchedResource(controller.ParentPath, resource, handledResource); err != nil {
+			controller.Logger.Errorf("error: %s", err)
+		}
 	}
 
 	switch handledResource.Kind {
