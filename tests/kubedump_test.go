@@ -115,8 +115,11 @@ func TestDump(t *testing.T) {
 	defer controllerTeardown(t, d, parentPath)
 
 	deferred, err := createResources(t, client)
-	assert.NoError(t, err)
 	defer deferred()
+	if err != nil {
+		t.Fatalf("failed to create all resources: %s", err)
+		return
+	}
 
 	//block until pods are running
 	stopCh := make(chan struct{})
