@@ -67,16 +67,16 @@ func isNamespaced(resourceKind string) bool {
 }
 
 // todo: might want to refactor this to take HandledResources
-func resourceDirPath(parent string, objKind string, obj apimetav1.Object) string {
+func resourceDirPath(basePath string, objKind string, obj apimetav1.Object) string {
 	if isNamespaced(objKind) {
-		return path.Join(parent, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
+		return path.Join(basePath, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
 	} else {
-		return path.Join(parent, strings.ToLower(objKind), obj.GetName())
+		return path.Join(basePath, strings.ToLower(objKind), obj.GetName())
 	}
 }
 
-func resourceFilePath(parent string, objKind string, obj apimetav1.Object, fileName string) string {
-	return path.Join(resourceDirPath(parent, objKind, obj), fileName)
+func resourceFilePath(basePath string, objKind string, obj apimetav1.Object, fileName string) string {
+	return path.Join(resourceDirPath(basePath, objKind, obj), fileName)
 }
 
 func containerLogFilePath(basePath string, pod *apicorev1.Pod, container *apicorev1.Container) string {
@@ -102,8 +102,8 @@ func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kub
 	return symlinkPath, relPath, nil
 }
 
-func linkResource(parent string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
-	symlinkPath, relPath, err := getSymlinkPaths(parent, matcher, matched)
+func linkResource(basePath string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
+	symlinkPath, relPath, err := getSymlinkPaths(basePath, matcher, matched)
 	if err != nil {
 		return fmt.Errorf("")
 	}
@@ -133,19 +133,17 @@ func dumpResourceDescription(basePath string, resource kubedump.HandledResource)
 	}
 
 	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
-
 	if err != nil {
 		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
 	}
+	defer f.Close()
 
 	data, err := yaml.Marshal(resource.Resource)
-
 	if err != nil {
 		return fmt.Errorf("could not marshal %s: %w", resource.Kind, err)
 	}
 
 	_, err = f.Write(data)
-
 	if err != nil {
 		return fmt.Errorf("could not write %s to file '%s': %w", resource.Kind, yamlPath, err)
 	}

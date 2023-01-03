@@ -48,6 +48,8 @@ type Controller struct {
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
 
+	workerWaitGroup sync.WaitGroup
+
 	sieve Sieve
 
 	// logStreams is a store of logStreams mapped to a unique identifier for the associated container.
@@ -223,17 +225,26 @@ func (controller *Controller) Start(nWorkers int) error {
 
 	controller.startTime = time.Now().UTC()
 
-	controller.Logger.Infof("starting workers")
+	controller.workerWaitGroup.Add(nWorkers)
+
 	for i := 0; i < nWorkers; i++ {
 		n := i
 		go func() {
+			controller.workerWaitGroup.Done()
+
 			controller.Logger.Debugf("starting worker #%d", n)
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
 				controller.processNextWorkItem()
 			}
 			controller.Logger.Debugf("stopping worker #%d", n)
+
+			controller.workerWaitGroup.Done()
 		}()
 	}
+
+	// we add nWorker back to the wait group to allow for waiting for workers during stop
+	controller.workerWaitGroup.Wait()
+	controller.workerWaitGroup.Add(nWorkers)
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
 		controller.syncLogStreams()
@@ -255,6 +266,8 @@ func (controller *Controller) Stop() error {
 	controller.stopChan = nil
 
 	controller.workQueue.ShutDownWithDrain()
+
+	controller.workerWaitGroup.Wait()
 
 	return nil
 }

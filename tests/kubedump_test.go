@@ -54,7 +54,7 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 
 	stopChan := make(chan struct{})
 	wait.Until(func() {
-		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apimetav1.GetOptions{})
+		_, err := client.CoreV1().ServiceAccounts("default").Get(context.Background(), "default", apimetav1.GetOptions{})
 
 		if err == nil {
 			close(stopChan)
@@ -71,6 +71,12 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 }
 
 func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
+	if t.Failed() {
+		if err := CopyTree(tempDir, d.Name()+".dump"); err != nil {
+			t.Errorf("%s", err)
+		}
+	}
+
 	if err := os.RemoveAll(tempDir); err != nil {
 		t.Errorf("failed to delete temporary test directory '%s': %s", tempDir, err)
 	}
@@ -110,7 +116,7 @@ func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) 
 	close(stopCh)
 }
 
-func TestDump(t *testing.T) {
+func TestDumpWithCluster(t *testing.T) {
 	d, client, basePath := controllerSetup(t)
 	defer controllerTeardown(t, d, basePath)
 
@@ -155,21 +161,17 @@ func TestDump(t *testing.T) {
 	close(stopChan)
 	<-done
 
-	assertResource(t, basePath, newHandledResourceNoErr(&SamplePod), true)
+	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePod), true)
 
-	assertResource(t, basePath, newHandledResourceNoErr(&SampleJob), true)
-	assertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleJob), true)
+	AssertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
-	assertResource(t, basePath, newHandledResourceNoErr(&SampleReplicaSet), true)
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleReplicaSet), true)
 
-	assertResource(t, basePath, newHandledResourceNoErr(&SampleDeployment), true)
-	assertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleDeployment), true)
+	AssertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	assertResource(t, basePath, newHandledResourceNoErr(&SampleService), false)
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleService), false)
 
-	assertResource(t, basePath, newHandledResourceNoErr(&SampleConfigMap), false)
-
-	if t.Failed() {
-		copyTree(t, basePath, d.Name()+".dump")
-	}
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleConfigMap), false)
 }

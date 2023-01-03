@@ -93,6 +93,7 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 	}
 
 	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
+	defer eventFile.Close()
 
 	if err != nil {
 		controller.Logger.Errorf("could not open job event file '%s': %s", eventFilePath, err)
