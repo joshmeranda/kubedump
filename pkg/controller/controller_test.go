@@ -70,22 +70,6 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 }
 
 func TestPodEvent(t *testing.T) {
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t)
-	defer teardown()
-
-	err := controller.Start(5)
-	assert.NoError(t, err)
-
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &tests.SamplePod)
-	assert.NoError(t, err)
-
-	if _, err := client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("failed to create resource '%s': %s", handledPod.String(), err)
-		return
-	} else {
-		defer client.CoreV1().Pods(tests.ResourceNamespace).Delete(ctx, handledPod.GetName(), tests.DeleteOptions())
-	}
-
 	handledEvent, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apieventsv1.Event{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "sample-pod-event",
@@ -106,6 +90,23 @@ func TestPodEvent(t *testing.T) {
 			ResourceVersion: tests.SamplePod.ResourceVersion,
 		},
 	})
+
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t)
+	defer teardown()
+
+	err := controller.Start(5)
+	assert.NoError(t, err)
+
+	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &tests.SamplePod)
+	assert.NoError(t, err)
+
+	if _, err := client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
+		t.Fatalf("failed to create resource '%s': %s", handledPod.String(), err)
+		return
+	} else {
+		defer client.CoreV1().Pods(tests.ResourceNamespace).Delete(ctx, handledPod.GetName(), tests.DeleteOptions())
+	}
+
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("failed to create resource '%s': %s", handledEvent.String(), err)
 		return
@@ -122,12 +123,6 @@ func TestPodEvent(t *testing.T) {
 }
 
 func TestSelector(t *testing.T) {
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t)
-	defer teardown()
-
-	err := controller.Start(5)
-	assert.NoError(t, err)
-
 	handledJob, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
@@ -154,11 +149,11 @@ func TestSelector(t *testing.T) {
 		Spec: apicorev1.PodSpec{},
 	})
 
-	if _, err := client.BatchV1().Jobs(tests.ResourceNamespace).Create(ctx, handledJob.Resource.(*apibatchv1.Job), apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("failed to create resource '%s': %s", handledJob, err)
-	} else {
-		defer client.BatchV1().Jobs(tests.ResourceNamespace).Delete(ctx, handledJob.GetName(), tests.DeleteOptions())
-	}
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledJob.Resource.(*apibatchv1.Job))
+	defer teardown()
+
+	err := controller.Start(5)
+	assert.NoError(t, err)
 
 	if _, err := client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("failed to create resource '%s': %s", handledPod, err)
