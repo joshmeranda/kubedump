@@ -122,7 +122,11 @@ test: unit integration
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	${RM} --recursive kubedump-*.tar.gz *.dump pkg/controller/*.dump tests/kubedump-* tests/kubeconfig-* pkg/filter/*.output pkg/filter/y.output
+	${RM} --recursive \
+		kubedump-*.tar.gz \
+		*.dump pkg/controller/*.dump \
+		tests/kubedump-* tests/kubeconfig-* \
+		pkg/filter/*.output pkg/filter/y.output
 
 clean: mostly-clean
-	${RM} --recursive artifacts bin
+	${RM} --recursive artifacts bin release

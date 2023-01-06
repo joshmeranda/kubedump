@@ -103,8 +103,9 @@ function check_docker_images() {
 
 check 'CLEAN WORKSPACE          ' 'check_git_clean'
 check 'GO BUILD KUBEDUMP        ' 'make kubedump'
-check 'GO BUILD KUBEDUMP-SERVER ' 'make kubedump'
-check 'GO TEST                  ' 'make test'
+check 'GO BUILD KUBEDUMP-SERVER ' 'make kubedump-server'
+check 'GO UNIT TEST             ' 'make unit'
+check 'GO INTEGRATION TEST      ' 'make integration'
 check 'GO FMT                   ' 'check_gofmt'
 check 'HELM LINT                ' 'helm lint charts/kubedump-server'
 check 'HELM VERSION             ' 'check_helm_version'

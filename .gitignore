@@ -35,3 +35,4 @@ artifacts
 kubedump-*.tar.gz
 *.dump
 y.output
+release
