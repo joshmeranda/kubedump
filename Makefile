@@ -13,10 +13,12 @@ BUILDER=docker
 
 HELM_PACKAGE=helm package
 
+KUBEDUMP_VERSION=$(shell tools/version.bash get)
+
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
 # # # # # # # # # # # # # # # # # # # #
-GO_BUILD=go build
+GO_BUILD=go build -ldflags "-X kubedump/pkg/cmd.Version=${KUBEDUMP_VERSION}"
 GO_FMT=go fmt
 GO_TEST=go test
 
@@ -33,7 +35,7 @@ endif
 # # # # # # # # # # # # # # # # # # # #
 # Help text for easier Makefile usage #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: help
+.PHONY: help sandbozx
 
 help:
 	@echo "Usage: make [TARGETS]... [VALUES]"

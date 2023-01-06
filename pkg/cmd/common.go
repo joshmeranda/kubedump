@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-const (
-	FlagNameLogSyncTimeout = "log-sync-timeout"
-)
+var Version = ""
+
+const FlagNameLogSyncTimeout = "log-sync-timeout"
 
 var flagLogSyncTimeout = cli.DurationFlag{
 	Name:    FlagNameLogSyncTimeout,

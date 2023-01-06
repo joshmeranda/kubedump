@@ -18,7 +18,7 @@ func TestPullChartInto(t *testing.T) {
 	archiveFilePath, err := pullChartInto(chartReleaseUrl, dir)
 	expectedArchiveFilePath := path.Join(
 		dir,
-		fmt.Sprintf("kubedump-server-%s.tgz", version),
+		fmt.Sprintf("kubedump-server-%s.tgz", Version),
 	)
 
 	assert.NoError(t, err)

@@ -99,7 +99,6 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 	pod := handledPod.Resource.(*apicorev1.Pod)
 
-	// todo: check pod for configmap mounts and link if available
 	switch handledPod.HandleEventKind {
 	case kubedump.HandleAdd:
 		for _, container := range pod.Spec.Containers {

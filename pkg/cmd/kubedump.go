@@ -1,7 +1,5 @@
 package kubedump
 
-// todo: use runtime.HandleError logrus
-
 import (
 	"context"
 	"fmt"

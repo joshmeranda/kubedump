@@ -141,8 +141,6 @@ func (handler *Handler) handleTar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		handler.clusterController.Sync()
-
 		// todo: support better speed / compression
 		compressor := gzip.NewWriter(file)
 		archiver := tar.NewWriter(compressor)
