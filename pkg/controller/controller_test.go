@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apieventsv1 "k8s.io/api/events/v1"
@@ -38,8 +37,8 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 		BasePath:      basePath,
 		Filter:        filterExpression,
 		ParentContext: ctx,
-		Logger:        kubedump.NewLogger(kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel))),
-		//Logger:         kubedump.NewLogger(),
+		//Logger:        kubedump.NewLogger(kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel))),
+		Logger:         kubedump.NewLogger(),
 		LogSyncTimeout: time.Second,
 	}
 
@@ -70,12 +69,14 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 }
 
 func TestPodEvent(t *testing.T) {
+	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &tests.SamplePod)
+
 	handledEvent, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apieventsv1.Event{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "sample-pod-event",
 		},
 		EventTime: apimetav1.MicroTime{
-			Time: time.Now(),
+			Time: time.Now().Add(time.Hour),
 		},
 		ReportingController: "some-controller",
 		ReportingInstance:   "some-instance",
@@ -84,34 +85,21 @@ func TestPodEvent(t *testing.T) {
 		Regarding: apicorev1.ObjectReference{
 			Kind:            "Pod",
 			Namespace:       tests.ResourceNamespace,
-			Name:            tests.SamplePod.Name,
-			UID:             tests.SamplePod.UID,
-			APIVersion:      tests.SamplePod.APIVersion,
-			ResourceVersion: tests.SamplePod.ResourceVersion,
+			Name:            handledPod.GetName(),
+			UID:             handledPod.GetUID(),
+			APIVersion:      handledPod.APIVersion,
+			ResourceVersion: handledPod.GetResourceVersion(),
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t)
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
 	err := controller.Start(5)
 	assert.NoError(t, err)
 
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &tests.SamplePod)
-	assert.NoError(t, err)
-
-	if _, err := client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("failed to create resource '%s': %s", handledPod.String(), err)
-		return
-	} else {
-		defer client.CoreV1().Pods(tests.ResourceNamespace).Delete(ctx, handledPod.GetName(), tests.DeleteOptions())
-	}
-
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("failed to create resource '%s': %s", handledEvent.String(), err)
-		return
-	} else {
-		defer client.EventsV1().Events(tests.ResourceNamespace).Delete(ctx, handledEvent.GetName(), tests.DeleteOptions())
 	}
 
 	tests.WaitForResources(t, basePath, ctx, handledPod)
@@ -157,8 +145,6 @@ func TestSelector(t *testing.T) {
 
 	if _, err := client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("failed to create resource '%s': %s", handledPod, err)
-	} else {
-		defer client.CoreV1().Pods(tests.ResourceNamespace).Delete(ctx, handledPod.GetName(), tests.DeleteOptions())
 	}
 
 	tests.WaitForResources(t, basePath, ctx, handledPod, handledJob)

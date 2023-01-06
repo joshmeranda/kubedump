@@ -159,7 +159,6 @@ func (controller *Controller) syncLogStreams() {
 	}
 
 	controller.logStreamsMu.Lock()
-	controller.Logger.Infof("syncing container logs")
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
@@ -200,10 +199,6 @@ func (controller *Controller) processNextWorkItem() bool {
 	controller.workQueue.Done(obj)
 
 	return true
-}
-
-func (controller *Controller) Sync() {
-	// doing nothing
 }
 
 func (controller *Controller) Start(nWorkers int) error {

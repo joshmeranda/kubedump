@@ -21,7 +21,7 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 		return
 	}
 
-	var obj apimetav1.Object
+	var handledResource kubedump.HandledResource
 
 	switch event.Regarding.Kind {
 	case "Pod":
@@ -30,62 +30,52 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Pod", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("Pod", resource)
 	case "Service":
 		resource, err := controller.serviceInformer.Lister().Services(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Service", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("Service", resource)
 	case "Job":
 		resource, err := controller.jobInformer.Lister().Jobs(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Job", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("Job", resource)
 	case "ReplicaSet":
 		resource, err := controller.replicasetInformer.Lister().ReplicaSets(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("ReplicaSet", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("ReplicaSet", resource)
 	case "Deployment":
 		resource, err := controller.deploymentInformer.Lister().Deployments(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Deployment", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
+		handledResource, _ = kubedump.NewHandledResource("Deployment", resource)
+	case "ConfigMap":
+		resource, err := controller.configMapInformer.Lister().ConfigMaps(event.Regarding.Namespace).Get(event.Regarding.Name)
+		if err != nil {
+			controller.Logger.Errorf("could not get ConfigMap for event: %s", err)
 		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("ConfigMap", resource)
 	default:
 		// unhandled event type
 		return
 	}
 
-	resourceDir := resourceDirPath(controller.BasePath, event.Regarding.Kind, obj)
+	if !controller.sieve.Matches(handledResource) {
+		controller.Logger.Debugf("encountered event for unhandled kind '%s'", event.Regarding.Kind)
+		return
+	}
 
+	resourceDir := resourceDirPath(controller.BasePath, event.Regarding.Kind, handledResource)
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
