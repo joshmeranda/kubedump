@@ -50,8 +50,6 @@ type Controller struct {
 
 	workerWaitGroup sync.WaitGroup
 
-	sieve Sieve
-
 	// logStreams is a store of logStreams mapped to a unique identifier for the associated container.
 	logStreams   map[string]Stream
 	logStreamsMu sync.Mutex
@@ -79,11 +77,6 @@ func NewController(
 ) (*Controller, error) {
 	informerFactory := informers.NewSharedInformerFactory(kubeclientset, time.Second*5)
 
-	sieve, err := NewSieve(opts.Filter)
-	if err != nil {
-		return nil, fmt.Errorf("could not create resource filter: %w", err)
-	}
-
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if opts.ParentContext != nil {
@@ -98,8 +91,6 @@ func NewController(
 
 		informerFactory: informerFactory,
 		stopChan:        nil,
-
-		sieve: sieve,
 
 		logStreams: make(map[string]Stream),
 

@@ -28,7 +28,7 @@ type HandledResource struct {
 	HandleEventKind HandleKind
 }
 
-func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, error) {
+func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResource, error) {
 	// todo: client-go informer seems to drop TypeMeta info, so we need to add that manually for now
 	switch resource := obj.(type) {
 	case *apieventsv1.Event:
@@ -39,7 +39,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "v1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	case *apicorev1.Pod:
 		return HandledResource{
@@ -49,7 +49,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "v1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	case *apicorev1.Service:
 		return HandledResource{
@@ -59,7 +59,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "v1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	case *apibatchv1.Job:
 		return HandledResource{
@@ -69,7 +69,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "batch/v1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	case *apiappsv1.ReplicaSet:
 		return HandledResource{
@@ -79,7 +79,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "apps/1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	case *apiappsv1.Deployment:
 		return HandledResource{
@@ -89,7 +89,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "apps/v1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	case *apicorev1.ConfigMap:
 		return HandledResource{
@@ -99,7 +99,7 @@ func NewHandledResource(kind HandleKind, obj interface{}) (HandledResource, erro
 				APIVersion: "v1",
 			},
 			Resource:        resource,
-			HandleEventKind: kind,
+			HandleEventKind: handledKind,
 		}, nil
 	default:
 		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
