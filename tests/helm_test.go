@@ -20,7 +20,7 @@ import (
 
 var kubedumpChartPath = path.Join("..", "charts", "kubedump-server")
 
-func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, config *rest.Config, basePath string) {
+func helmSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, config *rest.Config, basePath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -72,28 +72,37 @@ func helmSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, 
 
 	t.Log("node is ready")
 
+	teardown = func() {
+		if t.Failed() {
+			dumpDir := t.Name() + ".dump"
+			t.Logf("copying dump directory int '%s' for failed test", dumpDir)
+
+			if err := os.RemoveAll(dumpDir); err != nil && !os.IsNotExist(err) {
+				t.Errorf("error removing existing test dump: %s", err)
+			}
+
+			if err := CopyTree(basePath, dumpDir); err != nil {
+				t.Errorf("%s", err)
+			}
+		}
+
+		if err := os.Remove(d.Kubeconfig()); err != nil {
+			t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
+		}
+
+		if out, err := d.Down(); err != nil {
+			t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
+		}
+	}
+
 	return
-}
-
-func helmTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
-	if err := os.RemoveAll(tempDir); err != nil {
-		t.Errorf("failed to delete temporary test directory '%s': %s", tempDir, err)
-	}
-
-	if err := os.Remove(d.Kubeconfig()); err != nil {
-		t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
-	}
-
-	if out, err := d.Down(); err != nil {
-		t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
-	}
 }
 
 func TestHelm(t *testing.T) {
 	t.Skip("doesn't work consistently yet")
 
-	d, client, _, basePath := helmSetup(t)
-	defer helmTeardown(t, d, basePath)
+	teardown, d, client, _, _ := helmSetup(t)
+	defer teardown()
 
 	app := kubedump.NewKubedumpApp(nil)
 

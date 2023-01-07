@@ -277,13 +277,12 @@ func WaitForPath(parentContext context.Context, timeout time.Duration, path stri
 	return nil
 }
 
-func WaitForResources(t *testing.T, basePath string, ctx context.Context, handledResources ...kubedump.HandledResource) {
-	for _, resource := range handledResources {
-		// todo: this will break for non-namespaced (might want to expose pkg/controller/utils/resourceDirPath)
-		dir := path.Join(basePath, resource.GetNamespace(), strings.ToLower(resource.Kind), resource.GetName())
+func WaitForResourceFunc(t *testing.T, ctx context.Context, fn func(context.Context, context.CancelFunc)) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 
-		if err := WaitForPath(ctx, time.Second*5, dir); err != nil {
-			t.Errorf("error waiting for resource dir '%s': %s", resource, err)
-		}
+	wait.UntilWithContext(ctx, func(ctx2 context.Context) { fn(ctx, cancel) }, time.Millisecond*100)
+
+	if err := ctx.Err(); err != nil && !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("error wating for resource func: %s", err)
 	}
 }

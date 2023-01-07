@@ -101,6 +101,33 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 
 	switch handledPod.HandleEventKind {
 	case kubedump.HandleAdd:
+		controller.workQueue.AddRateLimited(NewJob(func() {
+			controller.Logger.Debugf("checking for config map volumes in '%s'", handledPod)
+
+			for _, volume := range pod.Spec.Volumes {
+				if volume.ConfigMap != nil {
+					controller.Logger.Debugf("found config map volume in '%s'", handledPod)
+
+					handledConfigMap := kubedump.HandledResource{
+						Object: &apimetav1.ObjectMeta{
+							Name:      volume.ConfigMap.Name,
+							Namespace: handledPod.GetNamespace(),
+						},
+						TypeMeta: apimetav1.TypeMeta{
+							Kind:       "ConfigMap",
+							APIVersion: "v1",
+						},
+						Resource:        nil, // the actual resource is not used when creating resource symlinks
+						HandleEventKind: handledPod.HandleEventKind,
+					}
+
+					if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
+						controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
+					}
+				}
+			}
+		}))
+
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
 				stream, err := NewLogStream(LogStreamOptions{
@@ -122,29 +149,6 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 				controller.logStreamsMu.Lock()
 				controller.logStreams[logStreamId] = stream
 				controller.logStreamsMu.Unlock()
-			}))
-
-			controller.workQueue.AddRateLimited(NewJob(func() {
-				for _, volume := range pod.Spec.Volumes {
-					if volume.ConfigMap != nil {
-						handledConfigMap := kubedump.HandledResource{
-							Object: &apimetav1.ObjectMeta{
-								Name:      volume.ConfigMap.Name,
-								Namespace: handledPod.GetNamespace(),
-							},
-							TypeMeta: apimetav1.TypeMeta{
-								Kind:       "ConfigMap",
-								APIVersion: "v1",
-							},
-							Resource:        nil, // the actual resource is not used when creating resource symlinks
-							HandleEventKind: handledPod.HandleEventKind,
-						}
-
-						if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
-							controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
-						}
-					}
-				}
 			}))
 		}
 	case kubedump.HandleDelete:

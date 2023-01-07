@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, basePath string) {
+func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, basePath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -46,11 +46,7 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 		t.Fatalf("could not crete client: %s", err)
 	}
 
-	if dir, err := os.MkdirTemp("", ""); err != nil {
-		t.Fatalf("could not create temporary file")
-	} else {
-		basePath = path.Join(dir, "kubedump-test")
-	}
+	basePath = path.Join(t.TempDir(), "kubedump-test")
 
 	stopChan := make(chan struct{})
 	wait.Until(func() {
@@ -67,27 +63,30 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 
 	t.Logf("cluster '%s' is ready", d.Name())
 
-	return
-}
+	teardown = func() {
+		if t.Failed() {
+			dumpDir := t.Name() + ".dump"
+			t.Logf("copying dump directory int '%s' for failed test", dumpDir)
 
-func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
-	if t.Failed() {
-		if err := CopyTree(tempDir, d.Name()+".dump"); err != nil {
-			t.Errorf("%s", err)
+			if err := os.RemoveAll(dumpDir); err != nil && !os.IsNotExist(err) {
+				t.Errorf("error removing existing test dump: %s", err)
+			}
+
+			if err := CopyTree(basePath, dumpDir); err != nil {
+				t.Errorf("%s", err)
+			}
+		}
+
+		if err := os.Remove(d.Kubeconfig()); err != nil {
+			t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
+		}
+
+		if out, err := d.Down(); err != nil {
+			t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
 		}
 	}
 
-	if err := os.RemoveAll(tempDir); err != nil {
-		t.Errorf("failed to delete temporary test directory '%s': %s", tempDir, err)
-	}
-
-	if err := os.Remove(d.Kubeconfig()); err != nil {
-		t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
-	}
-
-	if out, err := d.Down(); err != nil {
-		t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
-	}
+	return
 }
 
 func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) {
@@ -117,8 +116,8 @@ func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) 
 }
 
 func TestDumpWithCluster(t *testing.T) {
-	d, client, basePath := controllerSetup(t)
-	defer controllerTeardown(t, d, basePath)
+	teardown, d, client, basePath := controllerSetup(t)
+	defer teardown()
 
 	deferred, err := createResources(t, client)
 	defer deferred()
