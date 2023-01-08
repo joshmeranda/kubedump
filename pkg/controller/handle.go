@@ -21,7 +21,7 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 		return
 	}
 
-	var obj apimetav1.Object
+	var handledResource kubedump.HandledResource
 
 	switch event.Regarding.Kind {
 	case "Pod":
@@ -30,62 +30,52 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Pod", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("Pod", resource)
 	case "Service":
 		resource, err := controller.serviceInformer.Lister().Services(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Service", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("Service", resource)
 	case "Job":
 		resource, err := controller.jobInformer.Lister().Jobs(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Job", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("Job", resource)
 	case "ReplicaSet":
 		resource, err := controller.replicasetInformer.Lister().ReplicaSets(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("ReplicaSet", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
-		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("ReplicaSet", resource)
 	case "Deployment":
 		resource, err := controller.deploymentInformer.Lister().Deployments(event.Regarding.Namespace).Get(event.Regarding.Name)
 		if err != nil {
 			controller.Logger.Errorf("could not get Pod for event: %s", err)
 			return
 		}
-		handledResource, _ := kubedump.NewHandledResource("Deployment", resource)
-		if !controller.sieve.Matches(handledResource) {
-			return
+		handledResource, _ = kubedump.NewHandledResource("Deployment", resource)
+	case "ConfigMap":
+		resource, err := controller.configMapInformer.Lister().ConfigMaps(event.Regarding.Namespace).Get(event.Regarding.Name)
+		if err != nil {
+			controller.Logger.Errorf("could not get ConfigMap for event: %s", err)
 		}
-		obj = resource.GetObjectMeta()
+		handledResource, _ = kubedump.NewHandledResource("ConfigMap", resource)
 	default:
 		// unhandled event type
 		return
 	}
 
-	resourceDir := resourceDirPath(controller.ParentPath, event.Regarding.Kind, obj)
+	if !controller.Filter.Matches(handledResource) {
+		controller.Logger.Debugf("encountered event for unhandled kind '%s'", event.Regarding.Kind)
+		return
+	}
 
+	resourceDir := resourceDirPath(controller.BasePath, event.Regarding.Kind, handledResource)
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
@@ -93,6 +83,7 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 	}
 
 	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
+	defer eventFile.Close()
 
 	if err != nil {
 		controller.Logger.Errorf("could not open job event file '%s': %s", eventFilePath, err)
@@ -108,9 +99,35 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 	pod := handledPod.Resource.(*apicorev1.Pod)
 
-	// todo: check pod for configmap mounts and link if available
 	switch handledPod.HandleEventKind {
 	case kubedump.HandleAdd:
+		controller.workQueue.AddRateLimited(NewJob(func() {
+			controller.Logger.Debugf("checking for config map volumes in '%s'", handledPod)
+
+			for _, volume := range pod.Spec.Volumes {
+				if volume.ConfigMap != nil {
+					controller.Logger.Debugf("found config map volume in '%s'", handledPod)
+
+					handledConfigMap := kubedump.HandledResource{
+						Object: &apimetav1.ObjectMeta{
+							Name:      volume.ConfigMap.Name,
+							Namespace: handledPod.GetNamespace(),
+						},
+						TypeMeta: apimetav1.TypeMeta{
+							Kind:       "ConfigMap",
+							APIVersion: "v1",
+						},
+						Resource:        nil, // the actual resource is not used when creating resource symlinks
+						HandleEventKind: handledPod.HandleEventKind,
+					}
+
+					if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
+						controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
+					}
+				}
+			}
+		}))
+
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
 				stream, err := NewLogStream(LogStreamOptions{
@@ -118,7 +135,7 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 					Container:     &container,
 					Context:       controller.ctx,
 					KubeClientSet: controller.kubeclientset,
-					ParentPath:    controller.ParentPath,
+					BasePath:      controller.BasePath,
 					Timeout:       controller.LogSyncTimeout,
 				})
 
@@ -132,29 +149,6 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 				controller.logStreamsMu.Lock()
 				controller.logStreams[logStreamId] = stream
 				controller.logStreamsMu.Unlock()
-			}))
-
-			controller.workQueue.AddRateLimited(NewJob(func() {
-				for _, volume := range pod.Spec.Volumes {
-					if volume.ConfigMap != nil {
-						handledConfigMap := kubedump.HandledResource{
-							Object: &apimetav1.ObjectMeta{
-								Name:      volume.ConfigMap.Name,
-								Namespace: handledPod.GetNamespace(),
-							},
-							TypeMeta: apimetav1.TypeMeta{
-								Kind:       "ConfigMap",
-								APIVersion: "v1",
-							},
-							Resource:        nil, // the actual resource is not used when creating resource symlinks
-							HandleEventKind: handledPod.HandleEventKind,
-						}
-
-						if err := linkResource(controller.ParentPath, handledPod, handledConfigMap); err != nil {
-							controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
-						}
-					}
-				}
 			}))
 		}
 	case kubedump.HandleDelete:
@@ -196,7 +190,7 @@ func (controller *Controller) handleResource(_ kubedump.HandleKind, handledResou
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(controller.ParentPath, handledResource); err != nil {
+		if err := dumpResourceDescription(controller.BasePath, handledResource); err != nil {
 			controller.Logger.With(
 				"namespace", handledResource.GetNamespace(),
 				"name", handledResource.GetName(),
@@ -218,12 +212,12 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 		controller.Logger.Errorf("error fetching resources: %s", err)
 	}
 
-	if len(resources) == 0 && !controller.sieve.Matches(handledResource) {
+	if len(resources) == 0 && !controller.Filter.Matches(handledResource) {
 		return
 	}
 
 	for _, resource := range resources {
-		if err := linkResource(controller.ParentPath, resource, handledResource); err != nil {
+		if err := linkResource(controller.BasePath, resource, handledResource); err != nil {
 			controller.Logger.Errorf("error: %s", err)
 		}
 	}

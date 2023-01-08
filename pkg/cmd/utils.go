@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/urfave/cli/v2"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,14 +23,9 @@ import (
 )
 
 var (
-	// todo: we might want to pass this via build flag
-	version = "0.3.9"
+	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", Version, Version)
 
-	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", version, version)
-
-	ParentPath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
-
-	CmdLogger *zap.SugaredLogger
+	BasePath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
 )
 
 func getClusterHostFromConfig(config *rest.Config) (string, error) {
@@ -138,7 +132,7 @@ func getChartPath() (string, error) {
 		return "", fmt.Errorf("could not determine location for chart: %w", err)
 	}
 
-	return path.Join(dataDir, fmt.Sprintf("%s-%s.tgz", kubedump.HelmReleaseName, version)), nil
+	return path.Join(dataDir, fmt.Sprintf("%s-%s.tgz", kubedump.HelmReleaseName, Version)), nil
 }
 
 func pullChart(rawUrl string) (string, error) {
@@ -162,7 +156,6 @@ func pullChartInto(rawUrl string, dir string) (string, error) {
 
 	fileName := path.Join(dir, filepath.Base(parsedUrl.Path))
 
-	CmdLogger.Infof("getting chart from: %s", rawUrl)
 	resp, err := http.Get(rawUrl)
 	if err != nil {
 		return "", fmt.Errorf("could not Pull chart tat '%s': %w", rawUrl, err)
@@ -201,8 +194,8 @@ func ensureDefaultChart() (string, error) {
 }
 
 func getArchivePath(dir string, name string) string {
-	trimmed := strings.TrimPrefix(dir, ParentPath)
-	return path.Join(path.Base(ParentPath), trimmed, name)
+	trimmed := strings.TrimPrefix(dir, BasePath)
+	return path.Join(path.Base(BasePath), trimmed, name)
 }
 
 func archiveTree(dir string, writer *tar.Writer) error {

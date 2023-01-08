@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Interface, parentPath string) {
+func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, basePath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -46,15 +46,11 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 		t.Fatalf("could not crete client: %s", err)
 	}
 
-	if dir, err := os.MkdirTemp("", ""); err != nil {
-		t.Fatalf("could not create temporary file")
-	} else {
-		parentPath = path.Join(dir, "kubedump-test")
-	}
+	basePath = path.Join(t.TempDir(), "kubedump-test")
 
 	stopChan := make(chan struct{})
 	wait.Until(func() {
-		_, err := client.CoreV1().ServiceAccounts("default").Get(context.TODO(), "default", apimetav1.GetOptions{})
+		_, err := client.CoreV1().ServiceAccounts("default").Get(context.Background(), "default", apimetav1.GetOptions{})
 
 		if err == nil {
 			close(stopChan)
@@ -67,21 +63,30 @@ func controllerSetup(t *testing.T) (d deployer.Deployer, client kubernetes.Inter
 
 	t.Logf("cluster '%s' is ready", d.Name())
 
+	teardown = func() {
+		if t.Failed() {
+			dumpDir := t.Name() + ".dump"
+			t.Logf("copying dump directory int '%s' for failed test", dumpDir)
+
+			if err := os.RemoveAll(dumpDir); err != nil && !os.IsNotExist(err) {
+				t.Errorf("error removing existing test dump: %s", err)
+			}
+
+			if err := CopyTree(basePath, dumpDir); err != nil {
+				t.Errorf("%s", err)
+			}
+		}
+
+		if err := os.Remove(d.Kubeconfig()); err != nil {
+			t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
+		}
+
+		if out, err := d.Down(); err != nil {
+			t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
+		}
+	}
+
 	return
-}
-
-func controllerTeardown(t *testing.T, d deployer.Deployer, tempDir string) {
-	if err := os.RemoveAll(tempDir); err != nil {
-		t.Errorf("failed to delete temporary test directory '%s': %s", tempDir, err)
-	}
-
-	if err := os.Remove(d.Kubeconfig()); err != nil {
-		t.Logf("failed to delete temporary test kubeconfig '%s': %s", d.Kubeconfig(), err)
-	}
-
-	if out, err := d.Down(); err != nil {
-		t.Logf("failed to delete cluster: %s\nOutput\n%s", err, out)
-	}
 }
 
 func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) {
@@ -110,9 +115,9 @@ func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) 
 	close(stopCh)
 }
 
-func TestDump(t *testing.T) {
-	d, client, parentPath := controllerSetup(t)
-	defer controllerTeardown(t, d, parentPath)
+func TestDumpWithCluster(t *testing.T) {
+	teardown, d, client, basePath := controllerSetup(t)
+	defer teardown()
 
 	deferred, err := createResources(t, client)
 	defer deferred()
@@ -138,9 +143,9 @@ func TestDump(t *testing.T) {
 
 		var err error
 		if verbose {
-			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", parentPath, "--filter", filter})
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--verbose", "--workers", nWorkers, "--destination", basePath, "--filter", filter})
 		} else {
-			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", parentPath, "--filter", filter})
+			err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "dump", "--workers", nWorkers, "--destination", basePath, "--filter", filter})
 		}
 
 		assert.NoError(t, err)
@@ -155,21 +160,17 @@ func TestDump(t *testing.T) {
 	close(stopChan)
 	<-done
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SamplePod), true)
+	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePod), true)
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleJob), true)
-	assertLinkGlob(t, path.Join(parentPath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleJob), true)
+	AssertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleReplicaSet), true)
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleReplicaSet), true)
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleDeployment), true)
-	assertLinkGlob(t, path.Join(parentPath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleDeployment), true)
+	AssertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleService), false)
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleService), false)
 
-	assertResource(t, parentPath, newHandledResourceNoErr(&SampleConfigMap), false)
-
-	if t.Failed() {
-		copyTree(t, parentPath, d.Name()+".dump")
-	}
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleConfigMap), false)
 }

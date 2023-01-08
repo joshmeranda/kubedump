@@ -21,7 +21,7 @@ func main() {
 	app := kubedumpcmd.NewKubedumpApp(stopChan)
 
 	if err := app.Run(os.Args); err != nil {
-		kubedumpcmd.CmdLogger.Infof("%s", err)
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
