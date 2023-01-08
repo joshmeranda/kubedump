@@ -32,7 +32,7 @@ func NewJob(fn func()) Job {
 }
 
 type Options struct {
-	ParentPath     string
+	BasePath       string
 	Filter         filter.Expression
 	ParentContext  context.Context
 	Logger         *zap.SugaredLogger
@@ -48,7 +48,7 @@ type Controller struct {
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
 
-	sieve Sieve
+	workerWaitGroup sync.WaitGroup
 
 	// logStreams is a store of logStreams mapped to a unique identifier for the associated container.
 	logStreams   map[string]Stream
@@ -77,11 +77,6 @@ func NewController(
 ) (*Controller, error) {
 	informerFactory := informers.NewSharedInformerFactory(kubeclientset, time.Second*5)
 
-	sieve, err := NewSieve(opts.Filter)
-	if err != nil {
-		return nil, fmt.Errorf("could not create resource filter: %w", err)
-	}
-
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if opts.ParentContext != nil {
@@ -96,8 +91,6 @@ func NewController(
 
 		informerFactory: informerFactory,
 		stopChan:        nil,
-
-		sieve: sieve,
 
 		logStreams: make(map[string]Stream),
 
@@ -157,7 +150,6 @@ func (controller *Controller) syncLogStreams() {
 	}
 
 	controller.logStreamsMu.Lock()
-	controller.Logger.Infof("syncing container logs")
 
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
@@ -200,10 +192,6 @@ func (controller *Controller) processNextWorkItem() bool {
 	return true
 }
 
-func (controller *Controller) Sync() {
-	// doing nothing
-}
-
 func (controller *Controller) Start(nWorkers int) error {
 	if controller.stopChan != nil {
 		return fmt.Errorf("controller is already running")
@@ -223,17 +211,26 @@ func (controller *Controller) Start(nWorkers int) error {
 
 	controller.startTime = time.Now().UTC()
 
-	controller.Logger.Infof("starting workers")
+	controller.workerWaitGroup.Add(nWorkers)
+
 	for i := 0; i < nWorkers; i++ {
 		n := i
 		go func() {
+			controller.workerWaitGroup.Done()
+
 			controller.Logger.Debugf("starting worker #%d", n)
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
 				controller.processNextWorkItem()
 			}
 			controller.Logger.Debugf("stopping worker #%d", n)
+
+			controller.workerWaitGroup.Done()
 		}()
 	}
+
+	// we add nWorker back to the wait group to allow for waiting for workers during stop
+	controller.workerWaitGroup.Wait()
+	controller.workerWaitGroup.Add(nWorkers)
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
 		controller.syncLogStreams()
@@ -255,6 +252,8 @@ func (controller *Controller) Stop() error {
 	controller.stopChan = nil
 
 	controller.workQueue.ShutDownWithDrain()
+
+	controller.workerWaitGroup.Wait()
 
 	return nil
 }

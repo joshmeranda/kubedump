@@ -13,10 +13,12 @@ BUILDER=docker
 
 HELM_PACKAGE=helm package
 
+KUBEDUMP_VERSION=$(shell tools/version.bash get)
+
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
 # # # # # # # # # # # # # # # # # # # #
-GO_BUILD=go build
+GO_BUILD=go build -ldflags "-X kubedump/pkg/cmd.Version=${KUBEDUMP_VERSION}"
 GO_FMT=go fmt
 GO_TEST=go test
 
@@ -33,7 +35,7 @@ endif
 # # # # # # # # # # # # # # # # # # # #
 # Help text for easier Makefile usage #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: help
+.PHONY: help sandbozx
 
 help:
 	@echo "Usage: make [TARGETS]... [VALUES]"
@@ -120,7 +122,11 @@ test: unit integration
 .PHONY: clean fmt mostly-clean
 
 mostly-clean:
-	${RM} --recursive kubedump-*.tar.gz *.dump tests/kubedump-* tests/kubeconfig-* pkg/filter/*.output pkg/filter/y.output
+	${RM} --recursive \
+		kubedump-*.tar.gz \
+		*.dump pkg/controller/*.dump \
+		tests/kubedump-* tests/kubeconfig-* \
+		pkg/filter/*.output pkg/filter/y.output
 
 clean: mostly-clean
-	${RM} --recursive artifacts bin
+	${RM} --recursive artifacts bin release

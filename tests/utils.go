@@ -10,6 +10,7 @@ import (
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	kubedump "kubedump/pkg"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
+	"time"
 )
 
 // isSymlink determines whether the given file path points to a symlink.
@@ -31,13 +33,19 @@ func isSymlink(filePath string) (bool, error) {
 	return info.Mode()&os.ModeSymlink == os.ModeSymlink, nil
 }
 
-// copyTree will copy the target directory to the destination directory.
+// CopyTree will copy the target directory to the destination directory.
 //
-// this isn't an ideal implementation by any means at all, but it's simpler than doing  it all manually.
-func copyTree(t *testing.T, target string, destination string) {
-	if err := exec.Command("cp", "--recursive", target, destination).Run(); err != nil {
-		t.Errorf("could not copy '%s' -> '%s': %s", target, destination, err)
+// this isn't an ideal implementation by any means, but it's simpler than doing it via golang.
+func CopyTree(target string, destination string) error {
+	if err := os.MkdirAll(destination, 0755); err != nil {
+		return fmt.Errorf("could not create copy destination '%s': %w", destination, err)
 	}
+
+	if err := exec.Command("cp", "--recursive", target, destination).Run(); err != nil {
+		return fmt.Errorf("could not copy '%s' -> '%s': %w", target, destination, err)
+	}
+
+	return nil
 }
 
 // unmarshalFile will attempt to marshal teh file at the given path into the given object.
@@ -81,7 +89,7 @@ func newHandledResourceNoErr(obj interface{}) kubedump.HandledResource {
 	return resource
 }
 
-func assertResource(t *testing.T, basePath string, resource kubedump.HandledResource, hasEvents bool) {
+func AssertResource(t *testing.T, basePath string, resource kubedump.HandledResource, hasEvents bool) {
 	resourceDir := path.Join(basePath, resource.GetNamespace(), strings.ToLower(resource.Kind), resource.GetName())
 
 	assertResourceFile(t, resource.Kind, path.Join(resourceDir, resource.GetName()+".yaml"), resource)
@@ -91,7 +99,7 @@ func assertResource(t *testing.T, basePath string, resource kubedump.HandledReso
 	}
 }
 
-// assertResourceFile will assert if the expected iven object matches the file as stored to the filesystem.
+// assertResourceFile will assert if the expected given object matches the file as stored to the filesystem.
 func assertResourceFile(t *testing.T, kind string, fileName string, obj apimetav1.Object) {
 	var fsObj apimetav1.ObjectMeta
 	var err error
@@ -131,7 +139,7 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apimetav
 	assert.Equal(t, obj.GetNamespace(), fsObj.GetNamespace())
 }
 
-func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
+func AssertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 	found, err := findGlobsIn(parent, pattern)
 
 	assert.NoError(t, err)
@@ -148,6 +156,15 @@ func assertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 	}
 }
 
+func AssertResourceIsLinked(t *testing.T, basePath string, parent kubedump.HandledResource, linked kubedump.HandledResource) {
+	parentPath := path.Join(basePath, parent.GetNamespace(), strings.ToLower(parent.Kind), parent.GetName())
+	linkPath := path.Join(parentPath, strings.ToLower(linked.Kind), linked.GetName())
+	isLink, err := isSymlink(linkPath)
+
+	assert.NoError(t, err)
+	assert.True(t, isLink)
+}
+
 const (
 	ResourceNamespace = "default"
 
@@ -155,7 +172,7 @@ const (
 	kubedumpTestLabelValue = ""
 )
 
-func deleteOptions() apimetav1.DeleteOptions {
+func DeleteOptions() apimetav1.DeleteOptions {
 	policy := apimetav1.DeletePropagationBackground
 
 	return apimetav1.DeleteOptions{
@@ -176,7 +193,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err := client.CoreV1().Pods(ResourceNamespace).Create(context.Background(), &SamplePod, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SamplePod.Name, deleteOptions())
+		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SamplePod.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
@@ -184,7 +201,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.BatchV1().Jobs(ResourceNamespace).Create(context.Background(), &SampleJob, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.BatchV1().Jobs(ResourceNamespace).Delete(context.Background(), SampleJob.Name, deleteOptions())
+		return client.BatchV1().Jobs(ResourceNamespace).Delete(context.Background(), SampleJob.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
@@ -192,7 +209,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.AppsV1().ReplicaSets(ResourceNamespace).Create(context.Background(), &SampleReplicaSet, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.AppsV1().ReplicaSets(ResourceNamespace).Delete(context.Background(), SampleReplicaSet.Name, deleteOptions())
+		return client.AppsV1().ReplicaSets(ResourceNamespace).Delete(context.Background(), SampleReplicaSet.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
@@ -200,7 +217,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.AppsV1().Deployments(ResourceNamespace).Create(context.Background(), &SampleDeployment, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.AppsV1().Deployments(ResourceNamespace).Delete(context.Background(), SampleDeployment.Name, deleteOptions())
+		return client.AppsV1().Deployments(ResourceNamespace).Delete(context.Background(), SampleDeployment.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
@@ -208,7 +225,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.CoreV1().Pods(ResourceNamespace).Create(context.Background(), &SampleServicePod, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SampleServicePod.Name, deleteOptions())
+		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SampleServicePod.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
@@ -216,7 +233,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.CoreV1().Services(ResourceNamespace).Create(context.Background(), &SampleService, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Services(ResourceNamespace).Delete(context.Background(), SampleService.Name, deleteOptions())
+		return client.CoreV1().Services(ResourceNamespace).Delete(context.Background(), SampleService.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
@@ -224,7 +241,7 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.CoreV1().ConfigMaps(ResourceNamespace).Create(context.Background(), &SampleConfigMap, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().ConfigMaps(ResourceNamespace).Delete(context.Background(), SampleConfigMap.Name, deleteOptions())
+		return client.CoreV1().ConfigMaps(ResourceNamespace).Delete(context.Background(), SampleConfigMap.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create config map '%s/%s': %s", SampleConfigMap.Namespace, SampleConfigMap.Name, err)
@@ -232,11 +249,40 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 
 	_, err = client.CoreV1().Pods(ResourceNamespace).Create(context.Background(), &SamplePodWithConfigMapVolume, apimetav1.CreateOptions{})
 	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SamplePodWithConfigMapVolume.Name, deleteOptions())
+		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SamplePodWithConfigMapVolume.Name, DeleteOptions())
 	})
 	if err != nil {
 		return deferredFunc, fmt.Errorf("could not create pod '%s/%s': %s", SamplePodWithConfigMapVolume.Namespace, SamplePodWithConfigMapVolume.Name, err)
 	}
 
 	return deferredFunc, nil
+}
+
+// WaitForPath will block until a file at the given path exists.
+func WaitForPath(parentContext context.Context, timeout time.Duration, path string) error {
+	ctx, cancel := context.WithTimeout(parentContext, timeout)
+
+	wait.UntilWithContext(ctx, func(ctx context.Context) {
+		_, err := os.Stat(path)
+
+		if !os.IsNotExist(err) {
+			cancel()
+		}
+	}, time.Second)
+
+	if err := ctx.Err(); err != nil && !strings.Contains(err.Error(), "context canceled") {
+		return err
+	}
+
+	return nil
+}
+
+func WaitForResourceFunc(t *testing.T, ctx context.Context, fn func(context.Context, context.CancelFunc)) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+
+	wait.UntilWithContext(ctx, func(ctx2 context.Context) { fn(ctx, cancel) }, time.Millisecond*100)
+
+	if err := ctx.Err(); err != nil && !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("error wating for resource func: %s", err)
+	}
 }

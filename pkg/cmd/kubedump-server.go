@@ -8,29 +8,30 @@ import (
 	"net/http"
 )
 
-func init() {
-	CmdLogger = kubedump.NewLogger()
-}
-
 func ServeKubedump(ctx *cli.Context) error {
-	if ctx.Bool("verbose") {
-		CmdLogger = kubedump.NewLogger(
-			kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
-		)
+	loggerOptions := []kubedump.LoggerOption{
+		kubedump.WithPaths(BasePath),
 	}
+
+	if ctx.Bool("verbose") {
+		loggerOptions = append(loggerOptions, kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)))
+	}
+
+	logger := kubedump.NewLogger(loggerOptions...)
 
 	opts := HandlerOptions{
 		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
+		Logger:         logger,
 	}
 
-	handler := NewHandler(CmdLogger, opts)
+	handler := NewHandler(opts)
 
-	CmdLogger.Infof("starting server...")
+	logger.Infof("starting server...")
 
 	err := http.ListenAndServe(fmt.Sprintf(":%d", kubedump.Port), &handler)
 
 	if err != nil {
-		CmdLogger.Fatal("error starting http server: %s", err)
+		logger.Fatal("error starting http server: %s", err)
 	}
 
 	return nil
@@ -40,7 +41,7 @@ func NewKubedumpServerApp() *cli.App {
 	return &cli.App{
 		Name:    "kubedump-server",
 		Usage:   "collect k8s cluster resources and logs using a local client",
-		Version: "0.2.0",
+		Version: Version,
 		Action:  ServeKubedump,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

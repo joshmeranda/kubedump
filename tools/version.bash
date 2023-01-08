@@ -8,9 +8,6 @@ args:
 Commands:
   get           get the current git numbers tag
   set <tag>     create a new numbers tag for the current commit
-  bump <major|minor|patch|rc [release]>
-                bump the numbers number and create a new tag at the
-                current commit
 "
 
 if [ "$#" -lt 1 ]; then
@@ -45,57 +42,6 @@ function set_version() {
   3) Push the current git tag'
 }
 
-function bump() {
-  if [ "$#" -lt 1 ]; then
-    echo -e "expected one of major, minor, patch, or rc but found none\n$usage"
-  fi
-
-  local raw_version="$(get_version)"
-
-  local rc="$(cut --delimiter '-' --fields 2 <<< "$raw_version")"
-  local numbers="$(cut --delimiter '-' --fields 1 <<< "$raw_version")"
-
-  IFS=. read -r major minor patch <<< "$numbers"
-
-  case "$1" in
-    major)
-      ((major++))
-      ;;
-    minor)
-      ((minor++))
-      ;;
-    patch)
-      ((patch++))
-      ;;
-    rc)
-      if [ "$2" == release ]; then
-        rc=
-      else
-          if [ -z "$rc" ]; then
-            rc="rc0"
-          else
-            rcno="$(cut -c3- <<< $rc)"
-            ((rcno++))
-
-            rc="rc$rcno"
-          fi
-        fi
-      ;;
-    *)
-      echo -e "expected on of major, minor, or patch but found '$1'\n$usage"
-      ;;
-  esac
-
-  local bumped
-  if [ -z "$rc" ]; then
-    local bumped="$major.$minor.$patch"
-  else
-    local bumped="$major.$minor.$patch-$rc"
-  fi
-
-  set_version "$bumped"
-}
-
 case "$1" in
   -h|--help)
     echo "$usage"
@@ -107,10 +53,6 @@ case "$1" in
   set)
     shift
     set_version "$@"
-    ;;
-  bump)
-    shift
-    bump "$@"
     ;;
   *)
     echo -e "received unknown command '$1'\n$usage"
