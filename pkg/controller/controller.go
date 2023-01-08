@@ -61,10 +61,12 @@ type Controller struct {
 
 	store Store
 
+	// todo: we might be able to merge these and lo.Map over them for their HasSynced methods
 	informersSynced []cache.InformerSynced
 
 	podInformer        informerscorev1.PodInformer
 	serviceInformer    informerscorev1.ServiceInformer
+	secretInformer     informerscorev1.SecretInformer
 	configMapInformer  informerscorev1.ConfigMapInformer
 	jobInformer        informersbatchv1.JobInformer
 	replicasetInformer informersappsv1.ReplicaSetInformer
@@ -103,6 +105,7 @@ func NewController(
 
 		podInformer:        informerFactory.Core().V1().Pods(),
 		serviceInformer:    informerFactory.Core().V1().Services(),
+		secretInformer:     informerFactory.Core().V1().Secrets(),
 		configMapInformer:  informerFactory.Core().V1().ConfigMaps(),
 		jobInformer:        informerFactory.Batch().V1().Jobs(),
 		replicasetInformer: informerFactory.Apps().V1().ReplicaSets(),
@@ -116,6 +119,7 @@ func NewController(
 
 		controller.podInformer.Informer().HasSynced,
 		controller.serviceInformer.Informer().HasSynced,
+		controller.secretInformer.Informer().HasSynced,
 		controller.configMapInformer.Informer().HasSynced,
 		controller.jobInformer.Informer().HasSynced,
 		controller.replicasetInformer.Informer().HasSynced,
@@ -132,6 +136,7 @@ func NewController(
 
 	controller.podInformer.Informer().AddEventHandler(handler)
 	controller.serviceInformer.Informer().AddEventHandler(handler)
+	controller.secretInformer.Informer().AddEventHandler(handler)
 	controller.configMapInformer.Informer().AddEventHandler(handler)
 
 	controller.jobInformer.Informer().AddEventHandler(handler)

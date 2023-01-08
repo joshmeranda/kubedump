@@ -22,6 +22,11 @@ import (
 	"time"
 )
 
+var (
+	NWorkers         = 5
+	TestWaitDuration = time.Second * 5
+)
+
 // isSymlink determines whether the given file path points to a symlink.
 func isSymlink(filePath string) (bool, error) {
 	info, err := os.Lstat(filePath)
@@ -129,6 +134,10 @@ func assertResourceFile(t *testing.T, kind string, fileName string, obj apimetav
 		var configmap apicorev1.ConfigMap
 		err = unmarshalFile(fileName, &configmap)
 		fsObj = configmap.ObjectMeta
+	case "Secret":
+		var secret apicorev1.Secret
+		err = unmarshalFile(fileName, &secret)
+		fsObj = secret.ObjectMeta
 	default:
 		t.Errorf("unsupported kind '%s' encountered", kind)
 	}
@@ -181,7 +190,7 @@ func DeleteOptions() apimetav1.DeleteOptions {
 }
 
 // createResources creates one of each target resource and returns a function that can be called to delete one of each
-func createResources(t *testing.T, client kubernetes.Interface) (func(), error) {
+func createResources(t *testing.T, client kubernetes.Interface, basePath string, ctx context.Context) (func(), func(), error) {
 	var aggregatedDefers []func() error
 	deferredFunc := func() {
 		for _, deferred := range aggregatedDefers {
@@ -191,71 +200,108 @@ func createResources(t *testing.T, client kubernetes.Interface) (func(), error) 
 		}
 	}
 
-	_, err := client.CoreV1().Pods(ResourceNamespace).Create(context.Background(), &SamplePod, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SamplePod.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
+	var handledResources []kubedump.HandledResource
+	waitFunc := func() {
+		for _, resource := range handledResources {
+			resourcePath := path.Join(basePath, resource.GetNamespace(), strings.ToLower(resource.Kind), resource.GetName())
+
+			if err := WaitForPath(ctx, TestWaitDuration, resourcePath); err != nil {
+				t.Fatalf("failed waiting for resource '%s': %s", resourcePath, err)
+			}
+		}
 	}
 
-	_, err = client.BatchV1().Jobs(ResourceNamespace).Create(context.Background(), &SampleJob, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.BatchV1().Jobs(ResourceNamespace).Delete(context.Background(), SampleJob.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
+	if samplePod, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SamplePod, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create pod '%s/%s': %s", SamplePod.Namespace, SamplePod.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().Pods(ResourceNamespace).Delete(ctx, SamplePod.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(samplePod))
 	}
 
-	_, err = client.AppsV1().ReplicaSets(ResourceNamespace).Create(context.Background(), &SampleReplicaSet, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.AppsV1().ReplicaSets(ResourceNamespace).Delete(context.Background(), SampleReplicaSet.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
+	if sampleJob, err := client.BatchV1().Jobs(ResourceNamespace).Create(ctx, &SampleJob, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create job '%s/%s': %s", SampleJob.Namespace, SampleJob.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.BatchV1().Jobs(ResourceNamespace).Delete(ctx, SampleJob.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleJob))
 	}
 
-	_, err = client.AppsV1().Deployments(ResourceNamespace).Create(context.Background(), &SampleDeployment, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.AppsV1().Deployments(ResourceNamespace).Delete(context.Background(), SampleDeployment.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
+	if sampleReplicaSet, err := client.AppsV1().ReplicaSets(ResourceNamespace).Create(ctx, &SampleReplicaSet, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create replicaset '%s/%s': %s", SampleReplicaSet.Namespace, SampleReplicaSet.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.AppsV1().ReplicaSets(ResourceNamespace).Delete(ctx, SampleReplicaSet.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleReplicaSet))
 	}
 
-	_, err = client.CoreV1().Pods(ResourceNamespace).Create(context.Background(), &SampleServicePod, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SampleServicePod.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
+	if sampleDeployment, err := client.AppsV1().Deployments(ResourceNamespace).Create(ctx, &SampleDeployment, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create deployment '%s/%s': %s", SampleDeployment.Namespace, SampleDeployment.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.AppsV1().Deployments(ResourceNamespace).Delete(ctx, SampleDeployment.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleDeployment))
 	}
 
-	_, err = client.CoreV1().Services(ResourceNamespace).Create(context.Background(), &SampleService, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Services(ResourceNamespace).Delete(context.Background(), SampleService.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
+	if sampleServicePod, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SampleServicePod, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create pod '%s/%s': %s", SampleServicePod.Namespace, SampleServicePod.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().Pods(ResourceNamespace).Delete(ctx, SampleServicePod.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleServicePod))
 	}
 
-	_, err = client.CoreV1().ConfigMaps(ResourceNamespace).Create(context.Background(), &SampleConfigMap, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().ConfigMaps(ResourceNamespace).Delete(context.Background(), SampleConfigMap.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create config map '%s/%s': %s", SampleConfigMap.Namespace, SampleConfigMap.Name, err)
+	if sampleService, err := client.CoreV1().Services(ResourceNamespace).Create(ctx, &SampleService, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create service '%s/%s': %s", SampleService.Namespace, SampleService.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().Services(ResourceNamespace).Delete(ctx, SampleService.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleService))
 	}
 
-	_, err = client.CoreV1().Pods(ResourceNamespace).Create(context.Background(), &SamplePodWithConfigMapVolume, apimetav1.CreateOptions{})
-	aggregatedDefers = append(aggregatedDefers, func() error {
-		return client.CoreV1().Pods(ResourceNamespace).Delete(context.Background(), SamplePodWithConfigMapVolume.Name, DeleteOptions())
-	})
-	if err != nil {
-		return deferredFunc, fmt.Errorf("could not create pod '%s/%s': %s", SamplePodWithConfigMapVolume.Namespace, SamplePodWithConfigMapVolume.Name, err)
+	if sampleConfigMap, err := client.CoreV1().ConfigMaps(ResourceNamespace).Create(ctx, &SampleConfigMap, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create config map '%s/%s': %s", SampleConfigMap.Namespace, SampleConfigMap.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().ConfigMaps(ResourceNamespace).Delete(ctx, SampleConfigMap.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleConfigMap))
 	}
 
-	return deferredFunc, nil
+	if samplePodWithConfigMapVolume, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SamplePodWithConfigMapVolume, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create pod '%s/%s': %s", SamplePodWithConfigMapVolume.Namespace, SamplePodWithConfigMapVolume.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().Pods(ResourceNamespace).Delete(ctx, SamplePodWithConfigMapVolume.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(samplePodWithConfigMapVolume))
+	}
+
+	if sampleSecret, err := client.CoreV1().Secrets(ResourceNamespace).Create(ctx, &SampleSecret, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create secret '%s/%s': %s", sampleSecret.Namespace, sampleSecret.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().Secrets(ResourceNamespace).Delete(ctx, SampleSecret.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(sampleSecret))
+	}
+
+	if samplePodWithSecretVolume, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SamplePodWithSecretVolume, apimetav1.CreateOptions{}); err != nil {
+		return deferredFunc, waitFunc, fmt.Errorf("could not create pod '%s/%s': %s", samplePodWithSecretVolume.Namespace, samplePodWithSecretVolume.Name, err)
+	} else {
+		aggregatedDefers = append(aggregatedDefers, func() error {
+			return client.CoreV1().Secrets(ResourceNamespace).Delete(ctx, SamplePodWithSecretVolume.Name, DeleteOptions())
+		})
+		handledResources = append(handledResources, newHandledResourceNoErr(samplePodWithSecretVolume))
+	}
+
+	return deferredFunc, waitFunc, nil
 }
 
 // WaitForPath will block until a file at the given path exists.
@@ -275,14 +321,4 @@ func WaitForPath(parentContext context.Context, timeout time.Duration, path stri
 	}
 
 	return nil
-}
-
-func WaitForResourceFunc(t *testing.T, ctx context.Context, fn func(context.Context, context.CancelFunc)) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-
-	wait.UntilWithContext(ctx, func(ctx2 context.Context) { fn(ctx, cancel) }, time.Millisecond*100)
-
-	if err := ctx.Err(); err != nil && !strings.Contains(err.Error(), "context canceled") {
-		t.Errorf("error wating for resource func: %s", err)
-	}
 }

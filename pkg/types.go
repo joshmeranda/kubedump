@@ -61,6 +61,16 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 			Resource:        resource,
 			HandleEventKind: handledKind,
 		}, nil
+	case *apicorev1.Secret:
+		return HandledResource{
+			Object: resource,
+			TypeMeta: apimetav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			Resource:        resource,
+			HandleEventKind: handledKind,
+		}, nil
 	case *apibatchv1.Job:
 		return HandledResource{
 			Object: resource,

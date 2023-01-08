@@ -20,7 +20,7 @@ import (
 
 var kubedumpChartPath = path.Join("..", "charts", "kubedump-server")
 
-func helmSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, config *rest.Config, basePath string) {
+func helmSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, config *rest.Config, basePath string, ctx context.Context) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -72,7 +72,11 @@ func helmSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kuber
 
 	t.Log("node is ready")
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	teardown = func() {
+		cancel()
+
 		if t.Failed() {
 			dumpDir := t.Name() + ".dump"
 			t.Logf("copying dump directory int '%s' for failed test", dumpDir)
@@ -101,7 +105,7 @@ func helmSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kuber
 func TestHelm(t *testing.T) {
 	t.Skip("doesn't work consistently yet")
 
-	teardown, d, client, _, _ := helmSetup(t)
+	teardown, d, client, _, basePath, ctx := helmSetup(t)
 	defer teardown()
 
 	app := kubedump.NewKubedumpApp(nil)
@@ -112,11 +116,11 @@ func TestHelm(t *testing.T) {
 	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "start"})
 	assert.NoError(t, err)
 
-	deferred, err := createResources(t, client)
+	deferred, waiter, err := createResources(t, client, basePath, ctx)
 	assert.NoError(t, err)
 	defer deferred()
 
-	time.Sleep(5 * time.Second)
+	waiter()
 
 	err = app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "stop"})
 	assert.NoError(t, err)

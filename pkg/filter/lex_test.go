@@ -20,7 +20,7 @@ func TestLexNextWithExcessWhitespace(t *testing.T) {
 
 func TestLex(t *testing.T) {
 	lval := &yySymType{}
-	lexer := NewLexer("pod job deployment replicaset service configmap and or (not namespace/pod) namespace label a=b")
+	lexer := NewLexer("pod job deployment replicaset service configmap secret and or (not namespace/pod) namespace label a=b")
 
 	assert.Equal(t, RESOURCE, lexer.Lex(lval))
 	assert.Equal(t, "pod", lval.s)
@@ -39,6 +39,9 @@ func TestLex(t *testing.T) {
 
 	assert.Equal(t, RESOURCE, lexer.Lex(lval))
 	assert.Equal(t, "configmap", lval.s)
+
+	assert.Equal(t, RESOURCE, lexer.Lex(lval))
+	assert.Equal(t, "secret", lval.s)
 
 	assert.Equal(t, AND, lexer.Lex(lval))
 

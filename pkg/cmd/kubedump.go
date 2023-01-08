@@ -17,6 +17,7 @@ import (
 	"kubedump/pkg/filter"
 	"net/http"
 	"os"
+	"path"
 	"time"
 )
 
@@ -28,8 +29,12 @@ const (
 func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	basePath := ctx.String("destination")
 
+	if err := os.MkdirAll(basePath, 0755); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("could not create base path '%s': %w", basePath, err)
+	}
+
 	loggerOptions := []kubedump.LoggerOption{
-		kubedump.WithPaths(basePath),
+		kubedump.WithPaths(path.Join(basePath, "kubedump.log")),
 	}
 
 	if ctx.Bool("verbose") {

@@ -108,21 +108,28 @@ func (controller *Controller) handlePod(handledPod kubedump.HandledResource) {
 				if volume.ConfigMap != nil {
 					controller.Logger.Debugf("found config map volume in '%s'", handledPod)
 
-					handledConfigMap := kubedump.HandledResource{
-						Object: &apimetav1.ObjectMeta{
+					handledConfigMap, _ := kubedump.NewHandledResource(handledPod.HandleEventKind, &apicorev1.ConfigMap{
+						ObjectMeta: apimetav1.ObjectMeta{
 							Name:      volume.ConfigMap.Name,
 							Namespace: handledPod.GetNamespace(),
 						},
-						TypeMeta: apimetav1.TypeMeta{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-						},
-						Resource:        nil, // the actual resource is not used when creating resource symlinks
-						HandleEventKind: handledPod.HandleEventKind,
-					}
+					})
 
 					if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
 						controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
+					}
+				} else if volume.Secret != nil {
+					controller.Logger.Debugf("found secret volume in '%s'", handledPod)
+
+					handledSecret, _ := kubedump.NewHandledResource(handledPod.HandleEventKind, &apicorev1.Secret{
+						ObjectMeta: apimetav1.ObjectMeta{
+							Name:      volume.Secret.SecretName,
+							Namespace: handledPod.GetNamespace(),
+						},
+					})
+
+					if err := linkResource(controller.BasePath, handledPod, handledSecret); err != nil {
+						controller.Logger.Errorf("could not link secrtr to Pod: %s", err)
 					}
 				}
 			}
@@ -229,10 +236,11 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 	case "Pod":
 		controller.handlePod(handledResource)
 		fallthrough
-	case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap":
+	//case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap", "Secret":
+	case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap", "Secret":
 		controller.handleResource(kind, handledResource)
 	default:
-		panic(fmt.Sprintf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj))
+		controller.Logger.Errorf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj)
 	}
 }
 

@@ -71,6 +71,8 @@ single_expr: RESOURCE PATTERN {
 			$$ = resourceExpression { kind: "Service", namePattern: namePattern, namespacePattern: namespacePattern }
 		case "configmap":
 			$$ = resourceExpression { kind: "ConfigMap", namePattern: namePattern, namespacePattern: namespacePattern }
+		case "secret":
+			$$ = resourceExpression { kind: "Secret", namePattern: namePattern, namespacePattern: namespacePattern }
 		}
 	}
 	| NAMESPACE PATTERN   {

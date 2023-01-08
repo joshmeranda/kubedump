@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, basePath string) {
+func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, ctx context.Context, basePath string) {
 	if found, err := exec.LookPath("kind"); err == nil {
 		t.Logf("deploying cluster using 'kind' at '%s'", found)
 
@@ -63,7 +63,10 @@ func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client
 
 	t.Logf("cluster '%s' is ready", d.Name())
 
+	ctx, cancel := context.WithCancel(context.Background())
 	teardown = func() {
+		cancel()
+
 		if t.Failed() {
 			dumpDir := t.Name() + ".dump"
 			t.Logf("copying dump directory int '%s' for failed test", dumpDir)
@@ -115,11 +118,12 @@ func checkPods(t *testing.T, client kubernetes.Interface, stopCh chan struct{}) 
 	close(stopCh)
 }
 
+// todo: sometimes fails with no event for sample-pod
 func TestDumpWithCluster(t *testing.T) {
-	teardown, d, client, basePath := controllerSetup(t)
+	teardown, d, client, ctx, basePath := controllerSetup(t)
 	defer teardown()
 
-	deferred, err := createResources(t, client)
+	deferred, waiter, err := createResources(t, client, basePath, ctx)
 	defer deferred()
 	if err != nil {
 		t.Fatalf("failed to create all resources: %s", err)
@@ -155,7 +159,7 @@ func TestDumpWithCluster(t *testing.T) {
 		t.Log("kubedump is finished")
 	}()
 
-	time.Sleep(30 * time.Second)
+	waiter()
 
 	close(stopChan)
 	<-done
@@ -173,4 +177,12 @@ func TestDumpWithCluster(t *testing.T) {
 	AssertResource(t, basePath, newHandledResourceNoErr(&SampleService), false)
 
 	AssertResource(t, basePath, newHandledResourceNoErr(&SampleConfigMap), false)
+
+	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePodWithConfigMapVolume), false)
+	AssertResourceIsLinked(t, basePath, newHandledResourceNoErr(&SamplePodWithConfigMapVolume), newHandledResourceNoErr(&SampleConfigMap))
+
+	AssertResource(t, basePath, newHandledResourceNoErr(&SampleSecret), false)
+
+	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePodWithSecretVolume), false)
+	AssertResourceIsLinked(t, basePath, newHandledResourceNoErr(&SamplePodWithSecretVolume), newHandledResourceNoErr(&SampleSecret))
 }

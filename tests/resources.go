@@ -204,3 +204,53 @@ var SamplePodWithConfigMapVolume = apicorev1.Pod{
 		},
 	},
 }
+
+var SampleSecret = apicorev1.Secret{
+	ObjectMeta: apimetav1.ObjectMeta{
+		Name:      "test-secret",
+		Namespace: ResourceNamespace,
+	},
+	StringData: map[string]string{
+		"username": "gandalf",
+		"password": "mellon",
+	},
+	Type: apicorev1.SecretTypeOpaque,
+}
+
+var SamplePodWithSecretVolume = apicorev1.Pod{
+	ObjectMeta: apimetav1.ObjectMeta{
+		Name:      "test-pod-with-secret",
+		Namespace: ResourceNamespace,
+	},
+	Spec: apicorev1.PodSpec{
+		Containers: []apicorev1.Container{
+			{
+				Name:            "test-container",
+				Image:           "alpine:latest",
+				Command:         []string{"sh", "-c", "while :; do date '+%F %T %z'; sleep 1; done"},
+				ImagePullPolicy: "",
+			},
+		},
+		RestartPolicy: "Never",
+		Volumes: []apicorev1.Volume{
+			{
+				Name: "sample-config-map",
+				VolumeSource: apicorev1.VolumeSource{
+					Secret: &apicorev1.SecretVolumeSource{
+						SecretName: SampleSecret.Name,
+						Items: []apicorev1.KeyToPath{
+							{
+								Key:  "password",
+								Path: "password.txt",
+							},
+							{
+								Key:  "username",
+								Path: "username.txt",
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}

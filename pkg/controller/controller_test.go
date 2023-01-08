@@ -21,11 +21,6 @@ import (
 	"time"
 )
 
-const (
-	NWorkers         = 5
-	TestWaitDuration = time.Second * 5
-)
-
 func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kubernetes.Interface, string, context.Context, *Controller) {
 	client := fake.NewSimpleClientset(objects...)
 
@@ -116,23 +111,19 @@ func TestEvent(t *testing.T) {
 
 	t.Log(basePath)
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("failed to create resource '%s': %s", handledEvent.String(), err)
 	}
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().Pods(tests.ResourceNamespace).Get(ctx, handledPod.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	eventFile := resourceFilePath(basePath, handledPod.Kind, handledPod, handledPod.GetName()+".events")
-	if err := tests.WaitForPath(ctx, TestWaitDuration, eventFile); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, eventFile); err != nil {
 		t.Fatalf("failed witing for path: ")
 	}
 
@@ -149,19 +140,15 @@ func TestLogs(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().Pods(tests.ResourceNamespace).Get(ctx, handledPod.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	time.Sleep(time.Millisecond * 10)
 
@@ -183,19 +170,15 @@ func TestPod(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().Pods(tests.ResourceNamespace).Get(ctx, handledPod.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	err = controller.Stop()
 	assert.NoError(t, err)
@@ -234,27 +217,19 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().ConfigMaps(tests.ResourceNamespace).Get(ctx, handledConfigMap.GetName(), apimetav1.GetOptions{})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
-		if err == nil {
-			cancel()
-		}
-	})
-
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().Pods(tests.ResourceNamespace).Get(ctx, handledPod.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	err = controller.Stop()
 	assert.NoError(t, err)
@@ -262,6 +237,53 @@ func TestPodWithConfigMap(t *testing.T) {
 	tests.AssertResource(t, basePath, handledPod, false)
 	tests.AssertResource(t, basePath, handledConfigMap, false)
 	tests.AssertResourceIsLinked(t, basePath, handledPod, handledConfigMap)
+}
+
+func TestPodWithSecret(t *testing.T) {
+	handledSecret, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Secret{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "sample-secret",
+			Namespace: tests.ResourceNamespace,
+			UID:       "sample-secret-uid",
+		},
+	})
+
+	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "sample-pod",
+			Namespace: tests.ResourceNamespace,
+			UID:       "sample-pod-uid",
+		},
+		Spec: apicorev1.PodSpec{
+			Volumes: []apicorev1.Volume{
+				{
+					Name: "sample-configmap",
+					VolumeSource: apicorev1.VolumeSource{
+						Secret: &apicorev1.SecretVolumeSource{
+							SecretName: handledSecret.GetName(),
+						},
+					},
+				},
+			},
+		},
+	})
+
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod), handledSecret.Resource.(*apicorev1.Secret))
+	defer teardown()
+
+	err := controller.Start(tests.NWorkers)
+	assert.NoError(t, err)
+
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
+
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
+
+	err = controller.Stop()
+	assert.NoError(t, err)
 }
 
 func TestService(t *testing.T) {
@@ -290,22 +312,18 @@ func TestService(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledService.Resource.(*apicorev1.Service))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().Services(tests.ResourceNamespace).Get(ctx, handledService.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledService.Kind, handledService)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -346,22 +364,18 @@ func TestJob(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledJob.Resource.(*apibatchv1.Job))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.BatchV1().Jobs(tests.ResourceNamespace).Get(ctx, handledJob.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledJob.Kind, handledJob)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -402,22 +416,18 @@ func TestReplicaSet(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledReplicaSet.Resource.(*apiappsv1.ReplicaSet))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.AppsV1().ReplicaSets(tests.ResourceNamespace).Get(ctx, handledReplicaSet.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledReplicaSet.Kind, handledReplicaSet)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -458,22 +468,18 @@ func TestDeployment(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledDeployment.Resource.(*apiappsv1.Deployment))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.AppsV1().Deployments(tests.ResourceNamespace).Get(ctx, handledDeployment.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledDeployment.Kind, handledDeployment)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledPod)
+	}
 
 	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -494,22 +500,43 @@ func TestConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap))
 	defer teardown()
 
-	err := controller.Start(NWorkers)
+	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	tests.WaitForResourceFunc(t, ctx, func(ctx context.Context, cancel context.CancelFunc) {
-		_, err := client.CoreV1().ConfigMaps(tests.ResourceNamespace).Get(ctx, handledConfigMap.GetName(), apimetav1.GetOptions{})
-
-		if err == nil {
-			cancel()
-		}
-	})
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledConfigMap)
+	}
 
 	err = controller.Stop()
 	assert.NoError(t, err)
 
 	tests.AssertResource(t, basePath, handledConfigMap, false)
+}
+
+func TestSecret(t *testing.T) {
+	handledSecret, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Secret{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "sample-secret",
+			Namespace: tests.ResourceNamespace,
+			UID:       "sample-secret-uid",
+		},
+	})
+
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledSecret.Resource.(*apicorev1.Secret))
+	defer teardown()
+
+	err := controller.Start(tests.NWorkers)
+	assert.NoError(t, err)
+
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledSecret)
+	}
+
+	err = controller.Stop()
+	assert.NoError(t, err)
+
+	tests.AssertResource(t, basePath, handledSecret, false)
 }
