@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	kubedumpcmd "kubedump/pkg/cmd"
 	"os"
 )
@@ -9,7 +10,7 @@ func main() {
 	app := kubedumpcmd.NewKubedumpServerApp()
 
 	if err := app.Run(os.Args); err != nil {
-		kubedumpcmd.CmdLogger.Errorf("%s", err)
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }

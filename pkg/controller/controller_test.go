@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
@@ -31,17 +30,32 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 	client := fake.NewSimpleClientset(objects...)
 
 	basePath := path.Join(t.TempDir(), "kubedump-test")
+	logFilePath := path.Join(basePath, "kubedump.log")
+
+	if err := createPathParents(logFilePath); err != nil {
+		t.Fatalf("could not create log file '%s': %s", logFilePath, err)
+	}
+
+	if f, err := os.Create(logFilePath); err != nil {
+		t.Fatalf("could not create log file '%s': %s", logFilePath, err)
+	} else {
+		f.Close()
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	filterExpression, _ := filter.Parse("")
 
+	loggerOptions := []kubedump.LoggerOption{
+		//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
+		kubedump.WithPaths(logFilePath),
+	}
+
 	opts := Options{
-		BasePath:      basePath,
-		Filter:        filterExpression,
-		ParentContext: ctx,
-		Logger:        kubedump.NewLogger(kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel))),
-		//Logger:         kubedump.NewLogger(),
+		BasePath:       basePath,
+		Filter:         filterExpression,
+		ParentContext:  ctx,
+		Logger:         kubedump.NewLogger(loggerOptions...),
 		LogSyncTimeout: time.Second,
 	}
 
@@ -67,7 +81,6 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 	return teardown, client, basePath, ctx, controller
 }
 
-// todo: inconsistently passing
 func TestEvent(t *testing.T) {
 	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{

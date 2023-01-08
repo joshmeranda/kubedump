@@ -79,6 +79,7 @@ func (getter *RESTClientGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 
 type HandlerOptions struct {
 	LogSyncTimeout time.Duration
+	Logger         *zap.SugaredLogger
 }
 
 type Handler struct {
@@ -90,10 +91,10 @@ type Handler struct {
 	logger *zap.SugaredLogger
 }
 
-func NewHandler(logger *zap.SugaredLogger, opts HandlerOptions) Handler {
+func NewHandler(opts HandlerOptions) Handler {
 	return Handler{
-		lock:   &sync.Mutex{},
-		logger: logger.Named("http"),
+		HandlerOptions: opts,
+		lock:           &sync.Mutex{},
 	}
 }
 
@@ -194,6 +195,7 @@ func (handler *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 			BasePath:       BasePath,
 			Filter:         f,
 			LogSyncTimeout: handler.LogSyncTimeout,
+			Logger:         handler.Logger,
 		}
 
 		config, err := rest.InClusterConfig()

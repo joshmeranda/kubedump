@@ -25,18 +25,19 @@ const (
 	CategoryChartValues    = "Chart Values"
 )
 
-func init() {
-	CmdLogger = kubedump.NewLogger()
-}
-
 func Dump(ctx *cli.Context, stopChan chan interface{}) error {
-	if ctx.Bool("verbose") {
-		CmdLogger = kubedump.NewLogger(
-			kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
-		)
+	basePath := ctx.String("destination")
+
+	loggerOptions := []kubedump.LoggerOption{
+		kubedump.WithPaths(basePath),
 	}
 
-	basePath := ctx.String("destination")
+	if ctx.Bool("verbose") {
+		loggerOptions = append(loggerOptions, kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)))
+	}
+
+	logger := kubedump.NewLogger(loggerOptions...)
+
 	f, err := filter.Parse(ctx.String("filter"))
 
 	if err != nil {
@@ -47,7 +48,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		BasePath:       basePath,
 		Filter:         f,
 		ParentContext:  ctx.Context,
-		Logger:         CmdLogger,
+		Logger:         logger,
 		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
 	}
 
@@ -303,7 +304,7 @@ func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 	return &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
-		Version: "0.2.0",
+		Version: Version,
 		Commands: []*cli.Command{
 			{
 				Name:  "dump",
