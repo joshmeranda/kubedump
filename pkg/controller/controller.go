@@ -10,6 +10,7 @@ import (
 	informersappsv1 "k8s.io/client-go/informers/apps/v1"
 	informersbatchv1 "k8s.io/client-go/informers/batch/v1"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
+	informerseventsv1 "k8s.io/client-go/informers/events/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -61,9 +62,7 @@ type Controller struct {
 
 	store Store
 
-	// todo: we might be able to merge these and lo.Map over them for their HasSynced methods
-	informersSynced []cache.InformerSynced
-
+	eventInformer      informerseventsv1.EventInformer
 	podInformer        informerscorev1.PodInformer
 	serviceInformer    informerscorev1.ServiceInformer
 	secretInformer     informerscorev1.SecretInformer
@@ -103,6 +102,7 @@ func NewController(
 
 		store: NewStore(),
 
+		eventInformer:      informerFactory.Events().V1().Events(),
 		podInformer:        informerFactory.Core().V1().Pods(),
 		serviceInformer:    informerFactory.Core().V1().Services(),
 		secretInformer:     informerFactory.Core().V1().Secrets(),
@@ -112,35 +112,18 @@ func NewController(
 		deploymentInformer: informerFactory.Apps().V1().Deployments(),
 	}
 
-	eventInformer := informerFactory.Events().V1().Events()
-
-	controller.informersSynced = []cache.InformerSynced{
-		eventInformer.Informer().HasSynced,
-
-		controller.podInformer.Informer().HasSynced,
-		controller.serviceInformer.Informer().HasSynced,
-		controller.secretInformer.Informer().HasSynced,
-		controller.configMapInformer.Informer().HasSynced,
-		controller.jobInformer.Informer().HasSynced,
-		controller.replicasetInformer.Informer().HasSynced,
-		controller.deploymentInformer.Informer().HasSynced,
-	}
-
 	handler := cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.onAdd,
 		UpdateFunc: controller.onUpdate,
 		DeleteFunc: controller.onDelete,
 	}
 
-	eventInformer.Informer().AddEventHandler(handler)
-
+	controller.eventInformer.Informer().AddEventHandler(handler)
 	controller.podInformer.Informer().AddEventHandler(handler)
 	controller.serviceInformer.Informer().AddEventHandler(handler)
 	controller.secretInformer.Informer().AddEventHandler(handler)
 	controller.configMapInformer.Informer().AddEventHandler(handler)
-
 	controller.jobInformer.Informer().AddEventHandler(handler)
-
 	controller.replicasetInformer.Informer().AddEventHandler(handler)
 	controller.deploymentInformer.Informer().AddEventHandler(handler)
 
@@ -210,7 +193,16 @@ func (controller *Controller) Start(nWorkers int) error {
 	controller.informerFactory.Start(controller.stopChan)
 
 	controller.Logger.Infof("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(controller.stopChan, controller.informersSynced...); !ok {
+	if ok := cache.WaitForCacheSync(controller.stopChan,
+		controller.eventInformer.Informer().HasSynced,
+		controller.podInformer.Informer().HasSynced,
+		controller.serviceInformer.Informer().HasSynced,
+		controller.secretInformer.Informer().HasSynced,
+		controller.configMapInformer.Informer().HasSynced,
+		controller.jobInformer.Informer().HasSynced,
+		controller.replicasetInformer.Informer().HasSynced,
+		controller.deploymentInformer.Informer().HasSynced,
+	); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 
