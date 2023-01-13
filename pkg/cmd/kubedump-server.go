@@ -2,15 +2,22 @@ package kubedump
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 	kubedump "kubedump/pkg"
-	"net/http"
+	http2 "kubedump/pkg/http"
+	"os"
+	"path"
 )
 
 func ServeKubedump(ctx *cli.Context) error {
+	gin.SetMode(gin.ReleaseMode)
+
+	basePath := ctx.Path("dump-dir")
+
 	loggerOptions := []kubedump.LoggerOption{
-		kubedump.WithPaths(BasePath),
+		kubedump.WithPaths(basePath),
 	}
 
 	if ctx.Bool("verbose") {
@@ -19,20 +26,28 @@ func ServeKubedump(ctx *cli.Context) error {
 
 	logger := kubedump.NewLogger(loggerOptions...)
 
-	opts := HandlerOptions{
+	opts := http2.ServerOptions{
 		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
 		Logger:         logger,
+		BasePath:       basePath,
+		Address:        fmt.Sprintf(":%d", kubedump.Port),
+		Context:        ctx.Context,
 	}
 
-	handler := NewHandler(opts)
-
-	logger.Infof("starting server...")
-
-	err := http.ListenAndServe(fmt.Sprintf(":%d", kubedump.Port), &handler)
-
+	server, err := http2.NewServer(opts)
 	if err != nil {
-		logger.Fatal("error starting http server: %s", err)
+		logger.Fatalf("could not create server: %s", err)
 	}
+
+	doneChan := make(chan interface{})
+
+	go func() {
+		if err := server.Start(); err != nil {
+			logger.Fatalf("failed to start server: %s", err)
+		}
+	}()
+
+	<-doneChan
 
 	return nil
 }
@@ -49,6 +64,13 @@ func NewKubedumpServerApp() *cli.App {
 				Usage:   "run kubedump-server verbosely",
 				Aliases: []string{"V"},
 				EnvVars: []string{"KUBEDUMP_SERVER_DEBUG"},
+			},
+			&cli.PathFlag{
+				Name:    "dump-dir",
+				Usage:   "the path to the directory to use as th ebase path",
+				Aliases: []string{"d"},
+				EnvVars: []string{"KUBEDUMP_DUMP_DIR"},
+				Value:   path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump"),
 			},
 			&flagLogSyncTimeout,
 		},
