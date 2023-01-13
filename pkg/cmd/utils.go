@@ -1,7 +1,6 @@
 package kubedump
 
 import (
-	"archive/tar"
 	"context"
 	"fmt"
 	"github.com/urfave/cli/v2"
@@ -19,13 +18,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 )
 
 var (
 	chartReleaseUrl = fmt.Sprintf("https://github.com/joshmeranda/kubedump/releases/download/%s/kubedump-server-%s.tgz", Version, Version)
-
-	BasePath = path.Join(string(os.PathSeparator), "var", "lib", "kubedump.dump")
 )
 
 func getClusterHostFromConfig(config *rest.Config) (string, error) {
@@ -191,62 +187,4 @@ func ensureDefaultChart() (string, error) {
 	}
 
 	return chartFile, nil
-}
-
-func getArchivePath(dir string, name string) string {
-	trimmed := strings.TrimPrefix(dir, BasePath)
-	return path.Join(path.Base(BasePath), trimmed, name)
-}
-
-func archiveTree(dir string, writer *tar.Writer) error {
-	entries, err := os.ReadDir(dir)
-
-	if err != nil {
-		return fmt.Errorf("could not read directory '%s': %w", dir, err)
-	}
-
-	for _, entry := range entries {
-		entryPath := path.Join(dir, entry.Name())
-
-		if entry.IsDir() {
-			if err = archiveTree(entryPath, writer); err != nil {
-				return err
-			}
-
-			continue
-		}
-
-		file, err := os.Open(entryPath)
-
-		if err != nil {
-			return fmt.Errorf("could not open file at '%s': %w", entryPath, err)
-		}
-
-		info, err := entry.Info()
-
-		if err != nil {
-			return fmt.Errorf("could not get file info for file '%s': %w", entryPath, err)
-		}
-
-		hdr, err := tar.FileInfoHeader(info, entry.Name())
-		hdr.Name = getArchivePath(dir, entry.Name())
-
-		if err != nil {
-			return fmt.Errorf("could not construct header for file '%s': %w", entryPath, err)
-		}
-
-		err = writer.WriteHeader(hdr)
-
-		if err != nil {
-			return fmt.Errorf("could not write header for file '%s': %w", entryPath, err)
-		}
-
-		_, err = io.Copy(writer, file)
-
-		if err != nil {
-			return fmt.Errorf("could not copy file '%s' to archive: %w", entryPath, err)
-		}
-	}
-
-	return nil
 }

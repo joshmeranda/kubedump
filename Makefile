@@ -1,6 +1,6 @@
 SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump-server/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
 
-UNIT_TEST_PATHS=./pkg/filter ./pkg/controller
+UNIT_TEST_PATHS=./pkg/filter ./pkg/controller ./pkg/http
 INTEGRATION_TEST_PATHS=./tests
 TEST_PATHS=${UNIT_TEST_PATHS} ${INTEGRATION_TEST_PATHS}
 
