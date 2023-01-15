@@ -214,12 +214,17 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 		return
 	}
 
+	if handledResource.Kind == "Event" {
+		controller.handleEvent(handledResource)
+		return
+	}
+
 	resources, err := controller.store.GetResources(handledResource)
 	if err != nil {
 		controller.Logger.Errorf("error fetching resources: %s", err)
 	}
 
-	if len(resources) == 0 && !controller.Filter.Matches(handledResource) {
+	if len(resources) == 0 && !controller.Filter.Matches(handledResource) || handledResource.Kind == "Event" {
 		return
 	}
 
@@ -230,9 +235,6 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 	}
 
 	switch handledResource.Kind {
-	case "Event":
-		controller.handleEvent(handledResource)
-		return
 	case "Pod":
 		controller.handlePod(handledResource)
 		fallthrough

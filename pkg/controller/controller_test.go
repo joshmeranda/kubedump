@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
@@ -21,7 +22,11 @@ import (
 	"time"
 )
 
-func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kubernetes.Interface, string, context.Context, *Controller) {
+func filterForResource(resource kubedump.HandledResource) string {
+	return fmt.Sprintf("%s %s/%s", strings.ToLower(resource.Kind), resource.GetNamespace(), resource.GetName())
+}
+
+func fakeControllerSetup(t *testing.T, expr string, objects ...runtime.Object) (func(), kubernetes.Interface, string, context.Context, *Controller) {
 	client := fake.NewSimpleClientset(objects...)
 
 	basePath := path.Join(t.TempDir(), "kubedump-test")
@@ -39,7 +44,10 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	filterExpression, _ := filter.Parse("")
+	filterExpression, err := filter.Parse(expr)
+	if err != nil {
+		t.Fatalf("coudl not parse filter epxrssion %s': %s", expr, err)
+	}
 
 	loggerOptions := []kubedump.LoggerOption{
 		//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
@@ -106,7 +114,7 @@ func TestEvent(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
 	t.Log(basePath)
@@ -140,7 +148,7 @@ func TestLogs(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -170,7 +178,7 @@ func TestPod(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -217,7 +225,7 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -268,7 +276,7 @@ func TestPodWithSecret(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod), handledSecret.Resource.(*apicorev1.Secret))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod), handledSecret.Resource.(*apicorev1.Secret))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -309,7 +317,7 @@ func TestService(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledService.Resource.(*apicorev1.Service))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledService), handledService.Resource.(*apicorev1.Service))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -361,7 +369,7 @@ func TestJob(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledJob.Resource.(*apibatchv1.Job))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledJob), handledJob.Resource.(*apibatchv1.Job))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -413,7 +421,7 @@ func TestReplicaSet(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledReplicaSet.Resource.(*apiappsv1.ReplicaSet))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledReplicaSet), handledReplicaSet.Resource.(*apiappsv1.ReplicaSet))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -465,7 +473,7 @@ func TestDeployment(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledDeployment.Resource.(*apiappsv1.Deployment))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledDeployment), handledDeployment.Resource.(*apiappsv1.Deployment))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -500,7 +508,7 @@ func TestConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledConfigMap), handledConfigMap.Resource.(*apicorev1.ConfigMap))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
@@ -525,7 +533,7 @@ func TestSecret(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledSecret.Resource.(*apicorev1.Secret))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledSecret), handledSecret.Resource.(*apicorev1.Secret))
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers)
