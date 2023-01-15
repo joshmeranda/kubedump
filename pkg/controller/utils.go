@@ -151,8 +151,10 @@ func dumpResourceDescription(basePath string, resource kubedump.HandledResource)
 	return nil
 }
 
-func selectorFromHandled(handledResource kubedump.HandledResource) (LabelMatcher, error) {
+func selectorFromHandled(handledResource kubedump.HandledResource) (Matcher, error) {
 	switch resource := handledResource.Resource.(type) {
+	case *apicorev1.Pod:
+		return MatcherFromPod(resource)
 	case *apicorev1.Service:
 		return MatcherFromLabels(resource.Spec.Selector)
 	case *apiappsv1.Deployment:

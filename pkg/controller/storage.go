@@ -12,11 +12,11 @@ type pair[F any, S any] struct {
 	second S
 }
 
-type storePair pair[LabelMatcher, kubedump.HandledResource]
+type storePair pair[Matcher, kubedump.HandledResource]
 
 type Store interface {
 	// AddResource adds the given resource with the associated LabelSelector
-	AddResource(resource kubedump.HandledResource, matcher LabelMatcher) error
+	AddResource(resource kubedump.HandledResource, matcher Matcher) error
 
 	// GetResources fetches all resources whose LabelSelector matches the given Labels.
 	//
@@ -40,7 +40,7 @@ type memoryStore struct {
 	inner    map[types.UID]storePair
 }
 
-func (store *memoryStore) AddResource(resource kubedump.HandledResource, matcher LabelMatcher) error {
+func (store *memoryStore) AddResource(resource kubedump.HandledResource, matcher Matcher) error {
 	store.innerMut.Lock()
 	defer store.innerMut.Unlock()
 
@@ -63,7 +63,7 @@ func (store *memoryStore) GetResources(resource kubedump.HandledResource) ([]kub
 			continue
 		}
 
-		if p.first.Matches(resource.GetLabels()) {
+		if p.first.Matches(resource) {
 			resources = append(resources, p.second)
 		}
 	}

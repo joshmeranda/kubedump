@@ -164,25 +164,27 @@ func TestDumpWithCluster(t *testing.T) {
 	close(stopChan)
 	<-done
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePod), true)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePod), true)
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SampleJob), true)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleJob), true)
 	AssertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SampleReplicaSet), true)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleReplicaSet), true)
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SampleDeployment), true)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleDeployment), true)
 	AssertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SampleService), false)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleService), false)
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SampleConfigMap), false)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleConfigMap), false)
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePodWithConfigMapVolume), false)
-	AssertResourceIsLinked(t, basePath, newHandledResourceNoErr(&SamplePodWithConfigMapVolume), newHandledResourceNoErr(&SampleConfigMap))
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePodWithConfigMapVolume), false)
+	AssertResourceIsLinked(t, basePath, NewHandledResourceNoErr(&SamplePodWithConfigMapVolume), NewHandledResourceNoErr(&SampleConfigMap))
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SampleSecret), false)
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleSecret), false)
 
-	AssertResource(t, basePath, newHandledResourceNoErr(&SamplePodWithSecretVolume), false)
-	AssertResourceIsLinked(t, basePath, newHandledResourceNoErr(&SamplePodWithSecretVolume), newHandledResourceNoErr(&SampleSecret))
+	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePodWithSecretVolume), false)
+	AssertResourceIsLinked(t, basePath, NewHandledResourceNoErr(&SamplePodWithSecretVolume), NewHandledResourceNoErr(&SampleSecret))
+
+	t.Fail()
 }

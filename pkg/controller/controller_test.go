@@ -212,7 +212,7 @@ func TestPodWithConfigMap(t *testing.T) {
 		Spec: apicorev1.PodSpec{
 			Volumes: []apicorev1.Volume{
 				{
-					Name: "sample-configmap",
+					Name: "sample-configmap-volume",
 					VolumeSource: apicorev1.VolumeSource{
 						ConfigMap: &apicorev1.ConfigMapVolumeSource{
 							LocalObjectReference: apicorev1.LocalObjectReference{
@@ -225,8 +225,12 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
+
+	if _, err := client.CoreV1().ConfigMaps(tests.ResourceNamespace).Update(ctx, handledConfigMap.Resource.(*apicorev1.ConfigMap), apimetav1.UpdateOptions{}); err != nil {
+		t.Fatalf("failed to update resource: %s", handledConfigMap)
+	}
 
 	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
@@ -265,7 +269,7 @@ func TestPodWithSecret(t *testing.T) {
 		Spec: apicorev1.PodSpec{
 			Volumes: []apicorev1.Volume{
 				{
-					Name: "sample-configmap",
+					Name: "sample-secret-volume",
 					VolumeSource: apicorev1.VolumeSource{
 						Secret: &apicorev1.SecretVolumeSource{
 							SecretName: handledSecret.GetName(),
