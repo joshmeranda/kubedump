@@ -5,6 +5,7 @@ usage="Usage: $(basename "$0") [-h] [-s <check>]
 args:
   -h,--help           show this help text
   -s,--skip <check>   skip this check (whitespace will be removed from given check)
+  -e,--fail-early     exit on the first failed check
 "
 
 log_file=/tmp/kubedump-verify.log
@@ -15,6 +16,8 @@ failed=0
 
 skipped=()
 
+fail_early=false
+
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)
@@ -24,6 +27,13 @@ while [ $# -gt 0 ]; do
     -s|--skip)
       skipped=("$2")
       shift
+      ;;
+    -e|--fail-early)
+      fail_early=true
+      ;;
+    *)
+      echo "unexpected argument '$1"
+      exit 1
       ;;
   esac
 
@@ -54,6 +64,10 @@ function check() {
     echo
     cat "$log_file"
     echo
+
+    if $fail_early; then
+      exit 1
+    fi
   else
     echo "OK"
     ((passed++))
@@ -102,13 +116,13 @@ function check_docker_images() {
 }
 
 check 'CLEAN WORKSPACE          ' 'check_git_clean'
+check 'GO FMT                   ' 'check_gofmt'
+check 'HELM LINT                ' 'helm lint charts/kubedump-server'
+check 'HELM VERSION             ' 'check_helm_version'
 check 'GO BUILD KUBEDUMP        ' 'make kubedump'
 check 'GO BUILD KUBEDUMP-SERVER ' 'make kubedump-server'
 check 'GO UNIT TEST             ' 'make unit'
 check 'GO INTEGRATION TEST      ' 'make integration'
-check 'GO FMT                   ' 'check_gofmt'
-check 'HELM LINT                ' 'helm lint charts/kubedump-server'
-check 'HELM VERSION             ' 'check_helm_version'
 check 'DOCKER IMAGE             ' 'check_docker_images'
 check 'REMOTE GIT VERSION TAG   ' 'check_remote_tag'
 

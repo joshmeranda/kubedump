@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
@@ -23,11 +22,17 @@ import (
 	"time"
 )
 
-func filterForResource(resource kubedump.HandledResource) string {
-	return fmt.Sprintf("%s %s/%s", strings.ToLower(resource.Kind), resource.GetNamespace(), resource.GetName())
+func filterForResource(t *testing.T, resource kubedump.HandledResource) filter.Expression {
+	s := fmt.Sprintf("%s %s/%s", strings.ToLower(resource.Kind), resource.GetNamespace(), resource.GetName())
+	expr, err := filter.Parse(s)
+	if err != nil {
+		t.Fatalf("failed to parse expression '%s': %s", s, err)
+	}
+
+	return expr
 }
 
-func fakeControllerSetup(t *testing.T, expr string, objects ...runtime.Object) (func(), kubernetes.Interface, string, context.Context, *Controller) {
+func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kubernetes.Interface, string, context.Context, *Controller) {
 	client := fake.NewSimpleClientset(objects...)
 
 	basePath := path.Join(t.TempDir(), "kubedump-test")
@@ -45,19 +50,13 @@ func fakeControllerSetup(t *testing.T, expr string, objects ...runtime.Object) (
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	filterExpression, err := filter.Parse(expr)
-	if err != nil {
-		t.Fatalf("coudl not parse filter epxrssion %s': %s", expr, err)
-	}
-
 	loggerOptions := []kubedump.LoggerOption{
-		kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
-		//kubedump.WithPaths(logFilePath),
+		//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
+		kubedump.WithPaths(logFilePath),
 	}
 
 	opts := Options{
 		BasePath:       basePath,
-		Filter:         filterExpression,
 		ParentContext:  ctx,
 		Logger:         kubedump.NewLogger(loggerOptions...),
 		LogSyncTimeout: time.Second,
@@ -115,12 +114,12 @@ func TestEvent(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
 	t.Log(basePath)
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {
@@ -149,10 +148,10 @@ func TestLogs(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
@@ -179,10 +178,10 @@ func TestPod(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
@@ -226,10 +225,10 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
@@ -277,10 +276,10 @@ func TestPodWithSecret(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledPod.Resource.(*apicorev1.Pod), handledSecret.Resource.(*apicorev1.Secret))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod), handledSecret.Resource.(*apicorev1.Secret))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
@@ -318,10 +317,10 @@ func TestService(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledService), handledService.Resource.(*apicorev1.Service))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledService.Resource.(*apicorev1.Service))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledService))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledService.Kind, handledService)); err != nil {
@@ -370,10 +369,10 @@ func TestJob(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledJob), handledJob.Resource.(*apibatchv1.Job))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledJob.Resource.(*apibatchv1.Job))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledJob))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledJob.Kind, handledJob)); err != nil {
@@ -422,10 +421,10 @@ func TestReplicaSet(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledReplicaSet), handledReplicaSet.Resource.(*apiappsv1.ReplicaSet))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledReplicaSet.Resource.(*apiappsv1.ReplicaSet))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledReplicaSet))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledReplicaSet.Kind, handledReplicaSet)); err != nil {
@@ -474,10 +473,10 @@ func TestDeployment(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledDeployment), handledDeployment.Resource.(*apiappsv1.Deployment))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledDeployment.Resource.(*apiappsv1.Deployment))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledDeployment))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledDeployment.Kind, handledDeployment)); err != nil {
@@ -509,10 +508,10 @@ func TestConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledConfigMap), handledConfigMap.Resource.(*apicorev1.ConfigMap))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledConfigMap))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
@@ -534,10 +533,10 @@ func TestSecret(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledSecret), handledSecret.Resource.(*apicorev1.Secret))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledSecret.Resource.(*apicorev1.Secret))
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers)
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledSecret))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {

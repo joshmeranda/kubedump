@@ -51,7 +51,6 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 
 	opts := controller.Options{
 		BasePath:       basePath,
-		Filter:         f,
 		ParentContext:  ctx.Context,
 		Logger:         logger,
 		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
@@ -75,7 +74,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		return fmt.Errorf("could not create controller: %w", err)
 	}
 
-	if err = c.Start(ctx.Int("workers")); err != nil {
+	if err = c.Start(ctx.Int("workers"), f); err != nil {
 		return fmt.Errorf("could not Start controller: %w", err)
 	}
 
