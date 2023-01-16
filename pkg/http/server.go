@@ -98,7 +98,6 @@ func (server *Server) handleStart(ctx *gin.Context) {
 
 	opts := controller.Options{
 		BasePath:       server.BasePath,
-		Filter:         f,
 		LogSyncTimeout: server.LogSyncTimeout,
 		Logger:         server.Logger,
 	}
@@ -128,7 +127,7 @@ func (server *Server) handleStart(ctx *gin.Context) {
 
 	server.clusterController = cont
 
-	if err := server.clusterController.Start(5); err != nil {
+	if err := server.clusterController.Start(5, f); err != nil {
 		_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}

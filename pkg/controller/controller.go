@@ -34,7 +34,6 @@ func NewJob(fn func()) Job {
 
 type Options struct {
 	BasePath       string
-	Filter         filter.Expression
 	ParentContext  context.Context
 	Logger         *zap.SugaredLogger
 	LogSyncTimeout time.Duration
@@ -45,6 +44,8 @@ type Controller struct {
 
 	kubeclientset kubernetes.Interface
 	startTime     time.Time
+
+	filterExpr filter.Expression
 
 	informerFactory informers.SharedInformerFactory
 	stopChan        chan struct{}
@@ -180,11 +181,13 @@ func (controller *Controller) processNextWorkItem() bool {
 	return true
 }
 
-func (controller *Controller) Start(nWorkers int) error {
+func (controller *Controller) Start(nWorkers int, expr filter.Expression) error {
 	if controller.stopChan != nil {
 		return fmt.Errorf("controller is already running")
 	}
 	defer runtime.HandleCrash()
+
+	controller.filterExpr = expr
 
 	controller.stopChan = make(chan struct{})
 
@@ -239,11 +242,10 @@ func (controller *Controller) Start(nWorkers int) error {
 }
 
 func (controller *Controller) Stop() error {
-	controller.Logger.Infof("Stopping controller")
-
 	if controller.stopChan == nil {
 		return fmt.Errorf("controller was not running")
 	}
+	controller.Logger.Infof("Stopping controller")
 
 	close(controller.stopChan)
 	controller.stopChan = nil
@@ -251,6 +253,8 @@ func (controller *Controller) Stop() error {
 	controller.workQueue.ShutDownWithDrain()
 
 	controller.workerWaitGroup.Wait()
+
+	controller.filterExpr = nil
 
 	return nil
 }

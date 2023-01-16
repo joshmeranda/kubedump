@@ -70,7 +70,7 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 		return
 	}
 
-	if !controller.Filter.Matches(handledResource) {
+	if !controller.filterExpr.Matches(handledResource) {
 		controller.Logger.Debugf("encountered event for unhandled kind '%s'", event.Regarding.Kind)
 		return
 	}
@@ -224,7 +224,7 @@ func (controller *Controller) resourceHandlerFunc(kind kubedump.HandleKind, obj 
 		controller.Logger.Errorf("error fetching resources: %s", err)
 	}
 
-	if len(resources) == 0 && !controller.Filter.Matches(handledResource) || handledResource.Kind == "Event" {
+	if len(resources) == 0 && !controller.filterExpr.Matches(handledResource) || handledResource.Kind == "Event" {
 		return
 	}
 
