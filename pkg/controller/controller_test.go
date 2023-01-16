@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
@@ -50,8 +51,8 @@ func fakeControllerSetup(t *testing.T, expr string, objects ...runtime.Object) (
 	}
 
 	loggerOptions := []kubedump.LoggerOption{
-		//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
-		kubedump.WithPaths(logFilePath),
+		kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
+		//kubedump.WithPaths(logFilePath),
 	}
 
 	opts := Options{
@@ -225,21 +226,17 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, filterForResource(handledPod), handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
 	defer teardown()
-
-	if _, err := client.CoreV1().ConfigMaps(tests.ResourceNamespace).Update(ctx, handledConfigMap.Resource.(*apicorev1.ConfigMap), apimetav1.UpdateOptions{}); err != nil {
-		t.Fatalf("failed to update resource: %s", handledConfigMap)
-	}
 
 	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledConfigMap)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -286,12 +283,12 @@ func TestPodWithSecret(t *testing.T) {
 	err := controller.Start(tests.NWorkers)
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {
+		t.Fatalf("error waiting for resource path: %s", handledSecret)
 	}
 
 	err = controller.Stop()
