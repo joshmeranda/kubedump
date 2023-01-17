@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"sigs.k8s.io/yaml"
-	"strings"
 )
 
 type HandleKind string
@@ -175,10 +174,11 @@ func (resource HandledResource) String() string {
 
 // ResourceDirBuilder can be used to build the parent directories for collected resources.
 type ResourceDirBuilder struct {
-	basePath  string
-	namespace string
-	name      string
-	kind      string
+	basePath           string
+	parentResourcePath string
+	namespace          string
+	name               string
+	kind               string
 }
 
 func NewResourceDirBuilder() *ResourceDirBuilder {
@@ -205,25 +205,14 @@ func (builder *ResourceDirBuilder) WithKind(kind string) *ResourceDirBuilder {
 	return builder
 }
 
-func (builder *ResourceDirBuilder) WithObject(obj apimetav1.Object) *ResourceDirBuilder {
-	builder.name = obj.GetName()
-	builder.namespace = obj.GetNamespace()
+// WithParentResource will instruct the builder to place the other components under the path of the specified resource,
+// and will also ignore any  value passed to WithNamespace.
+func (builder *ResourceDirBuilder) WithParentResource(resource HandledResource) *ResourceDirBuilder {
+	builder.parentResourcePath = path.Join(resource.GetNamespace(), resource.Kind, resource.GetName())
 	return builder
 }
 
-func (builder *ResourceDirBuilder) WithType(t apimetav1.TypeMeta) *ResourceDirBuilder {
-	builder.kind = strings.ToLower(t.Kind)
-	return builder
-}
-
-func (builder *ResourceDirBuilder) WithResource(resource HandledResource) *ResourceDirBuilder {
-	return builder.WithObject(resource).WithType(resource.TypeMeta)
-}
-
-func (builder *ResourceDirBuilder) WithBuilder(otherBuilder *ResourceDirBuilder) *ResourceDirBuilder {
-	return builder.WithBase(otherBuilder.basePath).WithNamespace(otherBuilder.namespace).WithName(otherBuilder.name).WithKind(otherBuilder.kind)
-}
-
+// Validate that the builder will be able to build a resource path.
 func (builder *ResourceDirBuilder) Validate() error {
 	if builder.basePath == "" {
 		return fmt.Errorf("basePath must be set")
@@ -240,16 +229,30 @@ func (builder *ResourceDirBuilder) Validate() error {
 	return nil
 }
 
+// Reset the state of the builder as if it was new.
+func (builder *ResourceDirBuilder) Reset() {
+	builder.basePath = ""
+	builder.namespace = ""
+	builder.name = ""
+	builder.kind = ""
+}
+
 // Build joins the different components of the ResourceDirBuilder and panics if any value (except namespace) is unset.
 func (builder *ResourceDirBuilder) Build() string {
 	if err := builder.Validate(); err != nil {
 		panic(err)
 	}
 
-	if builder.namespace == "" {
-		// todo: this is subject to change (and probably should)
+	var p string
+
+	if builder.parentResourcePath != "" {
+		p = path.Join(builder.basePath, builder.parentResourcePath)
+	} else if builder.namespace != "" {
+		p = path.Join(builder.basePath, builder.namespace)
+	} else {
+		// todo: we probably don't want these on the top level (maybe nest under a "clustered resources" dir)
 		return path.Join(builder.basePath, builder.kind, builder.name)
 	}
 
-	return path.Join(builder.basePath, builder.namespace, builder.kind, builder.name)
+	return path.Join(p, builder.kind, builder.name)
 }
