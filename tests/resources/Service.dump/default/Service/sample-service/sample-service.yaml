@@ -1,0 +1,10 @@
+metadata:
+  creationTimestamp: null
+  name: sample-service
+  namespace: default
+  uid: sample-service-uid
+spec:
+  selector:
+    test: replicaset
+status:
+  loadBalancer: {}

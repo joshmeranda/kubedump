@@ -1,0 +1,2 @@
+# we want to include our test dump directories
+!*.dump

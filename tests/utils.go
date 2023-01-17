@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gobwas/glob"
+	cp "github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	apiappsv1 "k8s.io/api/apps/v1"
@@ -14,7 +15,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	kubedump "kubedump/pkg"
 	"os"
-	"os/exec"
 	"path"
 	"sigs.k8s.io/yaml"
 	"strings"
@@ -39,15 +39,23 @@ func isSymlink(filePath string) (bool, error) {
 }
 
 // CopyTree will copy the target directory to the destination directory.
-//
-// this isn't an ideal implementation by any means, but it's simpler than doing it via golang.
 func CopyTree(target string, destination string) error {
 	if err := os.MkdirAll(destination, 0755); err != nil {
 		return fmt.Errorf("could not create copy destination '%s': %w", destination, err)
 	}
 
-	if err := exec.Command("cp", "--recursive", target, destination).Run(); err != nil {
-		return fmt.Errorf("could not copy '%s' -> '%s': %w", target, destination, err)
+	//if err := exec.Command("cp", "--recursive", target, destination).Run(); err != nil {
+	//	return fmt.Errorf("could not copy '%s' -> '%s': %w", target, destination, err)
+	//}
+
+	opts := cp.Options{
+		OnSymlink: func(string) cp.SymlinkAction {
+			return cp.Shallow
+		},
+	}
+
+	if err := cp.Copy(target, destination, opts); err != nil {
+		return fmt.Errorf("could not copy directories: %w", err)
 	}
 
 	return nil

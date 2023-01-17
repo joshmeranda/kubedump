@@ -1,0 +1,10 @@
+metadata:
+  creationTimestamp: null
+  labels:
+    test: replicaset
+  name: sample-pod
+  namespace: default
+  uid: sample-pod-uid
+spec:
+  containers: null
+status: {}

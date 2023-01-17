@@ -18,12 +18,18 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 )
 
 const (
 	CategoryChartReference = "Chart Reference"
 	CategoryChartValues    = "Chart Values"
+
+	// DefaultTimeFormat to use for times: YYYY-MM-DD-HH:MM:SS
+	DefaultTimeFormat = "2006-01-02-15:04:05"
+
+	LogFileName = "kubedump.log"
 )
 
 func Dump(ctx *cli.Context, stopChan chan interface{}) error {
@@ -34,7 +40,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 	}
 
 	loggerOptions := []kubedump.LoggerOption{
-		kubedump.WithPaths(path.Join(basePath, "kubedump.log")),
+		kubedump.WithPaths(path.Join(basePath, LogFileName)),
 	}
 
 	if ctx.Bool("verbose") {
@@ -304,6 +310,69 @@ func Remove(ctx *cli.Context) error {
 	return nil
 }
 
+func Filter(ctx *cli.Context) error {
+	if nargs := ctx.Args().Len(); nargs != 2 {
+		return fmt.Errorf("expected exactly 2 args, but received %d", nargs)
+	}
+
+	destination := ctx.String("destination")
+	inPlace := ctx.Bool("in-place")
+
+	if inPlace && destination != "" {
+		return fmt.Errorf("--destination and --in-place cannot be used at the same time")
+	}
+
+	basePath, err := filepath.Abs(ctx.Args().First())
+	if err != nil {
+		return fmt.Errorf("failed to determine desitiatno dir: %w", err)
+	}
+
+	var rawFilter string
+	if ctx.Args().Present() {
+		rawFilter = ctx.Args().Get(1)
+	}
+
+	expression, err := filter.Parse(rawFilter)
+	if err != nil {
+		return fmt.Errorf("could not parse filter '%s': %w", rawFilter, err)
+	}
+
+	if inPlace {
+		destination = os.TempDir()
+	} else if destination == "" {
+		destination = fmt.Sprintf("kubedump-filtered-%s.dump", time.Now().Format(DefaultTimeFormat))
+	}
+
+	var logger *zap.SugaredLogger
+	if ctx.Bool("verbose") {
+		logger = kubedump.NewLogger(kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)))
+	} else {
+		logger = kubedump.NewLogger()
+	}
+
+	opts := filterOptions{
+		Filter:              expression,
+		DestinationBasePath: destination,
+		Logger:              logger.Named("filtering"),
+	}
+
+	if err := filterKubedumpDir(basePath, opts); err != nil {
+		return fmt.Errorf("failed to filter kubedumper dir: %w", err)
+	}
+
+	if inPlace {
+		if err := os.RemoveAll(basePath); err != nil {
+			return fmt.Errorf("could not remove dump at '%s': %w", basePath, err)
+		}
+
+		if err := os.Rename(destination, basePath); err != nil {
+			return fmt.Errorf("could not rename filtered dump at '%s': %w", basePath, err)
+		}
+	}
+
+	return nil
+}
+
 func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 	return &cli.App{
 		Name:    "kubedump",
@@ -419,6 +488,31 @@ func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 				Name:   "remove",
 				Usage:  "Remove the kubedump-serve service from the cluster",
 				Action: Remove,
+			},
+			{
+				Name:      "filter",
+				Usage:     "apply the given filter to a kubedump dump directory",
+				Action:    Filter,
+				ArgsUsage: "<dir> <filter>",
+				Flags: []cli.Flag{
+					&cli.PathFlag{
+						Name:    "destination",
+						Aliases: []string{"d"},
+						Usage:   "the name of the resulting dump",
+					},
+					&cli.BoolFlag{
+						Name:    "in-place",
+						Usage:   "apply the filter to the given dump in-place",
+						Value:   false,
+						Aliases: []string{"i"},
+					},
+					&cli.BoolFlag{
+						Name:    "verbose",
+						Usage:   "run kubedump verbosely",
+						Value:   false,
+						Aliases: []string{"v"},
+					},
+				},
 			},
 		},
 		Flags: []cli.Flag{

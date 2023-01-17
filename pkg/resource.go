@@ -7,7 +7,9 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apieventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"path"
+	"sigs.k8s.io/yaml"
 	"strings"
 )
 
@@ -17,6 +19,7 @@ const (
 	HandleAdd    HandleKind = "Add"
 	HandleUpdate            = "Edit"
 	HandleDelete            = "Delete"
+	HandleFilter            = "filter"
 )
 
 type HandledResource struct {
@@ -26,6 +29,8 @@ type HandledResource struct {
 	// Resource is the actual k8s resource value
 	Resource interface{}
 
+	// todo: we might want to decouple this from HandledResource and leave it to the informer handlers to inform the
+	//       Handler function what type of event is being received
 	// HandleEventKind is the type of handler event which sourced this Resource.
 	HandleEventKind HandleKind
 }
@@ -116,6 +121,52 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 	default:
 		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
 	}
+}
+
+func NewHandledResourceFromFile(handledKind HandleKind, kind string, filePath string) (HandledResource, error) {
+	var resource interface{}
+
+	switch kind {
+	case "Pod":
+		var inner apicorev1.Pod
+		resource = &inner
+	case "Service":
+		var inner apicorev1.Service
+		resource = &inner
+	case "Secret":
+		var inner apicorev1.Secret
+		resource = &inner
+	case "ConfigMap":
+		var inner apicorev1.ConfigMap
+		resource = &inner
+	case "Job":
+		var inner apibatchv1.Job
+		resource = &inner
+	case "ReplicaSet":
+		var inner apiappsv1.ReplicaSet
+		resource = &inner
+	case "Deployment":
+		var inner apiappsv1.Deployment
+		resource = &inner
+	default:
+		return HandledResource{}, fmt.Errorf("unhandled kind '%s'", kind)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return HandledResource{}, fmt.Errorf("error reading from file '%s': %w", filePath, err)
+	}
+
+	if err := yaml.Unmarshal(data, resource); err != nil {
+		return HandledResource{}, fmt.Errorf("error unmarshailng resource of kind '%s': %w", kind, err)
+	}
+
+	handledResource, err := NewHandledResource(handledKind, resource)
+	if err != nil {
+		return HandledResource{}, err
+	}
+
+	return handledResource, nil
 }
 
 func (resource HandledResource) String() string {

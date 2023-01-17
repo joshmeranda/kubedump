@@ -308,7 +308,7 @@ func TestService(t *testing.T) {
 
 	handledService, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Service{
 		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-replica-set",
+			Name:      "sample-service",
 			Namespace: tests.ResourceNamespace,
 			UID:       "sample-service-uid",
 		},
