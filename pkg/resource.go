@@ -7,6 +7,8 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apieventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path"
+	"strings"
 )
 
 type HandleKind string
@@ -118,4 +120,85 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 
 func (resource HandledResource) String() string {
 	return fmt.Sprintf("%s/%s/%s", resource.Kind, resource.GetNamespace(), resource.GetName())
+}
+
+// ResourceDirBuilder can be used to build the parent directories for collected resources.
+type ResourceDirBuilder struct {
+	basePath  string
+	namespace string
+	name      string
+	kind      string
+}
+
+func NewResourceDirBuilder() *ResourceDirBuilder {
+	return &ResourceDirBuilder{}
+}
+
+func (builder *ResourceDirBuilder) WithBase(basePath string) *ResourceDirBuilder {
+	builder.basePath = basePath
+	return builder
+}
+
+func (builder *ResourceDirBuilder) WithName(name string) *ResourceDirBuilder {
+	builder.name = name
+	return builder
+}
+
+func (builder *ResourceDirBuilder) WithNamespace(namespace string) *ResourceDirBuilder {
+	builder.namespace = namespace
+	return builder
+}
+
+func (builder *ResourceDirBuilder) WithKind(kind string) *ResourceDirBuilder {
+	builder.kind = kind
+	return builder
+}
+
+func (builder *ResourceDirBuilder) WithObject(obj apimetav1.Object) *ResourceDirBuilder {
+	builder.name = obj.GetName()
+	builder.namespace = obj.GetNamespace()
+	return builder
+}
+
+func (builder *ResourceDirBuilder) WithType(t apimetav1.TypeMeta) *ResourceDirBuilder {
+	builder.kind = strings.ToLower(t.Kind)
+	return builder
+}
+
+func (builder *ResourceDirBuilder) WithResource(resource HandledResource) *ResourceDirBuilder {
+	return builder.WithObject(resource).WithType(resource.TypeMeta)
+}
+
+func (builder *ResourceDirBuilder) WithBuilder(otherBuilder *ResourceDirBuilder) *ResourceDirBuilder {
+	return builder.WithBase(otherBuilder.basePath).WithNamespace(otherBuilder.namespace).WithName(otherBuilder.name).WithKind(otherBuilder.kind)
+}
+
+func (builder *ResourceDirBuilder) Validate() error {
+	if builder.basePath == "" {
+		return fmt.Errorf("basePath must be set")
+	}
+
+	if builder.name == "" {
+		return fmt.Errorf("name must be set")
+	}
+
+	if builder.kind == "" {
+		return fmt.Errorf("kind must be set")
+	}
+
+	return nil
+}
+
+// Build joins the different components of the ResourceDirBuilder and panics if any value (except namespace) is unset.
+func (builder *ResourceDirBuilder) Build() string {
+	if err := builder.Validate(); err != nil {
+		panic(err)
+	}
+
+	if builder.namespace == "" {
+		// todo: this is subject to change (and probably should)
+		return path.Join(builder.basePath, builder.kind, builder.name)
+	}
+
+	return path.Join(builder.basePath, builder.namespace, builder.kind, builder.name)
 }
