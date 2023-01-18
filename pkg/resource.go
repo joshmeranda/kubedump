@@ -172,48 +172,65 @@ func (resource HandledResource) String() string {
 	return fmt.Sprintf("%s/%s/%s", resource.Kind, resource.GetNamespace(), resource.GetName())
 }
 
-// ResourceDirBuilder can be used to build the parent directories for collected resources.
-type ResourceDirBuilder struct {
+// ResourcePathBuilder can be used to build the parent directories for collected resources.
+type ResourcePathBuilder struct {
 	basePath           string
 	parentResourcePath string
 	namespace          string
 	name               string
 	kind               string
+	fileName           string
 }
 
-func NewResourceDirBuilder() *ResourceDirBuilder {
-	return &ResourceDirBuilder{}
+func NewResourcePathBuilder() *ResourcePathBuilder {
+	return &ResourcePathBuilder{}
 }
 
-func (builder *ResourceDirBuilder) WithBase(basePath string) *ResourceDirBuilder {
+func (builder *ResourcePathBuilder) WithBase(basePath string) *ResourcePathBuilder {
 	builder.basePath = basePath
 	return builder
 }
 
-func (builder *ResourceDirBuilder) WithName(name string) *ResourceDirBuilder {
+func (builder *ResourcePathBuilder) WithName(name string) *ResourcePathBuilder {
 	builder.name = name
 	return builder
 }
 
-func (builder *ResourceDirBuilder) WithNamespace(namespace string) *ResourceDirBuilder {
+// WithNamespace instructs the builder to place the other components under tha path of the specified resource, and will
+// also ignore any value passed to WithParentResource.
+func (builder *ResourcePathBuilder) WithNamespace(namespace string) *ResourcePathBuilder {
 	builder.namespace = namespace
+	builder.parentResourcePath = ""
 	return builder
 }
 
-func (builder *ResourceDirBuilder) WithKind(kind string) *ResourceDirBuilder {
+func (builder *ResourcePathBuilder) WithKind(kind string) *ResourcePathBuilder {
 	builder.kind = kind
 	return builder
 }
 
-// WithParentResource will instruct the builder to place the other components under the path of the specified resource,
-// and will also ignore any  value passed to WithNamespace.
-func (builder *ResourceDirBuilder) WithParentResource(resource HandledResource) *ResourceDirBuilder {
+// WithParentResource instructs the builder to place the other components under the path of the specified resource, and
+// will also ignore any value passed to WithNamespace.
+func (builder *ResourcePathBuilder) WithParentResource(resource HandledResource) *ResourcePathBuilder {
 	builder.parentResourcePath = path.Join(resource.GetNamespace(), resource.Kind, resource.GetName())
+	builder.namespace = ""
+	return builder
+}
+
+func (builder *ResourcePathBuilder) WithResource(resource HandledResource) *ResourcePathBuilder {
+	builder.namespace = resource.GetNamespace()
+	builder.name = resource.GetName()
+	builder.kind = resource.Kind
+	return builder
+}
+
+func (builder *ResourcePathBuilder) WithFileName(fileName string) *ResourcePathBuilder {
+	builder.fileName = fileName
 	return builder
 }
 
 // Validate that the builder will be able to build a resource path.
-func (builder *ResourceDirBuilder) Validate() error {
+func (builder *ResourcePathBuilder) Validate() error {
 	if builder.basePath == "" {
 		return fmt.Errorf("basePath must be set")
 	}
@@ -230,29 +247,19 @@ func (builder *ResourceDirBuilder) Validate() error {
 }
 
 // Reset the state of the builder as if it was new.
-func (builder *ResourceDirBuilder) Reset() {
+func (builder *ResourcePathBuilder) Reset() {
 	builder.basePath = ""
+	builder.parentResourcePath = ""
 	builder.namespace = ""
 	builder.name = ""
 	builder.kind = ""
 }
 
-// Build joins the different components of the ResourceDirBuilder and panics if any value (except namespace) is unset.
-func (builder *ResourceDirBuilder) Build() string {
+// Build joins the different components of the ResourcePathBuilder and panics if any value (except namespace) is unset.
+func (builder *ResourcePathBuilder) Build() string {
 	if err := builder.Validate(); err != nil {
 		panic(err)
 	}
 
-	var p string
-
-	if builder.parentResourcePath != "" {
-		p = path.Join(builder.basePath, builder.parentResourcePath)
-	} else if builder.namespace != "" {
-		p = path.Join(builder.basePath, builder.namespace)
-	} else {
-		// todo: we probably don't want these on the top level (maybe nest under a "clustered resources" dir)
-		return path.Join(builder.basePath, builder.kind, builder.name)
-	}
-
-	return path.Join(p, builder.kind, builder.name)
+	return path.Join(builder.basePath, builder.parentResourcePath, builder.namespace, builder.kind, builder.name, builder.fileName)
 }

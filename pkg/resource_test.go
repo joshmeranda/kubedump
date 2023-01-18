@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuilderValidate(t *testing.T) {
-	builder := NewResourceDirBuilder()
+	builder := NewResourcePathBuilder()
 	assert.Error(t, builder.Validate())
 
 	builder.WithName("name")
@@ -40,11 +40,47 @@ func TestBuilderWithParent(t *testing.T) {
 		},
 	})
 
-	resourcePath := NewResourceDirBuilder().
+	resourcePath := NewResourcePathBuilder().
 		WithBase(string(filepath.Separator)).
 		WithParentResource(handledParent).
 		WithKind("Pod").
 		WithName("sample-job-xxxx").Build()
 
 	assert.Equal(t, "/default/Job/sample-job/Pod/sample-job-xxxx", resourcePath)
+}
+
+func TestBuilderWithFile(t *testing.T) {
+	filePath := NewResourcePathBuilder().
+		WithBase("/").
+		WithNamespace("default").
+		WithKind("some-kind").
+		WithName("some-resource").
+		WithFileName("file.yaml").
+		Build()
+
+	assert.Equal(t, "/default/some-kind/some-resource/file.yaml", filePath)
+}
+
+func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
+	handledParent, _ := NewHandledResource(HandleAdd, &apibatchv1.Job{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "sample-job",
+			Namespace: "default",
+		},
+		TypeMeta: apimetav1.TypeMeta{
+			Kind:       "Job",
+			APIVersion: "v1",
+		},
+	})
+
+	builder := NewResourcePathBuilder().
+		WithBase("/").
+		WithKind("Pod").
+		WithName("sample-job-xxxx")
+
+	withParentPath := builder.WithParentResource(handledParent).Build()
+	assert.Equal(t, "/default/Job/sample-job/Pod/sample-job-xxxx", withParentPath)
+
+	withNamespacePath := builder.WithNamespace("default").Build()
+	assert.Equal(t, "/default/Pod/sample-job-xxxx", withNamespacePath)
 }

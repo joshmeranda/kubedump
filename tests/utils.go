@@ -103,7 +103,7 @@ func NewHandledResourceNoErr(obj interface{}) kubedump.HandledResource {
 }
 
 func AssertResource(t *testing.T, basePath string, resource kubedump.HandledResource, hasEvents bool) {
-	resourceDir := path.Join(basePath, resource.GetNamespace(), strings.ToLower(resource.Kind), resource.GetName())
+	resourceDir := path.Join(basePath, resource.GetNamespace(), resource.Kind, resource.GetName())
 
 	assertResourceFile(t, resource.Kind, path.Join(resourceDir, resource.GetName()+".yaml"), resource)
 
@@ -174,8 +174,8 @@ func AssertLinkGlob(t *testing.T, parent string, pattern glob.Glob) {
 }
 
 func AssertResourceIsLinked(t *testing.T, basePath string, parent kubedump.HandledResource, linked kubedump.HandledResource) {
-	parentPath := path.Join(basePath, parent.GetNamespace(), strings.ToLower(parent.Kind), parent.GetName())
-	linkPath := path.Join(parentPath, strings.ToLower(linked.Kind), linked.GetName())
+	parentPath := path.Join(basePath, parent.GetNamespace(), parent.Kind, parent.GetName())
+	linkPath := path.Join(parentPath, linked.Kind, linked.GetName())
 	isLink, err := isSymlink(linkPath)
 
 	assert.NoError(t, err)
@@ -211,7 +211,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 	var handledResources []kubedump.HandledResource
 	waitFunc := func() {
 		for _, resource := range handledResources {
-			resourcePath := path.Join(basePath, resource.GetNamespace(), strings.ToLower(resource.Kind), resource.GetName())
+			resourcePath := path.Join(basePath, resource.GetNamespace(), resource.Kind, resource.GetName())
 
 			if err := WaitForPath(ctx, TestWaitDuration, resourcePath); err != nil {
 				t.Fatalf("failed waiting for resource '%s': %s", resourcePath, err)

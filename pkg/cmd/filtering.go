@@ -68,7 +68,7 @@ func filterKindDir(namespace string, kind string, dir string, opts filterOptions
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			if err := filterResourceDir(namespace, kind, entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
+			if err := filterResourceDir(kind, entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
 				opts.Logger.Errorf("could not filter resource '%s/%s' in namespace '%s': %s", kind, entry.Name(), namespace, err)
 			}
 		} else {
@@ -79,14 +79,17 @@ func filterKindDir(namespace string, kind string, dir string, opts filterOptions
 	return nil
 }
 
-func filterResourceDir(namespace string, kind string, name string, dir string, opts filterOptions) error {
+func filterResourceDir(kind string, name string, dir string, opts filterOptions) error {
 	resourceFile := path.Join(dir, name+".yaml")
 	handledResource, err := kubedump.NewHandledResourceFromFile(kubedump.HandleFilter, kind, resourceFile)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal resoruce file: %w", err)
 	}
 
-	resourceDestinationDir := kubedump.NewResourceDirBuilder().WithBase(opts.DestinationBasePath).WithResource(handledResource).Build()
+	resourceDestinationDir := kubedump.NewResourcePathBuilder().
+		WithBase(opts.DestinationBasePath).
+		WithResource(handledResource).
+		Build()
 
 	if opts.Filter.Matches(handledResource) {
 		opts.Logger.Debugf("resource '%s' matched filter", handledResource)

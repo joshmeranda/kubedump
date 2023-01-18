@@ -5,51 +5,9 @@ import (
 	"io/ioutil"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubedump "kubedump/pkg"
-	"os"
 	"path"
 	"testing"
 )
-
-func TestResourceDirPathNamespaced(t *testing.T) {
-	expected := "parent/test/pod/some-pod"
-	actual := resourceDirPath("parent", "Pod", &apimetav1.ObjectMeta{
-		Name:      "some-pod",
-		Namespace: "test",
-	})
-
-	assert.Equal(t, expected, actual)
-
-	// the owner should be ignored
-	actual = resourceDirPath("parent", "Pod", &apimetav1.ObjectMeta{
-		Name:      "some-pod",
-		Namespace: "test",
-		OwnerReferences: []apimetav1.OwnerReference{
-			{
-				Name: "owner-job",
-				Kind: "Job",
-			},
-		},
-	})
-
-	assert.Equal(t, expected, actual)
-
-	expected = "parent/test/job/some-job"
-	actual = resourceDirPath("parent", "Job", &apimetav1.ObjectMeta{
-		Name:      "some-job",
-		Namespace: "test",
-	})
-
-	assert.Equal(t, expected, actual)
-}
-
-func TestResourceDirPathNonNamespaced(t *testing.T) {
-	expected := "parent/node/some-node"
-	actual := resourceDirPath("parent", "Node", &apimetav1.ObjectMeta{
-		Name: "some-node",
-	})
-
-	assert.Equal(t, expected, actual)
-}
 
 func TestGetSymlinkPaths(t *testing.T) {
 	parent := kubedump.HandledResource{
@@ -78,8 +36,8 @@ func TestGetSymlinkPaths(t *testing.T) {
 		HandleEventKind: "Pod",
 	}
 
-	expectedLinkPath := "/ns/job/some-job/pod/some-pod"
-	expectedRelativePath := "../../../pod/some-pod"
+	expectedLinkPath := "/ns/Job/some-job/Pod/some-pod"
+	expectedRelativePath := "../../../Pod/some-pod"
 
 	linkPath, relativePath, err := getSymlinkPaths("/", parent, child)
 
@@ -95,11 +53,7 @@ func TestDumpResource(t *testing.T) {
 		S string
 	}
 
-	basePath, err := os.MkdirTemp("", "")
-	if err != nil {
-		t.Fatalf("could not create temporary file")
-	}
-	defer os.RemoveAll(basePath)
+	basePath := t.TempDir()
 
 	resource := kubedump.HandledResource{
 		Object: &apimetav1.ObjectMeta{
@@ -118,11 +72,10 @@ func TestDumpResource(t *testing.T) {
 		HandleEventKind: kubedump.HandleAdd,
 	}
 
-	err = dumpResourceDescription(basePath, resource)
-
-	assert.NoError(t, err)
-
 	dumpPath := path.Join(basePath, resource.GetNamespace(), resource.Kind, resource.GetName(), resource.GetName()+".yaml")
+
+	err := dumpResourceDescription(dumpPath, resource)
+	assert.NoError(t, err)
 
 	data, err := ioutil.ReadFile(dumpPath)
 	assert.NoError(t, err)
@@ -148,7 +101,7 @@ func TestDumpResource(t *testing.T) {
 		HandleEventKind: kubedump.HandleAdd,
 	}
 
-	err = dumpResourceDescription(basePath, resource)
+	err = dumpResourceDescription(dumpPath, resource)
 
 	assert.NoError(t, err)
 

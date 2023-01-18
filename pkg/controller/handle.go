@@ -75,7 +75,10 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 		return
 	}
 
-	resourceDir := resourceDirPath(controller.BasePath, event.Regarding.Kind, handledResource)
+	resourceDir := kubedump.NewResourcePathBuilder().
+		WithBase(controller.BasePath).
+		WithResource(handledResource).
+		Build()
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
@@ -197,7 +200,8 @@ func (controller *Controller) handleResource(_ kubedump.HandleKind, handledResou
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(func() {
-		if err := dumpResourceDescription(controller.BasePath, handledResource); err != nil {
+		dir := kubedump.NewResourcePathBuilder().WithBase(controller.BasePath).WithResource(handledResource).Build()
+		if err := dumpResourceDescription(path.Join(dir, handledResource.GetName()+".yaml"), handledResource); err != nil {
 			controller.Logger.With(
 				"namespace", handledResource.GetNamespace(),
 				"name", handledResource.GetName(),

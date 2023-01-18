@@ -126,11 +126,11 @@ func TestEvent(t *testing.T) {
 		t.Fatalf("failed to create resource '%s': %s", handledEvent.String(), err)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	eventFile := resourceFilePath(basePath, handledPod.Kind, handledPod, handledPod.GetName()+".events")
+	eventFile := kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).WithFileName(handledPod.GetName() + ".yaml").Build()
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, eventFile); err != nil {
 		t.Fatalf("failed witing for path: ")
 	}
@@ -154,7 +154,7 @@ func TestLogs(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -163,9 +163,8 @@ func TestLogs(t *testing.T) {
 	err = controller.Stop()
 	assert.NoError(t, err)
 
-	logFile := resourceFilePath(basePath, handledPod.Kind, handledPod.Resource.(*apicorev1.Pod), handledPod.GetName()+".log")
+	logFile := kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).WithFileName(handledPod.GetName() + ".log").Build()
 	data, err := os.ReadFile(logFile)
-
 	assert.GreaterOrEqual(t, 1, strings.Count(string(data), "fake logs"))
 }
 
@@ -184,7 +183,7 @@ func TestPod(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -231,11 +230,11 @@ func TestPodWithConfigMap(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledConfigMap).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledConfigMap)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -282,11 +281,11 @@ func TestPodWithSecret(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledSecret).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledSecret)
 	}
 
@@ -323,7 +322,7 @@ func TestService(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledService))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledService.Kind, handledService)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledService).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -331,7 +330,7 @@ func TestService(t *testing.T) {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -375,7 +374,7 @@ func TestJob(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledJob))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledJob.Kind, handledJob)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledJob).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -383,7 +382,7 @@ func TestJob(t *testing.T) {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -427,7 +426,7 @@ func TestReplicaSet(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledReplicaSet))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledReplicaSet.Kind, handledReplicaSet)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledReplicaSet).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -435,7 +434,7 @@ func TestReplicaSet(t *testing.T) {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -479,7 +478,7 @@ func TestDeployment(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledDeployment))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledDeployment.Kind, handledDeployment)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledDeployment).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -487,7 +486,7 @@ func TestDeployment(t *testing.T) {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledPod.Kind, handledPod)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -514,7 +513,7 @@ func TestConfigMap(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledConfigMap))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledConfigMap.Kind, handledConfigMap)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledConfigMap).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledConfigMap)
 	}
 
@@ -539,7 +538,7 @@ func TestSecret(t *testing.T) {
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledSecret))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, resourceDirPath(basePath, handledSecret.Kind, handledSecret)); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledSecret).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledSecret)
 	}
 

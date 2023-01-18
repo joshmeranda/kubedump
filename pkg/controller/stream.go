@@ -7,7 +7,9 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	kubedump "kubedump/pkg"
 	"os"
+	"path"
 	"time"
 )
 
@@ -39,7 +41,14 @@ type logStream struct {
 }
 
 func NewLogStream(opts LogStreamOptions) (Stream, error) {
-	logFilePath := containerLogFilePath(opts.BasePath, opts.Pod, opts.Container)
+	podDir := kubedump.NewResourcePathBuilder().
+		WithBase(opts.BasePath).
+		WithNamespace(opts.Pod.Namespace).
+		WithKind("Pod").
+		WithName(opts.Pod.Name).
+		Build()
+
+	logFilePath := path.Join(podDir, opts.Container.Name+".log")
 
 	if err := createPathParents(logFilePath); err != nil {
 		return nil, fmt.Errorf("could not create log file '%s': %w", logFilePath, err)

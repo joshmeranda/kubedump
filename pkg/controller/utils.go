@@ -5,13 +5,11 @@ import (
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"kubedump/pkg"
 	"os"
 	"path"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
-	"strings"
 )
 
 // createPathParents ensures that the parent directory for filePath exists.
@@ -32,65 +30,13 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func isNamespaced(resourceKind string) bool {
-	switch resourceKind {
-	// list created by running: kubectl api-resources --namespaced=false
-	case "ComponentStatus",
-		"Namespace",
-		"Node",
-		"PersistentVolume",
-		"MutatingWebhookConfiguration",
-		"ValidatingWebhookConfiguration",
-		"CustomResourceDefinition",
-		"APIService",
-		"TokenReview",
-		"SelfSubjectAccessReview",
-		"SelfSubjectRulesReview",
-		"SubjectAccessReview",
-		"CertificateSigningRequest",
-		"FlowSchema",
-		"PriorityLevelConfiguration",
-		"IngressClass",
-		"RuntimeClass",
-		"PodSecurityPolicy",
-		"ClusterRoleBinding",
-		"ClusterRole",
-		"PriorityClass",
-		"CSIDriver",
-		"CSINode",
-		"StorageClass",
-		"VolumeAttachment":
-		return false
-	default:
-		return true
-	}
-}
-
-// todo: might want to refactor this to take HandledResources
-func resourceDirPath(basePath string, objKind string, obj apimetav1.Object) string {
-	if isNamespaced(objKind) {
-		return path.Join(basePath, obj.GetNamespace(), strings.ToLower(objKind), obj.GetName())
-	} else {
-		return path.Join(basePath, strings.ToLower(objKind), obj.GetName())
-	}
-}
-
-func resourceFilePath(basePath string, objKind string, obj apimetav1.Object, fileName string) string {
-	return path.Join(resourceDirPath(basePath, objKind, obj), fileName)
-}
-
-func containerLogFilePath(basePath string, pod *apicorev1.Pod, container *apicorev1.Container) string {
-	return path.Join(
-		resourceDirPath(basePath, "Pod", pod),
-		container.Name+".log",
-	)
-}
-
 func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kubedump.HandledResource) (string, string, error) {
-	resourceBasePath := resourceDirPath(basePath, parent.Kind, parent)
-	childPath := resourceDirPath(basePath, child.Kind, child)
+	builder := kubedump.NewResourcePathBuilder().WithBase(basePath)
 
-	linkDir := path.Join(resourceBasePath, strings.ToLower(child.Kind))
+	resourceBasePath := builder.WithResource(parent).Build()
+	childPath := builder.WithResource(child).Build()
+
+	linkDir := path.Join(resourceBasePath, child.Kind)
 
 	relPath, err := filepath.Rel(linkDir, childPath)
 	if err != nil {
@@ -119,22 +65,20 @@ func linkResource(basePath string, matcher kubedump.HandledResource, matched kub
 	return nil
 }
 
-func dumpResourceDescription(basePath string, resource kubedump.HandledResource) error {
-	yamlPath := resourceFilePath(basePath, resource.Kind, resource.Object, resource.GetName()+".yaml")
-
-	if exists(yamlPath) {
-		if err := os.Truncate(yamlPath, 0); err != nil {
-			return fmt.Errorf("error truncating obj yaml file '%s' : %w", yamlPath, err)
+func dumpResourceDescription(filePath string, resource kubedump.HandledResource) error {
+	if exists(filePath) {
+		if err := os.Truncate(filePath, 0); err != nil {
+			return fmt.Errorf("error truncating obj yaml file '%s' : %w", filePath, err)
 		}
 	} else {
-		if err := createPathParents(yamlPath); err != nil {
-			return fmt.Errorf("error creating parents for obj file '%s': %s", yamlPath, err)
+		if err := createPathParents(filePath); err != nil {
+			return fmt.Errorf("error creating parents for obj file '%s': %s", filePath, err)
 		}
 	}
 
-	f, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return fmt.Errorf("could not open file '%s': %w", yamlPath, err)
+		return fmt.Errorf("could not open file '%s': %w", filePath, err)
 	}
 	defer f.Close()
 
@@ -145,7 +89,7 @@ func dumpResourceDescription(basePath string, resource kubedump.HandledResource)
 
 	_, err = f.Write(data)
 	if err != nil {
-		return fmt.Errorf("could not write %s to file '%s': %w", resource.Kind, yamlPath, err)
+		return fmt.Errorf("could not write %s to file '%s': %w", resource.Kind, filePath, err)
 	}
 
 	return nil
