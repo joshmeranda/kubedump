@@ -167,12 +167,12 @@ func TestDumpWithCluster(t *testing.T) {
 	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePod), true)
 
 	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleJob), true)
-	AssertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "job", SampleJob.Name, "pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
+	AssertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "Job", SampleJob.Name, "Pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
 	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleReplicaSet), true)
 
 	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleDeployment), true)
-	AssertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "deployment", SampleDeployment.Name, "replicaset"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
+	AssertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "Deployment", SampleDeployment.Name, "ReplicaSet"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
 	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleService), false)
 
