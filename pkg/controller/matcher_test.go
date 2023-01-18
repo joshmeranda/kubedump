@@ -38,17 +38,29 @@ func TestLabelSet(t *testing.T) {
 func TestPodMatcherSecret(t *testing.T) {
 	handledSecret := tests.NewHandledResourceNoErr(&apicorev1.Secret{
 		ObjectMeta: apimetav1.ObjectMeta{
-			Name: "sample-secret",
+			Name:      "sample-secret",
+			Namespace: tests.ResourceNamespace,
 		},
 	})
 
 	anotherHandledSecret := tests.NewHandledResourceNoErr(&apicorev1.Secret{
 		ObjectMeta: apimetav1.ObjectMeta{
-			Name: "another-sample-secret",
+			Name:      "another-sample-secret",
+			Namespace: tests.ResourceNamespace,
+		},
+	})
+
+	wrongNamespaceHandledSecret := tests.NewHandledResourceNoErr(&apicorev1.Secret{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "wrong-namespace-sample-secret",
+			Namespace: tests.ResourceNamespace + "-suffix",
 		},
 	})
 
 	var matcher, err = MatcherFromPod(&apicorev1.Pod{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Namespace: tests.ResourceNamespace,
+		},
 		Spec: apicorev1.PodSpec{
 			Volumes: []apicorev1.Volume{
 				{
@@ -66,22 +78,35 @@ func TestPodMatcherSecret(t *testing.T) {
 
 	assert.True(t, matcher.Matches(handledSecret))
 	assert.False(t, matcher.Matches(anotherHandledSecret))
+	assert.False(t, matcher.Matches(wrongNamespaceHandledSecret))
 }
 
 func TestPodMatcherConfigMap(t *testing.T) {
 	handledConfigMap := tests.NewHandledResourceNoErr(&apicorev1.ConfigMap{
 		ObjectMeta: apimetav1.ObjectMeta{
-			Name: "sample-configmap",
+			Name:      "sample-configmap",
+			Namespace: tests.ResourceNamespace,
 		},
 	})
 
 	anotherHandledConfigMap := tests.NewHandledResourceNoErr(&apicorev1.ConfigMap{
 		ObjectMeta: apimetav1.ObjectMeta{
-			Name: "another-sample-configmap",
+			Name:      "another-sample-configmap",
+			Namespace: tests.ResourceNamespace,
+		},
+	})
+
+	wrongNamespaceHandledConfigMap := tests.NewHandledResourceNoErr(&apicorev1.ConfigMap{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "wrong-namespace-sample-configmap",
+			Namespace: tests.ResourceNamespace + "-wrong",
 		},
 	})
 
 	var matcher, err = MatcherFromPod(&apicorev1.Pod{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Namespace: tests.ResourceNamespace,
+		},
 		Spec: apicorev1.PodSpec{
 			Volumes: []apicorev1.Volume{
 				{
@@ -101,6 +126,7 @@ func TestPodMatcherConfigMap(t *testing.T) {
 
 	assert.True(t, matcher.Matches(handledConfigMap))
 	assert.False(t, matcher.Matches(anotherHandledConfigMap))
+	assert.False(t, matcher.Matches(wrongNamespaceHandledConfigMap))
 }
 
 func TestPodMatcherMixed(t *testing.T) {
@@ -116,6 +142,13 @@ func TestPodMatcherMixed(t *testing.T) {
 		},
 	})
 
+	wrongNamespaceHandledSecret := tests.NewHandledResourceNoErr(&apicorev1.Secret{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "wrong-namespace-sample-secret",
+			Namespace: tests.ResourceNamespace + "-suffix",
+		},
+	})
+
 	handledConfigMap := tests.NewHandledResourceNoErr(&apicorev1.ConfigMap{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "sample-configmap",
@@ -125,6 +158,13 @@ func TestPodMatcherMixed(t *testing.T) {
 	anotherHandledConfigMap := tests.NewHandledResourceNoErr(&apicorev1.ConfigMap{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "another-sample-configmap",
+		},
+	})
+
+	wrongNamespaceHandledConfigMap := tests.NewHandledResourceNoErr(&apicorev1.ConfigMap{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "wrong-namespace-sample-configmap",
+			Namespace: tests.ResourceNamespace + "-wrong",
 		},
 	})
 
@@ -156,7 +196,9 @@ func TestPodMatcherMixed(t *testing.T) {
 
 	assert.True(t, matcher.Matches(handledSecret))
 	assert.False(t, matcher.Matches(anotherHandledSecret))
+	assert.False(t, matcher.Matches(wrongNamespaceHandledSecret))
 
 	assert.True(t, matcher.Matches(handledConfigMap))
 	assert.False(t, matcher.Matches(anotherHandledConfigMap))
+	assert.False(t, matcher.Matches(wrongNamespaceHandledConfigMap))
 }

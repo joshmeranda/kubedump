@@ -28,7 +28,8 @@ func MatcherFromPod(pod *apicorev1.Pod) (Matcher, error) {
 	}
 
 	return &podMatcher{
-		volumes: pod.Spec.Volumes,
+		namespace: pod.GetNamespace(),
+		volumes:   pod.Spec.Volumes,
 	}, nil
 }
 
@@ -69,10 +70,15 @@ func (matcher labelSelectorMatcher) Matches(resource kubedump.HandledResource) b
 }
 
 type podMatcher struct {
-	volumes []apicorev1.Volume
+	namespace string
+	volumes   []apicorev1.Volume
 }
 
 func (matcher podMatcher) Matches(resource kubedump.HandledResource) bool {
+	if matcher.namespace != resource.GetNamespace() {
+		return false
+	}
+
 	switch resource.Kind {
 	case "Secret", "ConfigMap":
 	default:
