@@ -350,7 +350,7 @@ func Filter(ctx *cli.Context) error {
 		logger = kubedump.NewLogger()
 	}
 
-	opts := filterOptions{
+	opts := filteringOptions{
 		Filter:              expression,
 		DestinationBasePath: destination,
 		Logger:              logger.Named("filtering"),

@@ -52,8 +52,8 @@ func TestFilteringOnlyChildren(t *testing.T) {
 		t.Fatalf("filtering failed: %s", err)
 	}
 
-	assert.DirExists(t, path.Join(destination, "default", "pod"))
-	assert.NoDirExists(t, path.Join(destination, "default", "service"))
+	assert.DirExists(t, path.Join(destination, "default", "Pod"))
+	assert.NoDirExists(t, path.Join(destination, "default", "Service"))
 }
 
 func TestFilteringParentWithChildren(t *testing.T) {
@@ -68,6 +68,6 @@ func TestFilteringParentWithChildren(t *testing.T) {
 		t.Fatalf("filtering failed: %s", err)
 	}
 
-	assert.DirExists(t, path.Join(destination, "default", "pod"))
-	assert.DirExists(t, path.Join(destination, "default", "service"))
+	assert.DirExists(t, path.Join(destination, "default", "Pod"))
+	assert.DirExists(t, path.Join(destination, "default", "Service"))
 }
