@@ -29,7 +29,7 @@ func TestBuilderValidate(t *testing.T) {
 }
 
 func TestBuilderWithParent(t *testing.T) {
-	handledParent, _ := NewHandledResource(HandleAdd, &apibatchv1.Job{
+	handledParent, _ := NewHandledResource(&apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: "default",
@@ -62,7 +62,7 @@ func TestBuilderWithFile(t *testing.T) {
 }
 
 func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
-	handledParent, _ := NewHandledResource(HandleAdd, &apibatchv1.Job{
+	handledParent, _ := NewHandledResource(&apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: "default",

@@ -12,29 +12,15 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-type HandleKind string
-
-const (
-	HandleAdd    HandleKind = "Add"
-	HandleUpdate            = "Edit"
-	HandleDelete            = "Delete"
-	HandleFilter            = "filter"
-)
-
 type HandledResource struct {
 	apimetav1.Object
 	apimetav1.TypeMeta
 
 	// Resource is the actual k8s resource value
 	Resource interface{}
-
-	// todo: we might want to decouple this from HandledResource and leave it to the informer handlers to inform the
-	//       Handler function what type of event is being received
-	// HandleEventKind is the type of handler event which sourced this Resource.
-	HandleEventKind HandleKind
 }
 
-func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResource, error) {
+func NewHandledResource(obj interface{}) (HandledResource, error) {
 	// todo: client-go informer seems to drop TypeMeta info, so we need to add that manually for now
 	switch resource := obj.(type) {
 	case *apieventsv1.Event:
@@ -44,8 +30,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "Event",
 				APIVersion: "v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apicorev1.Pod:
 		return HandledResource{
@@ -54,8 +39,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "Pod",
 				APIVersion: "v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apicorev1.Service:
 		return HandledResource{
@@ -64,8 +48,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "Service",
 				APIVersion: "v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apicorev1.Secret:
 		return HandledResource{
@@ -74,8 +57,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "Secret",
 				APIVersion: "v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apibatchv1.Job:
 		return HandledResource{
@@ -84,8 +66,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "Job",
 				APIVersion: "batch/v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apiappsv1.ReplicaSet:
 		return HandledResource{
@@ -94,8 +75,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "ReplicaSet",
 				APIVersion: "apps/1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apiappsv1.Deployment:
 		return HandledResource{
@@ -104,8 +84,7 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "Deployment",
 				APIVersion: "apps/v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	case *apicorev1.ConfigMap:
 		return HandledResource{
@@ -114,15 +93,14 @@ func NewHandledResource(handledKind HandleKind, obj interface{}) (HandledResourc
 				Kind:       "ConfigMap",
 				APIVersion: "v1",
 			},
-			Resource:        resource,
-			HandleEventKind: handledKind,
+			Resource: resource,
 		}, nil
 	default:
 		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
 	}
 }
 
-func NewHandledResourceFromFile(handledKind HandleKind, kind string, filePath string) (HandledResource, error) {
+func NewHandledResourceFromFile(kind string, filePath string) (HandledResource, error) {
 	var resource interface{}
 
 	switch kind {
@@ -160,7 +138,7 @@ func NewHandledResourceFromFile(handledKind HandleKind, kind string, filePath st
 		return HandledResource{}, fmt.Errorf("error unmarshailng resource of kind '%s': %w", kind, err)
 	}
 
-	handledResource, err := NewHandledResource(handledKind, resource)
+	handledResource, err := NewHandledResource(resource)
 	if err != nil {
 		return HandledResource{}, err
 	}

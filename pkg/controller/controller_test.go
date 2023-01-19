@@ -85,7 +85,7 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 }
 
 func TestEvent(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -93,7 +93,7 @@ func TestEvent(t *testing.T) {
 		},
 	})
 
-	handledEvent, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apieventsv1.Event{
+	handledEvent, _ := kubedump.NewHandledResource(&apieventsv1.Event{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "sample-pod-event",
 		},
@@ -140,7 +140,7 @@ func TestEvent(t *testing.T) {
 }
 
 func TestLogs(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -169,7 +169,7 @@ func TestLogs(t *testing.T) {
 }
 
 func TestPod(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -194,7 +194,7 @@ func TestPod(t *testing.T) {
 }
 
 func TestPodWithConfigMap(t *testing.T) {
-	handledConfigMap, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.ConfigMap{
+	handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-configmap",
 			Namespace: tests.ResourceNamespace,
@@ -202,7 +202,7 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -247,7 +247,7 @@ func TestPodWithConfigMap(t *testing.T) {
 }
 
 func TestPodWithSecret(t *testing.T) {
-	handledSecret, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Secret{
+	handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-secret",
 			Namespace: tests.ResourceNamespace,
@@ -255,7 +255,7 @@ func TestPodWithSecret(t *testing.T) {
 		},
 	})
 
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -294,7 +294,7 @@ func TestPodWithSecret(t *testing.T) {
 }
 
 func TestService(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -305,7 +305,7 @@ func TestService(t *testing.T) {
 		},
 	})
 
-	handledService, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Service{
+	handledService, _ := kubedump.NewHandledResource(&apicorev1.Service{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-service",
 			Namespace: tests.ResourceNamespace,
@@ -343,7 +343,7 @@ func TestService(t *testing.T) {
 }
 
 func TestJob(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -354,7 +354,7 @@ func TestJob(t *testing.T) {
 		},
 	})
 
-	handledJob, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apibatchv1.Job{
+	handledJob, _ := kubedump.NewHandledResource(&apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: tests.ResourceNamespace,
@@ -395,7 +395,7 @@ func TestJob(t *testing.T) {
 }
 
 func TestReplicaSet(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -406,7 +406,7 @@ func TestReplicaSet(t *testing.T) {
 		},
 	})
 
-	handledReplicaSet, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apiappsv1.ReplicaSet{
+	handledReplicaSet, _ := kubedump.NewHandledResource(&apiappsv1.ReplicaSet{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-replica-set",
 			Namespace: tests.ResourceNamespace,
@@ -447,7 +447,7 @@ func TestReplicaSet(t *testing.T) {
 }
 
 func TestDeployment(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Pod{
+	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -458,7 +458,7 @@ func TestDeployment(t *testing.T) {
 		},
 	})
 
-	handledDeployment, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apiappsv1.Deployment{
+	handledDeployment, _ := kubedump.NewHandledResource(&apiappsv1.Deployment{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-deployment",
 			Namespace: tests.ResourceNamespace,
@@ -499,7 +499,7 @@ func TestDeployment(t *testing.T) {
 }
 
 func TestConfigMap(t *testing.T) {
-	handledConfigMap, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.ConfigMap{
+	handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-configmap",
 			Namespace: tests.ResourceNamespace,
@@ -524,7 +524,7 @@ func TestConfigMap(t *testing.T) {
 }
 
 func TestSecret(t *testing.T) {
-	handledSecret, _ := kubedump.NewHandledResource(kubedump.HandleAdd, &apicorev1.Secret{
+	handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-secret",
 			Namespace: tests.ResourceNamespace,

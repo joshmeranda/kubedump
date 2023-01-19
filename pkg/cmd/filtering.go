@@ -92,7 +92,7 @@ func filterKindDir(namespace string, kind string, dir string, opts filteringOpti
 
 func filterResourceDir(kind string, name string, dir string, opts filteringOptions) error {
 	resourceFile := path.Join(dir, name+".yaml")
-	handledResource, err := kubedump.NewHandledResourceFromFile(kubedump.HandleFilter, kind, resourceFile)
+	handledResource, err := kubedump.NewHandledResourceFromFile(kind, resourceFile)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal resource file: %w", err)
 	}
@@ -159,7 +159,7 @@ func copySubResourceKind(kind string, dir string, parent kubedump.HandledResourc
 			realPath := path.Clean(path.Join(dir, linkDest))
 
 			resourceFile := path.Join(realPath, entry.Name()+".yaml")
-			handledResource, err := kubedump.NewHandledResourceFromFile(kubedump.HandleFilter, kind, resourceFile)
+			handledResource, err := kubedump.NewHandledResourceFromFile(kind, resourceFile)
 			if err != nil {
 				return fmt.Errorf("could not unmarshal resoruce file: %w", err)
 			}

@@ -124,7 +124,7 @@ test: unit integration
 mostly-clean:
 	${RM} --recursive \
 		kubedump-*.tar.gz \
-		*.dump pkg/controller/*.dump tests/*.dump \
+		*.dump pkg/controller/*.dump tests/*.dump pkg/cmd/*.dump \
 		tests/kubeconfig-* \
 		pkg/filter/*.output pkg/filter/y.output
 

@@ -37,10 +37,10 @@ func TestStorage(t *testing.T) {
 		},
 	}
 
-	handledJob, err := kubedump.NewHandledResource(kubedump.HandleAdd, job)
+	handledJob, err := kubedump.NewHandledResource(job)
 	assert.NoError(t, err)
 
-	handledPod, err := kubedump.NewHandledResource(kubedump.HandleAdd, pod)
+	handledPod, err := kubedump.NewHandledResource(pod)
 	assert.NoError(t, err)
 
 	store := NewStore()

@@ -19,8 +19,7 @@ func TestGetSymlinkPaths(t *testing.T) {
 			Kind:       "Job",
 			APIVersion: "v1",
 		},
-		Resource:        nil,
-		HandleEventKind: "Job",
+		Resource: nil,
 	}
 
 	child := kubedump.HandledResource{
@@ -32,8 +31,7 @@ func TestGetSymlinkPaths(t *testing.T) {
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
-		Resource:        nil,
-		HandleEventKind: "Pod",
+		Resource: nil,
 	}
 
 	expectedLinkPath := "/ns/Job/some-job/Pod/some-pod"
@@ -69,7 +67,6 @@ func TestDumpResource(t *testing.T) {
 			F: 1.5,
 			S: "something longer than the next",
 		},
-		HandleEventKind: kubedump.HandleAdd,
 	}
 
 	dumpPath := path.Join(basePath, resource.GetNamespace(), resource.Kind, resource.GetName(), resource.GetName()+".yaml")
@@ -98,7 +95,6 @@ func TestDumpResource(t *testing.T) {
 			F: 1.5,
 			S: "something",
 		},
-		HandleEventKind: kubedump.HandleAdd,
 	}
 
 	err = dumpResourceDescription(dumpPath, resource)

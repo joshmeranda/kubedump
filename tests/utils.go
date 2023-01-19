@@ -93,7 +93,7 @@ func findGlobsIn(parent string, pattern glob.Glob) ([]string, error) {
 }
 
 func NewHandledResourceNoErr(obj interface{}) kubedump.HandledResource {
-	resource, err := kubedump.NewHandledResource("", obj)
+	resource, err := kubedump.NewHandledResource(obj)
 
 	if err != nil {
 		panic(err.Error())

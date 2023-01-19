@@ -158,3 +158,32 @@ func TestResource(t *testing.T) {
 		}
 	}
 }
+
+func TestResourceUnknownKind(t *testing.T) {
+	expr := resourceExpression{
+		kind:             "Unkown",
+		namePattern:      "something",
+		namespacePattern: "default",
+	}
+
+	handledUnknown := kubedump.HandledResource{
+		Object: &apimetav1.ObjectMeta{
+			Name:      "something",
+			Namespace: "default",
+		},
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Unkown",
+		},
+	}
+
+	handledPod, err := kubedump.NewHandledResource(&apicorev1.Pod{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:      "something",
+			Namespace: "default",
+		},
+	})
+	assert.NoError(t, err)
+
+	assert.True(t, expr.Matches(handledUnknown))
+	assert.False(t, expr.Matches(handledPod))
+}
