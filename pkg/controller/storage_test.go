@@ -2,11 +2,11 @@ package controller
 
 import (
 	"fmt"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/stretchr/testify/assert"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubedump "kubedump/pkg"
 	"testing"
 )
 

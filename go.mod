@@ -1,4 +1,4 @@
-module kubedump
+module github.com/joshmeranda/kubedump
 
 go 1.18
 

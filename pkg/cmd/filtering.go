@@ -2,10 +2,10 @@ package kubedump
 
 import (
 	"fmt"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"github.com/joshmeranda/kubedump/pkg/filter"
 	cp "github.com/otiai10/copy"
 	"go.uber.org/zap"
-	kubedump "kubedump/pkg"
-	"kubedump/pkg/filter"
 	"os"
 	"path"
 	"strings"

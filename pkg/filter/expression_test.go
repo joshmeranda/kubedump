@@ -1,11 +1,11 @@
 package filter
 
 import (
+	"github.com/joshmeranda/kubedump/pkg"
 	"github.com/stretchr/testify/assert"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"kubedump/pkg"
 	"testing"
 )
 

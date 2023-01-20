@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	kubedump "github.com/joshmeranda/kubedump/pkg/cmd"
+	"github.com/joshmeranda/kubedump/tests/deployer"
 	"github.com/stretchr/testify/assert"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,8 +11,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	kubedump "kubedump/pkg/cmd"
-	"kubedump/tests/deployer"
 	"os"
 	"os/exec"
 	"path"

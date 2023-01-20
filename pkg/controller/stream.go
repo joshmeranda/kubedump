@@ -3,11 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"io"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	kubedump "kubedump/pkg"
 	"os"
 	"path"
 	"time"

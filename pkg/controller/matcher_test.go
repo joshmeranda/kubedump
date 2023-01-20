@@ -1,11 +1,11 @@
 package controller
 
 import (
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"github.com/joshmeranda/kubedump/tests"
 	"github.com/stretchr/testify/assert"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubedump "kubedump/pkg"
-	"kubedump/tests"
 	"testing"
 )
 

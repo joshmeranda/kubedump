@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	kubedumpcmd "kubedump/pkg/cmd"
+	kubedumpcmd "github.com/joshmeranda/kubedump/pkg/cmd"
 	"os"
 )
 

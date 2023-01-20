@@ -1,8 +1,8 @@
 package kubedump
 
 import (
+	"github.com/joshmeranda/kubedump/tests"
 	"github.com/stretchr/testify/assert"
-	"kubedump/tests"
 	"os"
 	"path"
 	"path/filepath"

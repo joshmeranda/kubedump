@@ -2,8 +2,8 @@ package controller
 
 import (
 	"fmt"
+	"github.com/joshmeranda/kubedump/pkg"
 	"k8s.io/apimachinery/pkg/types"
-	"kubedump/pkg"
 	"sync"
 )
 

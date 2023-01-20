@@ -3,10 +3,10 @@ package kubedump
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	http2 "github.com/joshmeranda/kubedump/pkg/http"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
-	kubedump "kubedump/pkg"
-	http2 "kubedump/pkg/http"
 	"os"
 	"path"
 )

@@ -2,10 +2,10 @@ package controller
 
 import (
 	"fmt"
+	"github.com/joshmeranda/kubedump/pkg"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
-	"kubedump/pkg"
 	"os"
 	"path"
 	"path/filepath"

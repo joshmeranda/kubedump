@@ -2,10 +2,10 @@ package controller
 
 import (
 	"fmt"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	kubedump "kubedump/pkg"
 )
 
 type Matcher interface {

@@ -2,7 +2,7 @@ package filter
 
 import (
 	"github.com/IGLOU-EU/go-wildcard"
-	"kubedump/pkg"
+	"github.com/joshmeranda/kubedump/pkg"
 )
 
 type Expression interface {

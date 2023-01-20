@@ -3,6 +3,7 @@ package kubedump
 import (
 	"context"
 	"fmt"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
@@ -11,7 +12,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	kubedump "kubedump/pkg"
 	"net"
 	"net/http"
 	"net/url"
