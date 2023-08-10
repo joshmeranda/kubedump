@@ -2,13 +2,15 @@ package controller
 
 import (
 	"fmt"
-	"github.com/joshmeranda/kubedump/pkg"
-	apiappsv1 "k8s.io/api/apps/v1"
-	apibatchv1 "k8s.io/api/batch/v1"
-	apicorev1 "k8s.io/api/core/v1"
 	"os"
 	"path"
 	"path/filepath"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	apiappsv1 "k8s.io/api/apps/v1"
+	apibatchv1 "k8s.io/api/batch/v1"
+	apicorev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/yaml"
 )
 
@@ -110,4 +112,8 @@ func selectorFromHandled(handledResource kubedump.HandledResource) (Matcher, err
 	default:
 		return nil, fmt.Errorf("can not create LabelMathcher from kind '%s'", handledResource.Kind)
 	}
+}
+
+func groupVersionResourceToKey(resource schema.GroupVersionResource) string {
+	return fmt.Sprintf("%s/%s/%s", resource.Group, resource.Version, resource.Resource)
 }

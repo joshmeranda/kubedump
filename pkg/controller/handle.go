@@ -2,20 +2,22 @@ package controller
 
 import (
 	"fmt"
-	"github.com/joshmeranda/kubedump/pkg"
+	"os"
+	"path"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	apicorev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
-	"path"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type HandleKind string
 
 const (
 	HandleAdd    HandleKind = "Add"
-	HandleUpdate            = "Edit"
-	HandleDelete            = "Delete"
+	HandleUpdate HandleKind = "Edit"
+	HandleDelete HandleKind = "Delete"
 )
 
 const (
@@ -23,7 +25,7 @@ const (
 	eventFormat = "[%s] %s %s %s %s\n"
 )
 
-func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource) {
+func (controller *Controller) handleEvent(informerResource schema.GroupVersionResource, handledEvent kubedump.HandledResource) {
 	event := handledEvent.Resource.(*eventsv1.Event)
 	if event.EventTime.Time.Before(controller.startTime) {
 		return
@@ -31,57 +33,11 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 
 	var handledResource kubedump.HandledResource
 
-	switch event.Regarding.Kind {
-	case "Pod":
-		resource, err := controller.podInformer.Lister().Pods(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "Service":
-		resource, err := controller.serviceInformer.Lister().Services(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "Job":
-		resource, err := controller.jobInformer.Lister().Jobs(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "ReplicaSet":
-		resource, err := controller.replicasetInformer.Lister().ReplicaSets(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "Deployment":
-		resource, err := controller.deploymentInformer.Lister().Deployments(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "ConfigMap":
-		resource, err := controller.configMapInformer.Lister().ConfigMaps(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get ConfigMap for event: %s", err)
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	default:
-		// unhandled event type
-		return
-	}
-
-	if !controller.filterExpr.Matches(handledResource) {
-		controller.Logger.Debugf("encountered event for unhandled kind '%s'", event.Regarding.Kind)
-		return
-	}
+	// todo: filter event by resource
+	// if !controller.filterExpr.Matches(handledResource) {
+	// 	controller.Logger.Debugf("encountered event for unhandled kind '%s'", event.Regarding.Kind)
+	// 	return
+	// }
 
 	resourceDir := kubedump.NewResourcePathBuilder().
 		WithBase(controller.BasePath).
@@ -149,12 +105,12 @@ func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedu
 		for _, container := range pod.Spec.Containers {
 			controller.workQueue.AddRateLimited(NewJob(func() {
 				stream, err := NewLogStream(LogStreamOptions{
-					Pod:           pod,
-					Container:     &container,
-					Context:       controller.ctx,
-					KubeClientSet: controller.kubeclientset,
-					BasePath:      controller.BasePath,
-					Timeout:       controller.LogSyncTimeout,
+					Pod:       pod,
+					Container: &container,
+					Context:   controller.ctx,
+					// KubeClientSet: controller.kubeclientset,
+					BasePath: controller.BasePath,
+					Timeout:  controller.LogSyncTimeout,
 				})
 
 				if err != nil {
@@ -219,7 +175,7 @@ func (controller *Controller) handleResource(_ HandleKind, handledResource kubed
 }
 
 // resourceHandlerFunc is the entrypoint for handling all resources after filtering.
-func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, obj interface{}) {
+func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schema.GroupVersionResource, obj interface{}) {
 	handledResource, err := kubedump.NewHandledResource(obj)
 	if err != nil {
 		controller.Logger.Errorf("error handling %s event for type %F: %s", handleKind, obj, err)
@@ -227,7 +183,7 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, obj int
 	}
 
 	if handledResource.Kind == "Event" {
-		controller.handleEvent(handledResource)
+		controller.handleEvent(r, handledResource)
 		return
 	}
 
@@ -258,14 +214,15 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, obj int
 	}
 }
 
-func (controller *Controller) onAdd(obj interface{}) {
-	controller.resourceHandlerFunc(HandleAdd, obj)
+// todo: replace interface{} with any
+func (controller *Controller) onAdd(informerResource schema.GroupVersionResource, obj interface{}) {
+	controller.resourceHandlerFunc(HandleAdd, informerResource, obj)
 }
 
-func (controller *Controller) onUpdate(_ interface{}, new interface{}) {
-	controller.resourceHandlerFunc(HandleUpdate, new)
+func (controller *Controller) onUpdate(informerResource schema.GroupVersionResource, new interface{}) {
+	controller.resourceHandlerFunc(HandleUpdate, informerResource, new)
 }
 
-func (controller *Controller) onDelete(obj interface{}) {
-	controller.resourceHandlerFunc(HandleDelete, obj)
+func (controller *Controller) onDelete(informerResource schema.GroupVersionResource, obj interface{}) {
+	controller.resourceHandlerFunc(HandleDelete, informerResource, obj)
 }

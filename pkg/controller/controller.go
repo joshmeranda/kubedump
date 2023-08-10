@@ -3,22 +3,80 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/joshmeranda/kubedump/pkg/filter"
-	"go.uber.org/zap"
-	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/informers"
-	informersappsv1 "k8s.io/client-go/informers/apps/v1"
-	informersbatchv1 "k8s.io/client-go/informers/batch/v1"
-	informerscorev1 "k8s.io/client-go/informers/core/v1"
-	informerseventsv1 "k8s.io/client-go/informers/events/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/joshmeranda/kubedump/pkg/filter"
+	"github.com/samber/lo"
+	"go.uber.org/zap"
+	apicorev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
+
+const (
+	FakeHost = "FAKE"
+)
+
+// todo: maybe create a InformerGroup type here
+
+var defaultResources = []schema.GroupVersionResource{
+	{
+		Group:    "events.k8s.io",
+		Version:  "v1",
+		Resource: "event",
+	},
+	{
+		Group:    "core",
+		Version:  "v1",
+		Resource: "pod",
+	},
+	{
+		Group:    "core",
+		Version:  "v1",
+		Resource: "pod",
+	},
+	{
+		Group:    "core",
+		Version:  "v1",
+		Resource: "service",
+	},
+	{
+		Group:    "core",
+		Version:  "v1",
+		Resource: "secret",
+	},
+	{
+		Group:    "core",
+		Version:  "v1",
+		Resource: "configmap",
+	},
+	{
+		Group:    "batch",
+		Version:  "v1",
+		Resource: "job",
+	},
+	{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "replicaset",
+	},
+	{
+		Group:    "apps",
+		Version:  "v1",
+		Resource: "deployments",
+	},
+}
 
 type Job struct {
 	id uuid.UUID
@@ -37,6 +95,9 @@ type Options struct {
 	ParentContext  context.Context
 	Logger         *zap.SugaredLogger
 	LogSyncTimeout time.Duration
+
+	// todo: this is a bad way to inject a fake client for testing. Needed so we can build a dynamic client and normal client using the same config.
+	FakeClient *fake.Clientset
 }
 
 type Controller struct {
@@ -61,23 +122,30 @@ type Controller struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	store Store
-
-	eventInformer      informerseventsv1.EventInformer
-	podInformer        informerscorev1.PodInformer
-	serviceInformer    informerscorev1.ServiceInformer
-	secretInformer     informerscorev1.SecretInformer
-	configMapInformer  informerscorev1.ConfigMapInformer
-	jobInformer        informersbatchv1.JobInformer
-	replicasetInformer informersappsv1.ReplicaSetInformer
-	deploymentInformer informersappsv1.DeploymentInformer
+	store     Store
+	informers map[string]cache.SharedIndexInformer
 }
 
 func NewController(
-	kubeclientset kubernetes.Interface,
+	config *rest.Config,
 	opts Options,
 ) (*Controller, error) {
-	informerFactory := informers.NewSharedInformerFactory(kubeclientset, time.Second*5)
+	var err error
+	var kubeclientset kubernetes.Interface
+
+	if opts.FakeClient != nil {
+		kubeclientset = opts.FakeClient
+	} else if kubeclientset == nil {
+		kubeclientset, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			return nil, fmt.Errorf("could not create clientset from given config: %w", err)
+		}
+	}
+
+	dynamicclientset, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("could not create dynamic clientset from given config: %w", err)
+	}
 
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -91,8 +159,7 @@ func NewController(
 		Options:       opts,
 		kubeclientset: kubeclientset,
 
-		informerFactory: informerFactory,
-		stopChan:        nil,
+		stopChan: nil,
 
 		logStreams: make(map[string]Stream),
 
@@ -102,31 +169,26 @@ func NewController(
 		cancel: cancel,
 
 		store: NewStore(),
-
-		eventInformer:      informerFactory.Events().V1().Events(),
-		podInformer:        informerFactory.Core().V1().Pods(),
-		serviceInformer:    informerFactory.Core().V1().Services(),
-		secretInformer:     informerFactory.Core().V1().Secrets(),
-		configMapInformer:  informerFactory.Core().V1().ConfigMaps(),
-		jobInformer:        informerFactory.Batch().V1().Jobs(),
-		replicasetInformer: informerFactory.Apps().V1().ReplicaSets(),
-		deploymentInformer: informerFactory.Apps().V1().Deployments(),
 	}
 
-	handler := cache.ResourceEventHandlerFuncs{
-		AddFunc:    controller.onAdd,
-		UpdateFunc: controller.onUpdate,
-		DeleteFunc: controller.onDelete,
-	}
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicclientset, time.Second*5, apicorev1.NamespaceAll, nil)
 
-	controller.eventInformer.Informer().AddEventHandler(handler)
-	controller.podInformer.Informer().AddEventHandler(handler)
-	controller.serviceInformer.Informer().AddEventHandler(handler)
-	controller.secretInformer.Informer().AddEventHandler(handler)
-	controller.configMapInformer.Informer().AddEventHandler(handler)
-	controller.jobInformer.Informer().AddEventHandler(handler)
-	controller.replicasetInformer.Informer().AddEventHandler(handler)
-	controller.deploymentInformer.Informer().AddEventHandler(handler)
+	for _, resource := range defaultResources {
+		handler := cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj any) {
+				controller.onAdd(resource, obj)
+			},
+			UpdateFunc: func(_ any, new any) {
+				controller.onUpdate(resource, new)
+			},
+			DeleteFunc: func(obj any) {
+				controller.onDelete(resource, obj)
+			},
+		}
+		informer := factory.ForResource(resource).Informer()
+		informer.AddEventHandler(handler)
+		controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
+	}
 
 	return controller, nil
 }
@@ -196,16 +258,10 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	controller.informerFactory.Start(controller.stopChan)
 
 	controller.Logger.Infof("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(controller.stopChan,
-		controller.eventInformer.Informer().HasSynced,
-		controller.podInformer.Informer().HasSynced,
-		controller.serviceInformer.Informer().HasSynced,
-		controller.secretInformer.Informer().HasSynced,
-		controller.configMapInformer.Informer().HasSynced,
-		controller.jobInformer.Informer().HasSynced,
-		controller.replicasetInformer.Informer().HasSynced,
-		controller.deploymentInformer.Informer().HasSynced,
-	); !ok {
+	informersHaveSynced := lo.MapToSlice(controller.informers, func(_ string, informer cache.SharedIndexInformer) cache.InformerSynced {
+		return informer.HasSynced
+	})
+	if ok := cache.WaitForCacheSync(controller.stopChan, informersHaveSynced...); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
 

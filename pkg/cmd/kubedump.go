@@ -3,6 +3,13 @@ package kubedump
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
+
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/joshmeranda/kubedump/pkg/controller"
 	"github.com/joshmeranda/kubedump/pkg/filter"
@@ -10,16 +17,10 @@ import (
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"io"
 	apimeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"net/http"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
 )
 
 const (
@@ -68,13 +69,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		return fmt.Errorf("could not load config: %w", err)
 	}
 
-	client, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		return fmt.Errorf("could not crete client: %w", err)
-	}
-
-	c, err := controller.NewController(client, opts)
+	c, err := controller.NewController(config, opts)
 
 	if err != nil {
 		return fmt.Errorf("could not create controller: %w", err)

@@ -1,12 +1,13 @@
 package filter
 
 import (
-	"github.com/joshmeranda/kubedump/pkg"
+	"testing"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/stretchr/testify/assert"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 type Entry struct {
@@ -157,33 +158,4 @@ func TestResource(t *testing.T) {
 			assert.False(t, expr.Matches(entry.Resource), "should be false: "+entry.Resource.String())
 		}
 	}
-}
-
-func TestResourceUnknownKind(t *testing.T) {
-	expr := resourceExpression{
-		kind:             "Unkown",
-		namePattern:      "something",
-		namespacePattern: "default",
-	}
-
-	handledUnknown := kubedump.HandledResource{
-		Object: &apimetav1.ObjectMeta{
-			Name:      "something",
-			Namespace: "default",
-		},
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Unkown",
-		},
-	}
-
-	handledPod, err := kubedump.NewHandledResource(&apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "something",
-			Namespace: "default",
-		},
-	})
-	assert.NoError(t, err)
-
-	assert.True(t, expr.Matches(handledUnknown))
-	assert.False(t, expr.Matches(handledPod))
 }

@@ -3,10 +3,17 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
+	"strings"
+	"testing"
+	"time"
+
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/joshmeranda/kubedump/pkg/filter"
 	"github.com/joshmeranda/kubedump/tests"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	apiappsv1 "k8s.io/api/apps/v1"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
@@ -15,11 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"os"
-	"path"
-	"strings"
-	"testing"
-	"time"
 )
 
 func filterForResource(t *testing.T, resource kubedump.HandledResource) filter.Expression {
@@ -60,9 +62,11 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 		ParentContext:  ctx,
 		Logger:         kubedump.NewLogger(loggerOptions...),
 		LogSyncTimeout: time.Second,
+
+		FakeClient: client,
 	}
 
-	controller, _ := NewController(client, opts)
+	controller, _ := NewController(nil, opts)
 
 	teardown := func() {
 		cancel()
@@ -85,13 +89,14 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 }
 
 func TestEvent(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, err := kubedump.NewHandledResource(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
 			UID:       "sample-pod-uid",
 		},
 	})
+	require.NoError(t, err)
 
 	handledEvent, _ := kubedump.NewHandledResource(&apieventsv1.Event{
 		ObjectMeta: apimetav1.ObjectMeta{
@@ -119,7 +124,7 @@ func TestEvent(t *testing.T) {
 
 	t.Log(basePath)
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
+	err = controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {
@@ -166,6 +171,7 @@ func TestLogs(t *testing.T) {
 	logFile := kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).WithFileName(handledPod.GetName() + ".log").Build()
 	data, err := os.ReadFile(logFile)
 	assert.GreaterOrEqual(t, 1, strings.Count(string(data), "fake logs"))
+	assert.NoError(t, err)
 }
 
 func TestPod(t *testing.T) {

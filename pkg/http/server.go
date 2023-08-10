@@ -5,17 +5,18 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/joshmeranda/kubedump/pkg/controller"
-	"github.com/joshmeranda/kubedump/pkg/filter"
-	"go.uber.org/zap"
 	"io"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/joshmeranda/kubedump/pkg/controller"
+	"github.com/joshmeranda/kubedump/pkg/filter"
+	"go.uber.org/zap"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 )
 
 const (
@@ -28,7 +29,8 @@ type ServerOptions struct {
 	BasePath       string
 	Address        string
 	Context        context.Context
-	kubeClientSet  kubernetes.Interface
+	ClientConfig   *rest.Config
+	FakeClient     *fake.Clientset
 }
 
 type Server struct {
@@ -100,24 +102,19 @@ func (server *Server) handleStart(ctx *gin.Context) {
 		BasePath:       server.BasePath,
 		LogSyncTimeout: server.LogSyncTimeout,
 		Logger:         server.Logger,
+
+		FakeClient: server.FakeClient,
 	}
 
-	client := server.kubeClientSet
-	if client == nil {
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			_ = ctx.AbortWithError(http.StatusBadRequest, err)
-			return
-		}
-
-		client, err = kubernetes.NewForConfig(config)
+	if server.ClientConfig == nil {
+		server.ClientConfig, err = rest.InClusterConfig()
 		if err != nil {
 			_ = ctx.AbortWithError(http.StatusBadRequest, err)
 			return
 		}
 	}
 
-	cont, err := controller.NewController(client, opts)
+	cont, err := controller.NewController(server.ClientConfig, opts)
 	if err != nil {
 		_ = ctx.AbortWithError(http.StatusBadRequest, err)
 	}

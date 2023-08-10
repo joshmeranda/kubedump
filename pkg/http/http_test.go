@@ -3,17 +3,18 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	kubedump "github.com/joshmeranda/kubedump/pkg"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes/fake"
 	"net"
 	"net/url"
 	"path"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 const TestWaitDuration = time.Second * 5
@@ -62,7 +63,7 @@ func setupServerTest(t *testing.T) (func(), string, Client) {
 		Logger:         logger.Named("server"),
 		Address:        listenAddr,
 		Context:        context.Background(),
-		kubeClientSet:  kubeClientSet,
+		FakeClient:     kubeClientSet,
 	})
 	if err != nil {
 		t.Fatalf("could not create server: %s", err)
