@@ -1,26 +1,29 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	kubedumpcmd "github.com/joshmeranda/kubedump/pkg/cmd"
 	"os"
 	"os/signal"
+
+	kubedumpcmd "github.com/joshmeranda/kubedump/pkg/cmd"
 )
 
 func main() {
 	signalChan := make(chan os.Signal)
 	signal.Notify(signalChan, os.Interrupt)
 
-	stopChan := make(chan interface{})
+	ctx, cancel := context.WithCancel(context.Background())
+
 	go func() {
 		<-signalChan
-		fmt.Printf("recevied interrupt, stopping kubedumpcmd")
-		close(stopChan)
+		fmt.Printf("recevied interrupt, stopping kubedumpcmd\n")
+		cancel()
 	}()
 
-	app := kubedumpcmd.NewKubedumpApp(stopChan)
+	app := kubedumpcmd.NewKubedumpApp()
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

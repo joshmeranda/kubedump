@@ -33,7 +33,7 @@ const (
 	LogFileName = "kubedump.log"
 )
 
-func Dump(ctx *cli.Context, stopChan chan interface{}) error {
+func Dump(ctx *cli.Context) error {
 	basePath := ctx.String("destination")
 
 	if err := os.MkdirAll(basePath, 0755); err != nil && !os.IsExist(err) {
@@ -79,7 +79,7 @@ func Dump(ctx *cli.Context, stopChan chan interface{}) error {
 		return fmt.Errorf("could not Start controller: %w", err)
 	}
 
-	<-stopChan
+	<-ctx.Context.Done()
 
 	if err = c.Stop(); err != nil {
 		return fmt.Errorf("could not Stop controller: %w", err)
@@ -368,7 +368,7 @@ func Filter(ctx *cli.Context) error {
 	return nil
 }
 
-func NewKubedumpApp(stopChan chan interface{}) *cli.App {
+func NewKubedumpApp() *cli.App {
 	return &cli.App{
 		Name:    "kubedump",
 		Usage:   "collect k8s cluster resources and logs using a local client",
@@ -378,7 +378,7 @@ func NewKubedumpApp(stopChan chan interface{}) *cli.App {
 				Name:  "dump",
 				Usage: "collect cluster details to disk",
 				Action: func(ctx *cli.Context) error {
-					return Dump(ctx, stopChan)
+					return Dump(ctx)
 				},
 				Flags: []cli.Flag{
 					&cli.PathFlag{

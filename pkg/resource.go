@@ -22,20 +22,19 @@ type HandledResource struct {
 }
 
 func NewHandledResource(obj interface{}) (HandledResource, error) {
-	// todo: client-go informer seems to drop TypeMeta info, so we need to add that manually for now
-	switch resource := obj.(type) {
-	case *unstructured.Unstructured:
+	// todo: client-go informer seems to drop TypeMeta info, so we need to add that manually
+	if resource, ok := obj.(*unstructured.Unstructured); ok {
 		return HandledResource{
 			Object: resource,
 			TypeMeta: apimetav1.TypeMeta{
 				Kind:       resource.GetKind(),
 				APIVersion: resource.GetAPIVersion(),
 			},
-			Resource: resource,
+			Resource: obj,
 		}, nil
-	default:
-		return HandledResource{}, fmt.Errorf("value of type '%F' cannot be a HandledResource", obj)
 	}
+
+	return HandledResource{}, fmt.Errorf("couldn't create handled resource from object of type '%+T'", obj)
 }
 
 func NewHandledResourceFromFile(kind string, filePath string) (HandledResource, error) {

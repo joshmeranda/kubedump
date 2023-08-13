@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -8,7 +9,7 @@ import (
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	apicorev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -64,53 +65,65 @@ func (controller *Controller) handleEvent(informerResource schema.GroupVersionRe
 }
 
 func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedump.HandledResource) {
-	pod := handledPod.Resource.(*apicorev1.Pod)
+	podData, err := handledPod.Resource.(*unstructured.Unstructured).MarshalJSON()
+	if err != nil {
+		controller.Logger.Errorf("could not marshal pod: %s", err)
+		return
+	}
+
+	pod := &apicorev1.Pod{}
+
+	if err := json.Unmarshal(podData, pod); err != nil {
+		controller.Logger.Errorf("could not unmarshal pod: %s", err)
+		return
+	}
 
 	switch handleKind {
 	case HandleAdd:
-		controller.workQueue.AddRateLimited(NewJob(func() {
-			controller.Logger.Debugf("checking for config map volumes in '%s'", handledPod)
-
-			for _, volume := range pod.Spec.Volumes {
-				if volume.ConfigMap != nil {
-					controller.Logger.Debugf("found config map volume in '%s'", handledPod)
-
-					handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
-						ObjectMeta: apimetav1.ObjectMeta{
-							Name:      volume.ConfigMap.Name,
-							Namespace: handledPod.GetNamespace(),
-						},
-					})
-
-					if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
-						controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
-					}
-				} else if volume.Secret != nil {
-					controller.Logger.Debugf("found secret volume in '%s'", handledPod)
-
-					handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
-						ObjectMeta: apimetav1.ObjectMeta{
-							Name:      volume.Secret.SecretName,
-							Namespace: handledPod.GetNamespace(),
-						},
-					})
-
-					if err := linkResource(controller.BasePath, handledPod, handledSecret); err != nil {
-						controller.Logger.Errorf("could not link secrtr to Pod: %s", err)
-					}
-				}
-			}
-		}))
+		// todo: do this afterward
+		// controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+		// 	controller.Logger.Debugf("checking for config map volumes in '%s'", handledPod)
+		//
+		// 	for _, volume := range pod.Spec.Volumes {
+		// 		if volume.ConfigMap != nil {
+		// 			controller.Logger.Debugf("found config map volume in '%s'", handledPod)
+		//
+		// 			handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
+		// 				ObjectMeta: apimetav1.ObjectMeta{
+		// 					Name:      volume.ConfigMap.Name,
+		// 					Namespace: handledPod.GetNamespace(),
+		// 				},
+		// 			})
+		//
+		// 			if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
+		// 				controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
+		// 			}
+		// 		} else if volume.Secret != nil {
+		// 			controller.Logger.Debugf("found secret volume in '%s'", handledPod)
+		//
+		// 			handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
+		// 				ObjectMeta: apimetav1.ObjectMeta{
+		// 					Name:      volume.Secret.SecretName,
+		// 					Namespace: handledPod.GetNamespace(),
+		// 				},
+		// 			})
+		//
+		// 			if err := linkResource(controller.BasePath, handledPod, handledSecret); err != nil {
+		// 				controller.Logger.Errorf("could not link secrtr to Pod: %s", err)
+		// 			}
+		// 		}
+		// 	}
+		// }))
 
 		for _, container := range pod.Spec.Containers {
-			controller.workQueue.AddRateLimited(NewJob(func() {
+			controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 				stream, err := NewLogStream(LogStreamOptions{
-					Pod:       pod,
-					Container: &container,
-					Context:   controller.ctx,
-					// KubeClientSet: controller.kubeclientset,
-					BasePath: controller.BasePath,
-					Timeout:  controller.LogSyncTimeout,
+					Pod:           pod,
+					Container:     &container,
+					Context:       controller.ctx,
+					KubeClientSet: controller.kubeclientset,
+					BasePath:      controller.BasePath,
+					Timeout:       controller.LogSyncTimeout,
 				})
 
 				if err != nil {
@@ -127,7 +140,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedu
 		}
 	case HandleDelete:
 		for _, container := range pod.Spec.Containers {
-			controller.workQueue.AddRateLimited(NewJob(func() {
+			controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 				logStreamId := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)
 
 				controller.logStreamsMu.Lock()
@@ -163,7 +176,7 @@ func (controller *Controller) handleResource(_ HandleKind, handledResource kubed
 		}
 	}
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 		dir := kubedump.NewResourcePathBuilder().WithBase(controller.BasePath).WithResource(handledResource).Build()
 		if err := dumpResourceDescription(path.Join(dir, handledResource.GetName()+".yaml"), handledResource); err != nil {
 			controller.Logger.With(

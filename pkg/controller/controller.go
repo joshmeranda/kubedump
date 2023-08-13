@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
@@ -31,62 +30,64 @@ const (
 // todo: maybe create a InformerGroup type here
 
 var defaultResources = []schema.GroupVersionResource{
+	// {
+	// 	Group:    "events.k8s.io",
+	// 	Version:  "v1",
+	// 	Resource: "event",
+	// },
 	{
-		Group:    "events.k8s.io",
+		Group:    "",
 		Version:  "v1",
-		Resource: "event",
+		Resource: "pods",
 	},
-	{
-		Group:    "core",
-		Version:  "v1",
-		Resource: "pod",
-	},
-	{
-		Group:    "core",
-		Version:  "v1",
-		Resource: "pod",
-	},
-	{
-		Group:    "core",
-		Version:  "v1",
-		Resource: "service",
-	},
-	{
-		Group:    "core",
-		Version:  "v1",
-		Resource: "secret",
-	},
-	{
-		Group:    "core",
-		Version:  "v1",
-		Resource: "configmap",
-	},
-	{
-		Group:    "batch",
-		Version:  "v1",
-		Resource: "job",
-	},
-	{
-		Group:    "apps",
-		Version:  "v1",
-		Resource: "replicaset",
-	},
-	{
-		Group:    "apps",
-		Version:  "v1",
-		Resource: "deployments",
-	},
+	// {
+	// 	Group:    "core",
+	// 	Version:  "v1",
+	// 	Resource: "pod",
+	// },
+	// {
+	// 	Group:    "core",
+	// 	Version:  "v1",
+	// 	Resource: "service",
+	// },
+	// {
+	// 	Group:    "core",
+	// 	Version:  "v1",
+	// 	Resource: "secret",
+	// },
+	// {
+	// 	Group:    "core",
+	// 	Version:  "v1",
+	// 	Resource: "configmap",
+	// },
+	// {
+	// 	Group:    "batch",
+	// 	Version:  "v1",
+	// 	Resource: "job",
+	// },
+	// {
+	// 	Group:    "apps",
+	// 	Version:  "v1",
+	// 	Resource: "replicaset",
+	// },
+	// {
+	// 	Group:    "apps",
+	// 	Version:  "v1",
+	// 	Resource: "deployments",
+	// },
 }
 
 type Job struct {
-	id uuid.UUID
-	fn *func()
+	id  uuid.UUID
+	ctx context.Context
+	fn  *func()
 }
 
-func NewJob(fn func()) Job {
+func NewJob(ctx context.Context, fn func()) Job {
 	return Job{
-		id: uuid.New(),
-		fn: &fn,
+		id:  uuid.New(),
+		ctx: ctx,
+		fn:  &fn,
 	}
 }
 
@@ -108,7 +109,7 @@ type Controller struct {
 
 	filterExpr filter.Expression
 
-	informerFactory informers.SharedInformerFactory
+	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	stopChan        chan struct{}
 
 	workerWaitGroup sync.WaitGroup
@@ -159,7 +160,8 @@ func NewController(
 		Options:       opts,
 		kubeclientset: kubeclientset,
 
-		stopChan: nil,
+		informerFactory: dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicclientset, time.Second*5, apicorev1.NamespaceAll, nil),
+		stopChan:        nil,
 
 		logStreams: make(map[string]Stream),
 
@@ -169,9 +171,9 @@ func NewController(
 		cancel: cancel,
 
 		store: NewStore(),
-	}
 
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicclientset, time.Second*5, apicorev1.NamespaceAll, nil)
+		informers: make(map[string]cache.SharedIndexInformer),
+	}
 
 	for _, resource := range defaultResources {
 		handler := cache.ResourceEventHandlerFuncs{
@@ -185,7 +187,7 @@ func NewController(
 				controller.onDelete(resource, obj)
 			},
 		}
-		informer := factory.ForResource(resource).Informer()
+		informer := controller.informerFactory.ForResource(resource).Informer()
 		informer.AddEventHandler(handler)
 		controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
 	}
@@ -196,6 +198,8 @@ func NewController(
 func (controller *Controller) syncLogStreams() {
 	select {
 	case <-controller.stopChan:
+		return
+	case <-controller.ctx.Done():
 		return
 	default:
 	}
@@ -216,7 +220,7 @@ func (controller *Controller) syncLogStreams() {
 
 	controller.logStreamsMu.Unlock()
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 		controller.syncLogStreams()
 	}))
 }
@@ -229,6 +233,8 @@ func (controller *Controller) processNextWorkItem() bool {
 	}
 
 	job, ok := obj.(Job)
+
+	controller.Logger.Debugf("processing next work item '%s'", job.id)
 
 	if !ok {
 		controller.Logger.Errorf("could not understand worker function of type '%T'", obj)
@@ -261,9 +267,11 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	informersHaveSynced := lo.MapToSlice(controller.informers, func(_ string, informer cache.SharedIndexInformer) cache.InformerSynced {
 		return informer.HasSynced
 	})
-	if ok := cache.WaitForCacheSync(controller.stopChan, informersHaveSynced...); !ok {
+	if ok := cache.WaitForNamedCacheSync("kubedump", controller.stopChan, informersHaveSynced...); !ok {
 		return fmt.Errorf("could not wait for caches to sync")
 	}
+
+	controller.Logger.Infof("caches synced")
 
 	controller.startTime = time.Now().UTC()
 
@@ -274,10 +282,20 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 		go func() {
 			controller.workerWaitGroup.Done()
 
-			controller.Logger.Debugf("starting worker #%d", n)
+			// controller.Logger.Debugf("starting worker #%d", n)
+			controller.Logger.Infof("starting worker #%d", n)
+
+			// workerLoop:
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
+				// select {
+				// case <-controller.ctx.Done():
+				// 	break workerLoop
+				// default:
+				// }
+
 				controller.processNextWorkItem()
 			}
+
 			controller.Logger.Debugf("stopping worker #%d", n)
 
 			controller.workerWaitGroup.Done()
@@ -288,7 +306,7 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	controller.workerWaitGroup.Wait()
 	controller.workerWaitGroup.Add(nWorkers)
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 		controller.syncLogStreams()
 	}))
 
