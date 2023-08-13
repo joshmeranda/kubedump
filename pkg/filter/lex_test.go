@@ -1,18 +1,19 @@
 package filter
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLexNextWithExcessWhitespace(t *testing.T) {
 	lval := &yySymType{}
 	lexer := NewLexer("  pod    default/*")
 
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
+	assert.Equal(t, IDENTIFIER, lexer.Lex(lval))
 	assert.Equal(t, "pod", lval.s)
 
-	assert.Equal(t, PATTERN, lexer.Lex(lval))
+	assert.Equal(t, IDENTIFIER, lexer.Lex(lval))
 	assert.Equal(t, lval.s, "default/*")
 
 	assert.Equal(t, lexer.Lex(lval), EOF)
@@ -20,28 +21,8 @@ func TestLexNextWithExcessWhitespace(t *testing.T) {
 
 func TestLex(t *testing.T) {
 	lval := &yySymType{}
-	lexer := NewLexer("pod job deployment replicaset service configmap secret and or (not namespace/pod) namespace label a=b")
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "pod", lval.s)
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "job", lval.s)
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "deployment", lval.s)
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "replicaset", lval.s)
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "service", lval.s)
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "configmap", lval.s)
-
-	assert.Equal(t, RESOURCE, lexer.Lex(lval))
-	assert.Equal(t, "secret", lval.s)
+	// lexer := NewLexer("pod job deployment replicaset service configmap secret and or (not namespace/pod) namespace label a=b")
+	lexer := NewLexer("and or (not pod namespace/name) namespace label a=b")
 
 	assert.Equal(t, AND, lexer.Lex(lval))
 
@@ -51,8 +32,11 @@ func TestLex(t *testing.T) {
 
 	assert.Equal(t, NOT, lexer.Lex(lval))
 
-	assert.Equal(t, PATTERN, lexer.Lex(lval))
-	assert.Equal(t, "namespace/pod", lval.s)
+	assert.Equal(t, IDENTIFIER, lexer.Lex(lval))
+	assert.Equal(t, "pod", lval.s)
+
+	assert.Equal(t, IDENTIFIER, lexer.Lex(lval))
+	assert.Equal(t, "namespace/name", lval.s)
 
 	assert.Equal(t, int(')'), lexer.Lex(lval))
 
@@ -61,6 +45,6 @@ func TestLex(t *testing.T) {
 
 	assert.Equal(t, LABEL, lexer.Lex(lval))
 
-	assert.Equal(t, PATTERN, lexer.Lex(lval))
+	assert.Equal(t, IDENTIFIER, lexer.Lex(lval))
 	assert.Equal(t, "a=b", lval.s)
 }
