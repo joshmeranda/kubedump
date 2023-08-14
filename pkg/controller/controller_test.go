@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -19,10 +20,24 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apieventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
+
+func resourceToHandled(t *testing.T, obj any) kubedump.HandledResource {
+	data, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var u unstructured.Unstructured
+	require.NoError(t, json.Unmarshal(data, &u))
+
+	handled, err := kubedump.NewHandledResource(&u)
+	require.NoError(t, err)
+
+	return handled
+}
 
 func filterForResource(t *testing.T, resource kubedump.HandledResource) filter.Expression {
 	s := fmt.Sprintf("%s %s/%s", strings.ToLower(resource.Kind), resource.GetNamespace(), resource.GetName())
@@ -89,16 +104,23 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 }
 
 func TestEvent(t *testing.T) {
-	handledPod, err := kubedump.NewHandledResource(&apicorev1.Pod{
+	pod := &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
 			UID:       "sample-pod-uid",
 		},
-	})
-	require.NoError(t, err)
+	}
 
-	handledEvent, _ := kubedump.NewHandledResource(&apieventsv1.Event{
+	handledPod := resourceToHandled(t, pod)
+
+	handledEvent := resourceToHandled(t, &apieventsv1.Event{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Event",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "sample-pod-event",
 		},
@@ -119,12 +141,12 @@ func TestEvent(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
 
 	t.Log(basePath)
 
-	err = controller.Start(tests.NWorkers, filterForResource(t, handledPod))
+	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {

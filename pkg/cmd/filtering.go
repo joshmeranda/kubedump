@@ -2,13 +2,14 @@ package kubedump
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"strings"
+
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/joshmeranda/kubedump/pkg/filter"
 	cp "github.com/otiai10/copy"
 	"go.uber.org/zap"
-	"os"
-	"path"
-	"strings"
 )
 
 type filteringOptions struct {
@@ -97,9 +98,14 @@ func filterResourceDir(kind string, name string, dir string, opts filteringOptio
 		return fmt.Errorf("could not unmarshal resource file: %w", err)
 	}
 
+	fmt.Printf("=== [filterResourceDir] 000 %+v ===\n", opts.Filter)
+	fmt.Printf("=== [filterResourceDir] 001 %s %s %s ===\n", handledResource.Kind, handledResource.GetNamespace(), handledResource.GetName())
+
 	if !opts.Filter.Matches(handledResource) {
 		return nil
 	}
+
+	fmt.Printf("=== [filterResourceDir] 002 ===\n")
 
 	opts.Logger.Debugf("resource '%s' matched filter", handledResource)
 

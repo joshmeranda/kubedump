@@ -1,13 +1,30 @@
 package kubedump
 
 import (
-	"github.com/stretchr/testify/assert"
-	apibatchv1 "k8s.io/api/batch/v1"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"encoding/json"
 	"path"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	apibatchv1 "k8s.io/api/batch/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+func resourceToHandled(t *testing.T, obj any) HandledResource {
+	data, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var u unstructured.Unstructured
+	require.NoError(t, json.Unmarshal(data, &u))
+
+	handled, err := NewHandledResource(&u)
+	require.NoError(t, err)
+
+	return handled
+}
 
 func TestBuilderValidate(t *testing.T) {
 	builder := NewResourcePathBuilder()
@@ -29,7 +46,7 @@ func TestBuilderValidate(t *testing.T) {
 }
 
 func TestBuilderWithParent(t *testing.T) {
-	handledParent, _ := NewHandledResource(&apibatchv1.Job{
+	handledParent := resourceToHandled(t, &apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: "default",
@@ -62,7 +79,7 @@ func TestBuilderWithFile(t *testing.T) {
 }
 
 func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
-	handledParent, _ := NewHandledResource(&apibatchv1.Job{
+	handledParent := resourceToHandled(t, &apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: "default",

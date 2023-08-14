@@ -5,9 +5,6 @@ import (
 	"os"
 	"path"
 
-	apiappsv1 "k8s.io/api/apps/v1"
-	apibatchv1 "k8s.io/api/batch/v1"
-	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
@@ -22,7 +19,6 @@ type HandledResource struct {
 }
 
 func NewHandledResource(obj interface{}) (HandledResource, error) {
-	// todo: client-go informer seems to drop TypeMeta info, so we need to add that manually
 	if resource, ok := obj.(*unstructured.Unstructured); ok {
 		return HandledResource{
 			Object: resource,
@@ -38,33 +34,7 @@ func NewHandledResource(obj interface{}) (HandledResource, error) {
 }
 
 func NewHandledResourceFromFile(kind string, filePath string) (HandledResource, error) {
-	var resource interface{}
-
-	switch kind {
-	case "Pod":
-		var inner apicorev1.Pod
-		resource = &inner
-	case "Service":
-		var inner apicorev1.Service
-		resource = &inner
-	case "Secret":
-		var inner apicorev1.Secret
-		resource = &inner
-	case "ConfigMap":
-		var inner apicorev1.ConfigMap
-		resource = &inner
-	case "Job":
-		var inner apibatchv1.Job
-		resource = &inner
-	case "ReplicaSet":
-		var inner apiappsv1.ReplicaSet
-		resource = &inner
-	case "Deployment":
-		var inner apiappsv1.Deployment
-		resource = &inner
-	default:
-		return HandledResource{}, fmt.Errorf("unhandled kind '%s'", kind)
-	}
+	resource := &unstructured.Unstructured{}
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {

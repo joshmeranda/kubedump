@@ -3,6 +3,12 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"testing"
+	"time"
+
 	"github.com/gobwas/glob"
 	kubedump "github.com/joshmeranda/kubedump/pkg/cmd"
 	"github.com/joshmeranda/kubedump/tests/deployer"
@@ -12,11 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"os/exec"
-	"path"
-	"testing"
-	"time"
 )
 
 func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, ctx context.Context, basePath string) {
@@ -135,7 +136,6 @@ func TestDumpWithCluster(t *testing.T) {
 	wait.Until(func() { checkPods(t, client, stopCh) }, time.Second*5, stopCh)
 	<-stopCh
 
-	stopChan := make(chan interface{})
 	done := make(chan interface{})
 
 	go func() {
@@ -143,7 +143,7 @@ func TestDumpWithCluster(t *testing.T) {
 		nWorkers := fmt.Sprintf("%d", 5)
 		filter := "namespace default"
 
-		app := kubedump.NewKubedumpApp(stopChan)
+		app := kubedump.NewKubedumpApp()
 
 		var err error
 		if verbose {
@@ -161,7 +161,6 @@ func TestDumpWithCluster(t *testing.T) {
 
 	waiter()
 
-	close(stopChan)
 	<-done
 
 	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePod), true)

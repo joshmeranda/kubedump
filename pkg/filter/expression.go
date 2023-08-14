@@ -2,7 +2,7 @@ package filter
 
 import (
 	"github.com/IGLOU-EU/go-wildcard"
-	"github.com/joshmeranda/kubedump/pkg"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 )
 
 type Expression interface {
@@ -48,6 +48,7 @@ func (expr orExpression) Matches(resource kubedump.HandledResource) bool {
 	return expr.left.Matches(resource) || expr.right.Matches(resource)
 }
 
+// todo: standardize capitlization for kind
 type resourceExpression struct {
 	kind             string
 	namePattern      string
