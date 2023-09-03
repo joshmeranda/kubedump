@@ -29,10 +29,10 @@ func TestLabelSet(t *testing.T) {
 }
 
 func TestPodMatcherSecret(t *testing.T) {
-	handledSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("sample-secret").WithNamespace(tests.ResourceNamespace).Build()
+	secret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("sample-secret").WithNamespace(tests.ResourceNamespace).Build()
 
-	anotherHandledSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("another-sample-secret").WithNamespace(tests.ResourceNamespace).Build()
-	wrongNamespaceHandledSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("wrong-namespace-sample-secret").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
+	anotherSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("another-sample-secret").WithNamespace(tests.ResourceNamespace).Build()
+	wrongNamespaceSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("wrong-namespace-sample-secret").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
 
 	var matcher, err = MatcherFromPod(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
@@ -44,7 +44,7 @@ func TestPodMatcherSecret(t *testing.T) {
 					Name: "sample-configmap-volume",
 					VolumeSource: apicorev1.VolumeSource{
 						Secret: &apicorev1.SecretVolumeSource{
-							SecretName: handledSecret.GetName(),
+							SecretName: secret.GetName(),
 						},
 					},
 				},
@@ -53,15 +53,15 @@ func TestPodMatcherSecret(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	assert.True(t, matcher.Matches(handledSecret))
-	assert.False(t, matcher.Matches(anotherHandledSecret))
-	assert.False(t, matcher.Matches(wrongNamespaceHandledSecret))
+	assert.True(t, matcher.Matches(secret))
+	assert.False(t, matcher.Matches(anotherSecret))
+	assert.False(t, matcher.Matches(wrongNamespaceSecret))
 }
 
 func TestPodMatcherConfigMap(t *testing.T) {
-	handledConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
-	anotherHandledConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("another-sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
-	wrongNamespaceHandledConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("wrong-namespace-sample-configmap").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
+	configMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
+	anotherConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("another-sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
+	wrongNamespaceConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("wrong-namespace-sample-configmap").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
 
 	var matcher, err = MatcherFromPod(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
@@ -74,7 +74,7 @@ func TestPodMatcherConfigMap(t *testing.T) {
 					VolumeSource: apicorev1.VolumeSource{
 						ConfigMap: &apicorev1.ConfigMapVolumeSource{
 							LocalObjectReference: apicorev1.LocalObjectReference{
-								Name: handledConfigMap.GetName(),
+								Name: configMap.GetName(),
 							},
 						},
 					},
@@ -84,19 +84,19 @@ func TestPodMatcherConfigMap(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	assert.True(t, matcher.Matches(handledConfigMap))
-	assert.False(t, matcher.Matches(anotherHandledConfigMap))
-	assert.False(t, matcher.Matches(wrongNamespaceHandledConfigMap))
+	assert.True(t, matcher.Matches(configMap))
+	assert.False(t, matcher.Matches(anotherConfigMap))
+	assert.False(t, matcher.Matches(wrongNamespaceConfigMap))
 }
 
 func TestPodMatcherMixed(t *testing.T) {
-	handledSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("sample-secret").WithNamespace(tests.ResourceNamespace).Build()
-	anotherHandledSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("another-sample-secret").WithNamespace(tests.ResourceNamespace).Build()
-	wrongNamespaceHandledSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("wrong-namespace-sample-secret").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
+	secret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("sample-secret").WithNamespace(tests.ResourceNamespace).Build()
+	anotherSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("another-sample-secret").WithNamespace(tests.ResourceNamespace).Build()
+	wrongNamespaceSecret := kubedump.NewResourceBuilder().WithKind("Secret").WithName("wrong-namespace-sample-secret").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
 
-	handledConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
-	anotherHandledConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("another-sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
-	wrongNamespaceHandledConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("wrong-namespace-sample-configmap").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
+	ConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
+	anotherConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("another-sample-configmap").WithNamespace(tests.ResourceNamespace).Build()
+	wrongNamespaceConfigMap := kubedump.NewResourceBuilder().WithKind("ConfigMap").WithName("wrong-namespace-sample-configmap").WithNamespace(tests.ResourceNamespace + "-suffix").Build()
 
 	var matcher, err = MatcherFromPod(&apicorev1.Pod{
 		ObjectMeta: apimetav1.ObjectMeta{
@@ -108,7 +108,7 @@ func TestPodMatcherMixed(t *testing.T) {
 					Name: "sample-configmap-volume",
 					VolumeSource: apicorev1.VolumeSource{
 						Secret: &apicorev1.SecretVolumeSource{
-							SecretName: handledSecret.GetName(),
+							SecretName: secret.GetName(),
 						},
 					},
 				},
@@ -117,7 +117,7 @@ func TestPodMatcherMixed(t *testing.T) {
 					VolumeSource: apicorev1.VolumeSource{
 						ConfigMap: &apicorev1.ConfigMapVolumeSource{
 							LocalObjectReference: apicorev1.LocalObjectReference{
-								Name: handledConfigMap.GetName(),
+								Name: ConfigMap.GetName(),
 							},
 						},
 					},
@@ -127,11 +127,11 @@ func TestPodMatcherMixed(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	assert.True(t, matcher.Matches(handledSecret))
-	assert.False(t, matcher.Matches(anotherHandledSecret))
-	assert.False(t, matcher.Matches(wrongNamespaceHandledSecret))
+	assert.True(t, matcher.Matches(secret))
+	assert.False(t, matcher.Matches(anotherSecret))
+	assert.False(t, matcher.Matches(wrongNamespaceSecret))
 
-	assert.True(t, matcher.Matches(handledConfigMap))
-	assert.False(t, matcher.Matches(anotherHandledConfigMap))
-	assert.False(t, matcher.Matches(wrongNamespaceHandledConfigMap))
+	assert.True(t, matcher.Matches(ConfigMap))
+	assert.False(t, matcher.Matches(anotherConfigMap))
+	assert.False(t, matcher.Matches(wrongNamespaceConfigMap))
 }

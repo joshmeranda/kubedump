@@ -34,9 +34,9 @@ func resourceToHandled[T any](t *testing.T, obj T) (kubedump.Resource, T) {
 	var u unstructured.Unstructured
 	require.NoError(t, json.Unmarshal(data, &u))
 
-	handled := kubedump.NewResourceBuilder().FromUnstructured(&u).Build()
+	resource := kubedump.NewResourceBuilder().FromUnstructured(&u).Build()
 
-	return handled, obj
+	return resource, obj
 }
 
 func filterForResource(t *testing.T, resource kubedump.Resource) filter.Expression {

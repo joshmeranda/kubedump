@@ -199,9 +199,9 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		}
 	}
 
-	var handledResources []kubedump.Resource
+	var resources []kubedump.Resource
 	waitFunc := func() {
-		for _, resource := range handledResources {
+		for _, resource := range resources {
 			resourcePath := path.Join(basePath, resource.GetNamespace(), resource.GetKind(), resource.GetName())
 
 			if err := WaitForPath(ctx, TestWaitDuration, resourcePath); err != nil {
@@ -216,7 +216,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().Pods(ResourceNamespace).Delete(ctx, SamplePod.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(samplePod.ObjectMeta).FromType(samplePod.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(samplePod.ObjectMeta).FromType(samplePod.TypeMeta).Build())
 	}
 
 	if sampleJob, err := client.BatchV1().Jobs(ResourceNamespace).Create(ctx, &SampleJob, apimetav1.CreateOptions{}); err != nil {
@@ -225,7 +225,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.BatchV1().Jobs(ResourceNamespace).Delete(ctx, SampleJob.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleJob.ObjectMeta).FromType(sampleJob.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleJob.ObjectMeta).FromType(sampleJob.TypeMeta).Build())
 	}
 
 	if sampleReplicaSet, err := client.AppsV1().ReplicaSets(ResourceNamespace).Create(ctx, &SampleReplicaSet, apimetav1.CreateOptions{}); err != nil {
@@ -234,7 +234,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.AppsV1().ReplicaSets(ResourceNamespace).Delete(ctx, SampleReplicaSet.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleReplicaSet.ObjectMeta).FromType(sampleReplicaSet.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleReplicaSet.ObjectMeta).FromType(sampleReplicaSet.TypeMeta).Build())
 	}
 
 	if sampleDeployment, err := client.AppsV1().Deployments(ResourceNamespace).Create(ctx, &SampleDeployment, apimetav1.CreateOptions{}); err != nil {
@@ -243,7 +243,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.AppsV1().Deployments(ResourceNamespace).Delete(ctx, SampleDeployment.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleDeployment.ObjectMeta).FromType(sampleDeployment.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleDeployment.ObjectMeta).FromType(sampleDeployment.TypeMeta).Build())
 	}
 
 	if sampleServicePod, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SampleServicePod, apimetav1.CreateOptions{}); err != nil {
@@ -252,7 +252,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().Pods(ResourceNamespace).Delete(ctx, SampleServicePod.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleServicePod.ObjectMeta).FromType(sampleServicePod.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleServicePod.ObjectMeta).FromType(sampleServicePod.TypeMeta).Build())
 	}
 
 	if sampleService, err := client.CoreV1().Services(ResourceNamespace).Create(ctx, &SampleService, apimetav1.CreateOptions{}); err != nil {
@@ -261,7 +261,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().Services(ResourceNamespace).Delete(ctx, SampleService.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleService.ObjectMeta).FromType(sampleService.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleService.ObjectMeta).FromType(sampleService.TypeMeta).Build())
 	}
 
 	if sampleConfigMap, err := client.CoreV1().ConfigMaps(ResourceNamespace).Create(ctx, &SampleConfigMap, apimetav1.CreateOptions{}); err != nil {
@@ -270,7 +270,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().ConfigMaps(ResourceNamespace).Delete(ctx, SampleConfigMap.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleConfigMap.ObjectMeta).FromType(sampleConfigMap.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleConfigMap.ObjectMeta).FromType(sampleConfigMap.TypeMeta).Build())
 	}
 
 	if samplePodWithConfigMapVolume, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SamplePodWithConfigMapVolume, apimetav1.CreateOptions{}); err != nil {
@@ -279,7 +279,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().Pods(ResourceNamespace).Delete(ctx, SamplePodWithConfigMapVolume.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(samplePodWithConfigMapVolume.ObjectMeta).FromType(samplePodWithConfigMapVolume.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(samplePodWithConfigMapVolume.ObjectMeta).FromType(samplePodWithConfigMapVolume.TypeMeta).Build())
 	}
 
 	if sampleSecret, err := client.CoreV1().Secrets(ResourceNamespace).Create(ctx, &SampleSecret, apimetav1.CreateOptions{}); err != nil {
@@ -288,7 +288,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().Secrets(ResourceNamespace).Delete(ctx, SampleSecret.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(sampleSecret.ObjectMeta).FromType(sampleSecret.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(sampleSecret.ObjectMeta).FromType(sampleSecret.TypeMeta).Build())
 	}
 
 	if samplePodWithSecretVolume, err := client.CoreV1().Pods(ResourceNamespace).Create(ctx, &SamplePodWithSecretVolume, apimetav1.CreateOptions{}); err != nil {
@@ -297,7 +297,7 @@ func createResources(t *testing.T, client kubernetes.Interface, basePath string,
 		aggregatedDefers = append(aggregatedDefers, func() error {
 			return client.CoreV1().Secrets(ResourceNamespace).Delete(ctx, SamplePodWithSecretVolume.Name, DeleteOptions())
 		})
-		handledResources = append(handledResources, kubedump.NewResourceBuilder().FromObject(samplePodWithSecretVolume.ObjectMeta).FromType(samplePodWithSecretVolume.TypeMeta).Build())
+		resources = append(resources, kubedump.NewResourceBuilder().FromObject(samplePodWithSecretVolume.ObjectMeta).FromType(samplePodWithSecretVolume.TypeMeta).Build())
 	}
 
 	return deferredFunc, waitFunc, nil

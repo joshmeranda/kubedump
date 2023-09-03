@@ -93,17 +93,17 @@ func filterKindDir(namespace string, kind string, dir string, opts filteringOpti
 
 func filterResourceDir(name string, dir string, opts filteringOptions) error {
 	resourceFile := path.Join(dir, name+".yaml")
-	handledResource, err := kubedump.NewResourceFromFile(resourceFile)
+	resource, err := kubedump.NewResourceFromFile(resourceFile)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal resource file: %w", err)
 	}
 
-	if !opts.Filter.Matches(handledResource) {
+	if !opts.Filter.Matches(resource) {
 		return nil
 	}
 
-	if err := copyResourceDir(handledResource, dir, opts); err != nil {
-		opts.Logger.Errorf("could not copy resource '%s': %s", handledResource, err)
+	if err := copyResourceDir(resource, dir, opts); err != nil {
+		opts.Logger.Errorf("could not copy resource '%s': %s", resource, err)
 	}
 
 	return nil
@@ -158,13 +158,13 @@ func copySubResourceKind(kind string, dir string, parent kubedump.Resource, opts
 			realPath := path.Clean(path.Join(dir, linkDest))
 
 			resourceFile := path.Join(realPath, entry.Name()+".yaml")
-			handledResource, err := kubedump.NewResourceFromFile(resourceFile)
+			resource, err := kubedump.NewResourceFromFile(resourceFile)
 			if err != nil {
 				return fmt.Errorf("could not unmarshal resoruce file: %w", err)
 			}
 
-			if err := copyResourceDir(handledResource, realPath, opts); err != nil {
-				opts.Logger.Errorf("could not copy resourec '%s': %s", handledResource, err)
+			if err := copyResourceDir(resource, realPath, opts); err != nil {
+				opts.Logger.Errorf("could not copy resourec '%s': %s", resource, err)
 			}
 		} else if err != nil {
 			opts.Logger.Errorf("could not check if path '%s' is a symbolic link: %s", linkPath, err)

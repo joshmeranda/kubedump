@@ -28,7 +28,7 @@ func destructureObject(v any) *unstructured.Unstructured {
 }
 
 func TestStorage(t *testing.T) {
-	job := &apibatchv1.Job{
+	rawJob := &apibatchv1.Job{
 		TypeMeta: apimetav1.TypeMeta{
 			Kind: "Job",
 		},
@@ -45,7 +45,7 @@ func TestStorage(t *testing.T) {
 		},
 	}
 
-	pod := &apicorev1.Pod{
+	rawPod := &apicorev1.Pod{
 		TypeMeta: apimetav1.TypeMeta{
 			Kind: "Pod",
 		},
@@ -60,27 +60,27 @@ func TestStorage(t *testing.T) {
 		},
 	}
 
-	handledJob := kubedump.NewResourceBuilder().
-		FromObject(job.ObjectMeta).
+	job := kubedump.NewResourceBuilder().
+		FromObject(rawJob.ObjectMeta).
 		WithKind("Job").
 		Build()
 
-	handledPod := kubedump.NewResourceBuilder().
-		FromObject(pod.ObjectMeta).
+	pod := kubedump.NewResourceBuilder().
+		FromObject(rawPod.ObjectMeta).
 		WithKind("Pod").
 		Build()
 
 	store := NewStore()
 
-	matcher, err := selectorFromUnstructured(destructureObject(job))
+	matcher, err := selectorFromUnstructured(destructureObject(rawJob))
 	assert.NoError(t, err)
 	assert.NotNil(t, matcher)
 
-	err = store.AddResource(handledJob, matcher)
+	err = store.AddResource(job, matcher)
 	assert.NoError(t, err)
 
-	matchers, err := store.GetResources(handledPod)
+	matchers, err := store.GetResources(pod)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(matchers))
-	assert.Equal(t, fmt.Sprintf("%s/%s", handledJob.GetKind(), handledJob.GetName()), matchers[0].String())
+	assert.Equal(t, fmt.Sprintf("%s/%s", job.GetKind(), job.GetName()), matchers[0].String())
 }

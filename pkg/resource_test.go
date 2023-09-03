@@ -62,14 +62,14 @@ func TestBuilderWithParent(t *testing.T) {
 		},
 	}
 
-	handledParent := NewResourceBuilder().
+	parent := NewResourceBuilder().
 		FromObject(job.ObjectMeta).
 		FromType(job.TypeMeta).
 		Build()
 
 	resourcePath := NewResourcePathBuilder().
 		WithBase(string(filepath.Separator)).
-		WithParentResource(handledParent).
+		WithParentResource(parent).
 		WithKind("Pod").
 		WithName("sample-job-xxxx").Build()
 
@@ -100,7 +100,7 @@ func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
 		},
 	}
 
-	handledParent := NewResourceBuilder().
+	parent := NewResourceBuilder().
 		FromObject(job.ObjectMeta).
 		FromType(job.TypeMeta).
 		Build()
@@ -110,7 +110,7 @@ func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
 		WithKind("Pod").
 		WithName("sample-job-xxxx")
 
-	withParentPath := builder.WithParentResource(handledParent).Build()
+	withParentPath := builder.WithParentResource(parent).Build()
 	assert.Equal(t, "/default/Job/sample-job/Pod/sample-job-xxxx", withParentPath)
 
 	withNamespacePath := builder.WithNamespace("default").Build()
