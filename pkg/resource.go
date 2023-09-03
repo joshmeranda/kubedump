@@ -5,56 +5,147 @@ import (
 	"os"
 	"path"
 
+	"gopkg.in/yaml.v3"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/yaml"
+	"k8s.io/apimachinery/pkg/types"
 )
 
-type HandledResource struct {
-	apimetav1.Object
-	apimetav1.TypeMeta
+// Resource is a collection of methods that can be used to describe a resource being handled by the kubedump controller.
+type Resource interface {
+	fmt.Stringer
 
-	// Resource is the actual k8s resource value
-	Resource interface{}
+	GetName() string
+
+	GetNamespace() string
+
+	GetLabels() map[string]string
+
+	GetOwnershipReferences() []apimetav1.OwnerReference
+
+	GetKind() string
+
+	GetUID() types.UID
 }
 
-func NewHandledResource(obj interface{}) (HandledResource, error) {
-	if resource, ok := obj.(*unstructured.Unstructured); ok {
-		return HandledResource{
-			Object: resource,
-			TypeMeta: apimetav1.TypeMeta{
-				Kind:       resource.GetKind(),
-				APIVersion: resource.GetAPIVersion(),
-			},
-			Resource: obj,
-		}, nil
-	}
-
-	return HandledResource{}, fmt.Errorf("couldn't create handled resource from object of type '%+T'", obj)
-}
-
-func NewHandledResourceFromFile(kind string, filePath string) (HandledResource, error) {
-	resource := &unstructured.Unstructured{}
-
-	data, err := os.ReadFile(filePath)
+func NewResourceFromFile(path string) (Resource, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return HandledResource{}, fmt.Errorf("error reading from file '%s': %w", filePath, err)
+		return nil, fmt.Errorf("could not read resource file: %w", err)
 	}
 
-	if err := yaml.Unmarshal(data, resource); err != nil {
-		return HandledResource{}, fmt.Errorf("error unmarshailng resource of kind '%s': %w", kind, err)
+	m := map[string]interface{}{}
+	if err := yaml.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("could not unmarshal data to suntructured: %w", err)
 	}
+	u := &unstructured.Unstructured{Object: m}
 
-	handledResource, err := NewHandledResource(resource)
-	if err != nil {
-		return HandledResource{}, err
-	}
-
-	return handledResource, nil
+	return NewResourceBuilder().
+		FromUnstructured(u).
+		Build(), nil
 }
 
-func (resource HandledResource) String() string {
-	return fmt.Sprintf("%s/%s/%s", resource.Kind, resource.GetNamespace(), resource.GetName())
+type resource struct {
+	name            string
+	namespace       string
+	labels          map[string]string
+	ownerReferences []apimetav1.OwnerReference
+	kind            string
+	id              types.UID
+}
+
+func (resource *resource) String() string {
+	return fmt.Sprintf("%s/%s", resource.GetKind(), resource.GetName())
+}
+
+func (resource *resource) GetName() string {
+	return resource.name
+}
+
+func (resource *resource) GetNamespace() string {
+	return resource.namespace
+}
+
+func (resource *resource) GetLabels() map[string]string {
+	return resource.labels
+}
+
+func (resource *resource) GetOwnershipReferences() []apimetav1.OwnerReference {
+	return resource.ownerReferences
+}
+
+func (resource *resource) GetKind() string {
+	return resource.kind
+}
+
+func (resource *resource) GetUID() types.UID {
+	return resource.id
+}
+
+type ResourceBuilder struct {
+	resource resource
+}
+
+func NewResourceBuilder() *ResourceBuilder {
+	return &ResourceBuilder{}
+}
+
+func (builder *ResourceBuilder) FromUnstructured(u *unstructured.Unstructured) *ResourceBuilder {
+	builder.resource.name = u.GetName()
+	builder.resource.namespace = u.GetNamespace()
+	builder.resource.labels = u.GetLabels()
+	builder.resource.ownerReferences = u.GetOwnerReferences()
+	builder.resource.kind = u.GetKind()
+	builder.resource.id = u.GetUID()
+	return builder
+}
+
+func (builder *ResourceBuilder) FromObject(obj apimetav1.ObjectMeta) *ResourceBuilder {
+	builder.resource.name = obj.Name
+	builder.resource.namespace = obj.Namespace
+	builder.resource.labels = obj.Labels
+	builder.resource.ownerReferences = obj.OwnerReferences
+	builder.resource.id = obj.UID
+	return builder
+}
+
+func (builder *ResourceBuilder) FromType(t apimetav1.TypeMeta) *ResourceBuilder {
+	builder.resource.kind = t.Kind
+	return builder
+}
+
+func (builder *ResourceBuilder) WithName(name string) *ResourceBuilder {
+	builder.resource.name = name
+	return builder
+}
+
+func (builder *ResourceBuilder) WithNamespace(namespace string) *ResourceBuilder {
+	builder.resource.namespace = namespace
+	return builder
+}
+
+func (builder *ResourceBuilder) WithLabels(labels map[string]string) *ResourceBuilder {
+	builder.resource.labels = labels
+	return builder
+}
+
+func (builder *ResourceBuilder) WithOwnershipReferences(ownerReferences []apimetav1.OwnerReference) *ResourceBuilder {
+	builder.resource.ownerReferences = ownerReferences
+	return builder
+}
+
+func (builder *ResourceBuilder) WithKind(kind string) *ResourceBuilder {
+	builder.resource.kind = kind
+	return builder
+}
+
+func (builder *ResourceBuilder) WithId(id types.UID) *ResourceBuilder {
+	builder.resource.id = id
+	return builder
+}
+
+func (builder *ResourceBuilder) Build() Resource {
+	return &builder.resource
 }
 
 // ResourcePathBuilder can be used to build the parent directories for collected resources.
@@ -96,16 +187,16 @@ func (builder *ResourcePathBuilder) WithKind(kind string) *ResourcePathBuilder {
 
 // WithParentResource instructs the builder to place the other components under the path of the specified resource, and
 // will also ignore any value passed to WithNamespace.
-func (builder *ResourcePathBuilder) WithParentResource(resource HandledResource) *ResourcePathBuilder {
-	builder.parentResourcePath = path.Join(resource.GetNamespace(), resource.Kind, resource.GetName())
+func (builder *ResourcePathBuilder) WithParentResource(resource Resource) *ResourcePathBuilder {
+	builder.parentResourcePath = path.Join(resource.GetNamespace(), resource.GetKind(), resource.GetName())
 	builder.namespace = ""
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithResource(resource HandledResource) *ResourcePathBuilder {
+func (builder *ResourcePathBuilder) WithResource(resource Resource) *ResourcePathBuilder {
 	builder.namespace = resource.GetNamespace()
 	builder.name = resource.GetName()
-	builder.kind = resource.Kind
+	builder.kind = resource.GetKind()
 	return builder
 }
 

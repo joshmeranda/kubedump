@@ -7,18 +7,18 @@ import (
 
 type Expression interface {
 	// Matches should return true if the given value is of the correct type, and satisfies the expression's conditions.
-	Matches(resource kubedump.HandledResource) bool
+	Matches(resource kubedump.Resource) bool
 }
 
 type falsyExpression struct{}
 
-func (_ falsyExpression) Matches(kubedump.HandledResource) bool {
+func (_ falsyExpression) Matches(kubedump.Resource) bool {
 	return false
 }
 
 type truthyExpression struct{}
 
-func (_ truthyExpression) Matches(kubedump.HandledResource) bool {
+func (_ truthyExpression) Matches(kubedump.Resource) bool {
 	return true
 }
 
@@ -26,7 +26,7 @@ type notExpression struct {
 	inner Expression
 }
 
-func (expr notExpression) Matches(resource kubedump.HandledResource) bool {
+func (expr notExpression) Matches(resource kubedump.Resource) bool {
 	return !expr.inner.Matches(resource)
 }
 
@@ -35,7 +35,7 @@ type andExpression struct {
 	right Expression
 }
 
-func (expr andExpression) Matches(resource kubedump.HandledResource) bool {
+func (expr andExpression) Matches(resource kubedump.Resource) bool {
 	return expr.left.Matches(resource) && expr.right.Matches(resource)
 }
 
@@ -44,7 +44,7 @@ type orExpression struct {
 	right Expression
 }
 
-func (expr orExpression) Matches(resource kubedump.HandledResource) bool {
+func (expr orExpression) Matches(resource kubedump.Resource) bool {
 	return expr.left.Matches(resource) || expr.right.Matches(resource)
 }
 
@@ -55,8 +55,8 @@ type resourceExpression struct {
 	namespacePattern string
 }
 
-func (expr resourceExpression) Matches(resource kubedump.HandledResource) bool {
-	return expr.kind == resource.Kind &&
+func (expr resourceExpression) Matches(resource kubedump.Resource) bool {
+	return expr.kind == resource.GetKind() &&
 		wildcard.MatchSimple(expr.namespacePattern, resource.GetNamespace()) &&
 		wildcard.MatchSimple(expr.namePattern, resource.GetName())
 }
@@ -66,7 +66,7 @@ type namespaceExpression struct {
 	namespacePattern string
 }
 
-func (expr namespaceExpression) Matches(resource kubedump.HandledResource) bool {
+func (expr namespaceExpression) Matches(resource kubedump.Resource) bool {
 	return wildcard.MatchSimple(expr.namespacePattern, resource.GetNamespace())
 }
 
@@ -74,7 +74,7 @@ type labelExpression struct {
 	labels map[string]string
 }
 
-func (expr labelExpression) Matches(resource kubedump.HandledResource) bool {
+func (expr labelExpression) Matches(resource kubedump.Resource) bool {
 	if len(expr.labels) == 0 {
 		return true
 	}

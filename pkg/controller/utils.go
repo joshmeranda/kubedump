@@ -7,10 +7,8 @@ import (
 	"path/filepath"
 
 	kubedump "github.com/joshmeranda/kubedump/pkg"
-	apiappsv1 "k8s.io/api/apps/v1"
-	apibatchv1 "k8s.io/api/batch/v1"
-	apicorev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
 
@@ -32,13 +30,13 @@ func exists(filePath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kubedump.HandledResource) (string, string, error) {
+func getSymlinkPaths(basePath string, parent kubedump.Resource, child kubedump.Resource) (string, string, error) {
 	builder := kubedump.NewResourcePathBuilder().WithBase(basePath)
 
 	resourceBasePath := builder.WithResource(parent).Build()
 	childPath := builder.WithResource(child).Build()
 
-	linkDir := path.Join(resourceBasePath, child.Kind)
+	linkDir := path.Join(resourceBasePath, child.GetKind())
 
 	relPath, err := filepath.Rel(linkDir, childPath)
 	if err != nil {
@@ -50,7 +48,7 @@ func getSymlinkPaths(basePath string, parent kubedump.HandledResource, child kub
 	return symlinkPath, relPath, nil
 }
 
-func linkResource(basePath string, matcher kubedump.HandledResource, matched kubedump.HandledResource) error {
+func linkResource(basePath string, matcher kubedump.Resource, matched kubedump.Resource) error {
 	symlinkPath, relPath, err := getSymlinkPaths(basePath, matcher, matched)
 	if err != nil {
 		return fmt.Errorf("")
@@ -67,7 +65,7 @@ func linkResource(basePath string, matcher kubedump.HandledResource, matched kub
 	return nil
 }
 
-func dumpResourceDescription(filePath string, resource kubedump.HandledResource) error {
+func dumpResourceDescription(filePath string, u *unstructured.Unstructured) error {
 	if exists(filePath) {
 		if err := os.Truncate(filePath, 0); err != nil {
 			return fmt.Errorf("error truncating obj yaml file '%s' : %w", filePath, err)
@@ -84,36 +82,39 @@ func dumpResourceDescription(filePath string, resource kubedump.HandledResource)
 	}
 	defer f.Close()
 
-	data, err := yaml.Marshal(resource.Resource)
+	data, err := yaml.Marshal(u)
 	if err != nil {
-		return fmt.Errorf("could not marshal %s: %w", resource.Kind, err)
+		return fmt.Errorf("could not marshal %s: %w", u.GetKind(), err)
 	}
 
 	_, err = f.Write(data)
 	if err != nil {
-		return fmt.Errorf("could not write %s to file '%s': %w", resource.Kind, filePath, err)
+		return fmt.Errorf("could not write %s to file '%s': %w", u.GetKind(), filePath, err)
 	}
 
 	return nil
 }
 
-func selectorFromHandled(handledResource kubedump.HandledResource) (Matcher, error) {
-	switch resource := handledResource.Resource.(type) {
-	case *apicorev1.Pod:
-		return MatcherFromPod(resource)
-	case *apicorev1.Service:
-		return MatcherFromLabels(resource.Spec.Selector)
-	case *apiappsv1.Deployment:
-		return MatcherFromLabelSelector(resource.Spec.Selector)
-	case *apiappsv1.ReplicaSet:
-		return MatcherFromLabelSelector(resource.Spec.Selector)
-	case *apibatchv1.Job:
-		return MatcherFromLabelSelector(resource.Spec.Selector)
+func selectorFromUnstructured(u *unstructured.Unstructured) (Matcher, error) {
+	var labelSelectorPath []string
+	switch u.GetKind() {
+	case "Deployment", "ReplicaSet", "StatefulSet", "DaemonSet", "Job", "CronJob":
+		labelSelectorPath = []string{"spec", "selector", "matchLabels"}
+	case "Service":
+		labelSelectorPath = []string{"spec", "selector"}
 	default:
-		return nil, fmt.Errorf("can not create LabelMathcher from kind '%s'", handledResource.Kind)
+		return nil, fmt.Errorf("cannot generate a label mathcer for kind '%s'", u.GetKind())
 	}
-}
 
-func groupVersionResourceToKey(resource schema.GroupVersionResource) string {
-	return fmt.Sprintf("%s/%s/%s", resource.Group, resource.Version, resource.Resource)
+	selectors, ok, err := unstructured.NestedStringMap(u.Object, labelSelectorPath...)
+	if !ok {
+		return nil, fmt.Errorf("counld not find selector in unstructured object")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("colud not get selector from unstructured object: %w", err)
+	}
+
+	return MatcherFromLabelSelector(&v1.LabelSelector{
+		MatchLabels: selectors,
+	})
 }

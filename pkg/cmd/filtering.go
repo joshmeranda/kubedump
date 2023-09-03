@@ -80,7 +80,7 @@ func filterKindDir(namespace string, kind string, dir string, opts filteringOpti
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			if err := filterResourceDir(kind, entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
+			if err := filterResourceDir(entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
 				opts.Logger.Errorf("could not filter resource '%s/%s' in namespace '%s': %s", kind, entry.Name(), namespace, err)
 			}
 		} else {
@@ -91,23 +91,16 @@ func filterKindDir(namespace string, kind string, dir string, opts filteringOpti
 	return nil
 }
 
-func filterResourceDir(kind string, name string, dir string, opts filteringOptions) error {
+func filterResourceDir(name string, dir string, opts filteringOptions) error {
 	resourceFile := path.Join(dir, name+".yaml")
-	handledResource, err := kubedump.NewHandledResourceFromFile(kind, resourceFile)
+	handledResource, err := kubedump.NewResourceFromFile(resourceFile)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal resource file: %w", err)
 	}
 
-	fmt.Printf("=== [filterResourceDir] 000 %+v ===\n", opts.Filter)
-	fmt.Printf("=== [filterResourceDir] 001 %s %s %s ===\n", handledResource.Kind, handledResource.GetNamespace(), handledResource.GetName())
-
 	if !opts.Filter.Matches(handledResource) {
 		return nil
 	}
-
-	fmt.Printf("=== [filterResourceDir] 002 ===\n")
-
-	opts.Logger.Debugf("resource '%s' matched filter", handledResource)
 
 	if err := copyResourceDir(handledResource, dir, opts); err != nil {
 		opts.Logger.Errorf("could not copy resource '%s': %s", handledResource, err)
@@ -116,7 +109,7 @@ func filterResourceDir(kind string, name string, dir string, opts filteringOptio
 	return nil
 }
 
-func copyResourceDir(resource kubedump.HandledResource, dir string, opts filteringOptions) error {
+func copyResourceDir(resource kubedump.Resource, dir string, opts filteringOptions) error {
 	resourceDestinationDir := kubedump.NewResourcePathBuilder().
 		WithBase(opts.DestinationBasePath).
 		WithResource(resource).
@@ -147,7 +140,7 @@ func copyResourceDir(resource kubedump.HandledResource, dir string, opts filteri
 	return nil
 }
 
-func copySubResourceKind(kind string, dir string, parent kubedump.HandledResource, opts filteringOptions) error {
+func copySubResourceKind(kind string, dir string, parent kubedump.Resource, opts filteringOptions) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("could not read dir for kind '%s' in resource '%s': %w", kind, parent, err)
@@ -165,7 +158,7 @@ func copySubResourceKind(kind string, dir string, parent kubedump.HandledResourc
 			realPath := path.Clean(path.Join(dir, linkDest))
 
 			resourceFile := path.Join(realPath, entry.Name()+".yaml")
-			handledResource, err := kubedump.NewHandledResourceFromFile(kind, resourceFile)
+			handledResource, err := kubedump.NewResourceFromFile(resourceFile)
 			if err != nil {
 				return fmt.Errorf("could not unmarshal resoruce file: %w", err)
 			}

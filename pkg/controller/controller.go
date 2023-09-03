@@ -16,50 +16,43 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
 
 const (
-	FakeHost = "FAKE"
+	FakeHost   = "FAKE"
+	ResyncTime = time.Second * 5
 )
 
-// todo: maybe create a InformerGroup type here
-
 var defaultResources = []schema.GroupVersionResource{
-	// {
-	// 	Group:    "events.k8s.io",
-	// 	Version:  "v1",
-	// 	Resource: "event",
-	// },
+	{
+		Group:    "events.k8s.io",
+		Version:  "v1",
+		Resource: "events",
+	},
 	{
 		Group:    "",
 		Version:  "v1",
 		Resource: "pods",
 	},
-	// {
-	// 	Group:    "core",
-	// 	Version:  "v1",
-	// 	Resource: "pod",
-	// },
-	// {
-	// 	Group:    "core",
-	// 	Version:  "v1",
-	// 	Resource: "service",
-	// },
-	// {
-	// 	Group:    "core",
-	// 	Version:  "v1",
-	// 	Resource: "secret",
-	// },
-	// {
-	// 	Group:    "core",
-	// 	Version:  "v1",
-	// 	Resource: "configmap",
-	// },
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "services",
+	},
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "secrets",
+	},
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	},
 	// {
 	// 	Group:    "batch",
 	// 	Version:  "v1",
@@ -96,9 +89,6 @@ type Options struct {
 	ParentContext  context.Context
 	Logger         *zap.SugaredLogger
 	LogSyncTimeout time.Duration
-
-	// todo: this is a bad way to inject a fake client for testing. Needed so we can build a dynamic client and normal client using the same config.
-	FakeClient *fake.Clientset
 }
 
 type Controller struct {
@@ -128,26 +118,10 @@ type Controller struct {
 }
 
 func NewController(
-	config *rest.Config,
+	kubeclientset kubernetes.Interface,
+	dynamicclientset dynamic.Interface,
 	opts Options,
 ) (*Controller, error) {
-	var err error
-	var kubeclientset kubernetes.Interface
-
-	if opts.FakeClient != nil {
-		kubeclientset = opts.FakeClient
-	} else if kubeclientset == nil {
-		kubeclientset, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			return nil, fmt.Errorf("could not create clientset from given config: %w", err)
-		}
-	}
-
-	dynamicclientset, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("could not create dynamic clientset from given config: %w", err)
-	}
-
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if opts.ParentContext != nil {
@@ -160,7 +134,7 @@ func NewController(
 		Options:       opts,
 		kubeclientset: kubeclientset,
 
-		informerFactory: dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicclientset, time.Second*5, apicorev1.NamespaceAll, nil),
+		informerFactory: dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicclientset, ResyncTime, apicorev1.NamespaceAll, nil),
 		stopChan:        nil,
 
 		logStreams: make(map[string]Stream),
@@ -191,6 +165,13 @@ func NewController(
 		informer.AddEventHandler(handler)
 		controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
 	}
+
+	eventInformer := informers.NewSharedInformerFactory(kubeclientset, ResyncTime).Events().V1().Events().Informer()
+	eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: controller.handleEvent,
+	})
+
+	controller.informers["events.k8s.io/v1"] = eventInformer
 
 	return controller, nil
 }

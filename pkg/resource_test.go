@@ -1,7 +1,6 @@
 package kubedump
 
 import (
-	"encoding/json"
 	"path"
 	"path/filepath"
 	"testing"
@@ -10,20 +9,26 @@ import (
 	"github.com/stretchr/testify/require"
 	apibatchv1 "k8s.io/api/batch/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func resourceToHandled(t *testing.T, obj any) HandledResource {
-	data, err := json.Marshal(obj)
+func TestResourceFromFile(t *testing.T) {
+	filePath := filepath.Join("..", "tests", "resources", "Service.dump", "default", "Pod", "sample-pod", "sample-pod.yaml")
+
+	resource, err := NewResourceFromFile(filePath)
 	require.NoError(t, err)
 
-	var u unstructured.Unstructured
-	require.NoError(t, json.Unmarshal(data, &u))
+	assert.Equal(t, "Pod/sample-pod", resource.String())
+	assert.Equal(t, "sample-pod", resource.GetName())
+	assert.Equal(t, "default", resource.GetNamespace())
+	assert.Equal(t, "Pod", resource.GetKind())
+}
 
-	handled, err := NewHandledResource(&u)
+func TestSandbox(t *testing.T) {
+	filePath := path.Join("..", "test.yaml")
+
+	resource, err := NewResourceFromFile(filePath)
 	require.NoError(t, err)
-
-	return handled
+	assert.Equal(t, "Pod/test-pod", resource.String())
 }
 
 func TestBuilderValidate(t *testing.T) {
@@ -46,7 +51,7 @@ func TestBuilderValidate(t *testing.T) {
 }
 
 func TestBuilderWithParent(t *testing.T) {
-	handledParent := resourceToHandled(t, &apibatchv1.Job{
+	job := &apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: "default",
@@ -55,7 +60,12 @@ func TestBuilderWithParent(t *testing.T) {
 			Kind:       "Job",
 			APIVersion: "v1",
 		},
-	})
+	}
+
+	handledParent := NewResourceBuilder().
+		FromObject(job.ObjectMeta).
+		FromType(job.TypeMeta).
+		Build()
 
 	resourcePath := NewResourcePathBuilder().
 		WithBase(string(filepath.Separator)).
@@ -79,7 +89,7 @@ func TestBuilderWithFile(t *testing.T) {
 }
 
 func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
-	handledParent := resourceToHandled(t, &apibatchv1.Job{
+	job := &apibatchv1.Job{
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: "default",
@@ -88,7 +98,12 @@ func TestBuilderWithParentWithNamespaceConflict(t *testing.T) {
 			Kind:       "Job",
 			APIVersion: "v1",
 		},
-	})
+	}
+
+	handledParent := NewResourceBuilder().
+		FromObject(job.ObjectMeta).
+		FromType(job.TypeMeta).
+		Build()
 
 	builder := NewResourcePathBuilder().
 		WithBase("/").
