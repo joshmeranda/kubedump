@@ -63,10 +63,11 @@ func (controller *Controller) handleEvent(obj any) {
 	}
 }
 
-func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Resource) {
+func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Resource, u *unstructured.Unstructured) {
 	rawPod, err := controller.kubeclientset.CoreV1().Pods(pod.GetNamespace()).Get(controller.ctx, pod.GetName(), apimetav1.GetOptions{})
 	if err != nil {
-		controller.Logger.Errorf("could not get pid: %s", pod)
+		controller.Logger.Errorf("could not get pod: %s", pod)
+		return
 	}
 
 	switch handleKind {
@@ -107,7 +108,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 					}
 
 					if err := linkResource(controller.BasePath, pod, secret); err != nil {
-						controller.Logger.Errorf("could not link secrtr to Pod: %s", err)
+						controller.Logger.Errorf("could not link secret to Pod: %s", err)
 					}
 				}
 			}
@@ -144,7 +145,6 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 				controller.logStreamsMu.Lock()
 
 				stream, found := controller.logStreams[logStreamId]
-
 				if !found {
 					controller.Logger.Errorf("bug: deleting container which isn't being streamed")
 					return
@@ -186,7 +186,7 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schem
 	}
 
 	if resource.GetKind() == "Pod" {
-		controller.handlePod(handleKind, resource)
+		controller.handlePod(handleKind, resource, u)
 	}
 
 	matcher, err := selectorFromUnstructured(u)

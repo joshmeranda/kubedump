@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	signalChan := make(chan os.Signal)
+	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -23,7 +23,8 @@ func main() {
 
 	app := kubedumpcmd.NewKubedumpApp()
 
-	if err := app.RunContext(ctx, os.Args); err != nil {
+	// if err := app.RunContext(ctx, os.Args); err != nil {
+	if err := app.RunContext(ctx, []string{"kubedump", "dump", "--filter", "namespace default"}); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

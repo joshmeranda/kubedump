@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/joshmeranda/kubedump/pkg/filter"
-	"github.com/samber/lo"
 	"go.uber.org/zap"
 	apicorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -27,6 +26,7 @@ const (
 	ResyncTime = time.Second * 5
 )
 
+// todo: load resources kinds from file
 var defaultResources = []schema.GroupVersionResource{
 	{
 		Group:    "events.k8s.io",
@@ -53,11 +53,11 @@ var defaultResources = []schema.GroupVersionResource{
 		Version:  "v1",
 		Resource: "configmaps",
 	},
-	// {
-	// 	Group:    "batch",
-	// 	Version:  "v1",
-	// 	Resource: "job",
-	// },
+	{
+		Group:    "batch",
+		Version:  "v1",
+		Resource: "job",
+	},
 	// {
 	// 	Group:    "apps",
 	// 	Version:  "v1",
@@ -237,22 +237,11 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	defer runtime.HandleCrash()
 
 	controller.filterExpr = expr
-
 	controller.stopChan = make(chan struct{})
 
 	controller.Logger.Infof("starting controller")
 
 	controller.informerFactory.Start(controller.stopChan)
-
-	controller.Logger.Infof("waiting for informer caches to sync")
-	informersHaveSynced := lo.MapToSlice(controller.informers, func(_ string, informer cache.SharedIndexInformer) cache.InformerSynced {
-		return informer.HasSynced
-	})
-	if ok := cache.WaitForNamedCacheSync("kubedump", controller.stopChan, informersHaveSynced...); !ok {
-		return fmt.Errorf("could not wait for caches to sync")
-	}
-
-	controller.Logger.Infof("caches synced")
 
 	controller.startTime = time.Now().UTC()
 
@@ -263,17 +252,9 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 		go func() {
 			controller.workerWaitGroup.Done()
 
-			// controller.Logger.Debugf("starting worker #%d", n)
-			controller.Logger.Infof("starting worker #%d", n)
+			controller.Logger.Debugf("starting worker #%d", n)
 
-			// workerLoop:
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
-				// select {
-				// case <-controller.ctx.Done():
-				// 	break workerLoop
-				// default:
-				// }
-
 				controller.processNextWorkItem()
 			}
 
@@ -290,6 +271,8 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 		controller.syncLogStreams()
 	}))
+
+	// todo: list and load existing resources on startup
 
 	controller.Logger.Infof("Started controller")
 

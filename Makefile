@@ -1,4 +1,4 @@
-SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump-server/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
+SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
 
 UNIT_TEST_PATHS=./pkg/filter ./pkg/controller ./pkg/cmd
 INTEGRATION_TEST_PATHS=./tests
@@ -61,7 +61,7 @@ generate: ${YYPARSER}
 # # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: kubedump kubedump-server
+.PHONY: kubedump
 
 all: docker charts kubedump
 
