@@ -37,9 +37,7 @@ function set_version() {
   git tag "$1"
 
   echo 'don'\'t' forget to:
-  1) Update chart appVersion
-  2) Push new docker image
-  3) Push the current git tag'
+  1) Push the current git tag'
 }
 
 case "$1" in

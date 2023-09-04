@@ -26,50 +26,6 @@ const (
 	ResyncTime = time.Second * 5
 )
 
-// todo: load resources kinds from file
-var defaultResources = []schema.GroupVersionResource{
-	{
-		Group:    "events.k8s.io",
-		Version:  "v1",
-		Resource: "events",
-	},
-	{
-		Group:    "",
-		Version:  "v1",
-		Resource: "pods",
-	},
-	{
-		Group:    "",
-		Version:  "v1",
-		Resource: "services",
-	},
-	{
-		Group:    "",
-		Version:  "v1",
-		Resource: "secrets",
-	},
-	{
-		Group:    "",
-		Version:  "v1",
-		Resource: "configmaps",
-	},
-	{
-		Group:    "batch",
-		Version:  "v1",
-		Resource: "job",
-	},
-	// {
-	// 	Group:    "apps",
-	// 	Version:  "v1",
-	// 	Resource: "replicaset",
-	// },
-	// {
-	// 	Group:    "apps",
-	// 	Version:  "v1",
-	// 	Resource: "deployments",
-	// },
-}
-
 type Job struct {
 	id  uuid.UUID
 	ctx context.Context
@@ -89,6 +45,7 @@ type Options struct {
 	ParentContext  context.Context
 	Logger         *zap.SugaredLogger
 	LogSyncTimeout time.Duration
+	Resources      []schema.GroupVersionResource
 }
 
 type Controller struct {
@@ -149,7 +106,9 @@ func NewController(
 		informers: make(map[string]cache.SharedIndexInformer),
 	}
 
-	for _, resource := range defaultResources {
+	for _, resource := range opts.Resources {
+		controller.Logger.Debugf("registering resource '%s'", resource.Resource)
+
 		handler := cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj any) {
 				controller.onAdd(resource, obj)
@@ -162,8 +121,12 @@ func NewController(
 			},
 		}
 		informer := controller.informerFactory.ForResource(resource).Informer()
-		informer.AddEventHandler(handler)
-		controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
+
+		if _, err := informer.AddEventHandler(handler); err != nil {
+			controller.Logger.Errorf("could not add event handler for resource '%s': %w", resource.Resource, err)
+		} else {
+			controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
+		}
 	}
 
 	eventInformer := informers.NewSharedInformerFactory(kubeclientset, ResyncTime).Events().V1().Events().Informer()

@@ -12,6 +12,7 @@ import (
 	"github.com/joshmeranda/kubedump/pkg/filter"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -42,9 +43,18 @@ func Dump(ctx *cli.Context) error {
 	logger := kubedump.NewLogger(loggerOptions...)
 
 	f, err := filter.Parse(ctx.String("filter"))
-
 	if err != nil {
 		return fmt.Errorf("could not parse filter: %w", err)
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	resources, err := kubedump.Discover(config)
+	if err != nil {
+		return err
 	}
 
 	opts := controller.Options{
@@ -52,12 +62,7 @@ func Dump(ctx *cli.Context) error {
 		ParentContext:  ctx.Context,
 		Logger:         logger,
 		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
-
-	if err != nil {
-		return fmt.Errorf("could not load config: %w", err)
+		Resources:      resources,
 	}
 
 	var client kubernetes.Interface
@@ -67,7 +72,7 @@ func Dump(ctx *cli.Context) error {
 
 	var dynamicclient dynamic.Interface
 	if dynamicclient, err = dynamic.NewForConfig(config); err != nil {
-		fmt.Errorf("could not create dynamic client for config: %w", err)
+		return fmt.Errorf("could not create dynamic client for config: %w", err)
 	}
 
 	c, err := controller.NewController(client, dynamicclient, opts)
@@ -152,6 +157,27 @@ func Filter(ctx *cli.Context) error {
 	return nil
 }
 
+func Discover(ctx *cli.Context) error {
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	resources, err := kubedump.Discover(config)
+	if err != nil {
+		return err
+	}
+
+	bytes, err := yaml.Marshal(resources)
+	if err != nil {
+		return fmt.Errorf("could not marshal schema: %w", err)
+	}
+
+	fmt.Println(string(bytes))
+
+	return nil
+}
+
 func NewKubedumpApp() *cli.App {
 	return &cli.App{
 		Name:    "kubedump",
@@ -220,6 +246,13 @@ func NewKubedumpApp() *cli.App {
 						Aliases: []string{"v"},
 					},
 				},
+			},
+			{
+				Name:      "discover",
+				Usage:     "discover the resources available on the cluster",
+				Action:    Discover,
+				ArgsUsage: "",
+				Flags:     []cli.Flag{},
 			},
 		},
 		Flags: []cli.Flag{
