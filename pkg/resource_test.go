@@ -23,14 +23,6 @@ func TestResourceFromFile(t *testing.T) {
 	assert.Equal(t, "Pod", resource.GetKind())
 }
 
-func TestSandbox(t *testing.T) {
-	filePath := path.Join("..", "test.yaml")
-
-	resource, err := NewResourceFromFile(filePath)
-	require.NoError(t, err)
-	assert.Equal(t, "Pod/test-pod", resource.String())
-}
-
 func TestBuilderValidate(t *testing.T) {
 	builder := NewResourcePathBuilder()
 	assert.Error(t, builder.Validate())

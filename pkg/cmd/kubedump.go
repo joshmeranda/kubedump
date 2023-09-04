@@ -10,8 +10,11 @@ import (
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/joshmeranda/kubedump/pkg/controller"
 	"github.com/joshmeranda/kubedump/pkg/filter"
+	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -22,7 +25,18 @@ const (
 	DefaultTimeFormat = "2006-01-02-15:04:05"
 
 	LogFileName = "kubedump.log"
+
+	FlagNameLogSyncTimeout = "log-sync-timeout"
 )
+
+var Version = ""
+
+var flagLogSyncTimeout = cli.DurationFlag{
+	Name:    FlagNameLogSyncTimeout,
+	Usage:   "specify a timeout for container log syncs",
+	Value:   time.Second * 2,
+	EnvVars: []string{"KUBEDUMP_LOG_SYNC_TIMEOUT"},
+}
 
 func Dump(ctx *cli.Context) error {
 	basePath := ctx.String("destination")
@@ -41,23 +55,60 @@ func Dump(ctx *cli.Context) error {
 
 	logger := kubedump.NewLogger(loggerOptions...)
 
-	f, err := filter.Parse(ctx.String("filter"))
-
+	kubedumpConfig, err := ConfigFromDefaultFile()
 	if err != nil {
-		return fmt.Errorf("could not parse filter: %w", err)
+		if os.IsNotExist(err) {
+			logger.Warn("no config found, using defaults")
+			kubedumpConfig = DefaultConfig()
+		} else {
+			return fmt.Errorf("could not load kubedump config: %w", err)
+		}
 	}
+
+	var dumpFilter filter.Expression
+	if rawFilter := ctx.String("filter"); rawFilter != "" {
+		if dumpFilter, err = filter.Parse(rawFilter); err != nil {
+			return fmt.Errorf("could not parse filter from user '%s': %w", rawFilter, err)
+		}
+	} else {
+		if dumpFilter, err = filter.Parse(kubedumpConfig.DefaultFilter); err != nil {
+			return fmt.Errorf("could not parse filter from config '%s': %w", kubedumpConfig.DefaultFilter, err)
+		}
+	}
+
+	var logSyncTimeout time.Duration
+	if logSyncTimeout = ctx.Duration(FlagNameLogSyncTimeout); logSyncTimeout == 0 {
+		logSyncTimeout, err = time.ParseDuration(kubedumpConfig.LogSyncTimeout)
+		if err != nil {
+			return fmt.Errorf("could not parse log sync timeout from config '%s': %w", kubedumpConfig.LogSyncTimeout, err)
+		}
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	resources, err := kubedump.Discover(config)
+	if err != nil {
+		return err
+	}
+	resources = lo.Filter(resources, func(gvr schema.GroupVersionResource, i int) bool {
+		for _, excluded := range kubedumpConfig.ExcludeResources {
+			if gvr == excluded {
+				return false
+			}
+		}
+
+		return true
+	})
 
 	opts := controller.Options{
 		BasePath:       basePath,
 		ParentContext:  ctx.Context,
 		Logger:         logger,
 		LogSyncTimeout: ctx.Duration(FlagNameLogSyncTimeout),
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
-
-	if err != nil {
-		return fmt.Errorf("could not load config: %w", err)
+		Resources:      resources,
 	}
 
 	var client kubernetes.Interface
@@ -67,7 +118,7 @@ func Dump(ctx *cli.Context) error {
 
 	var dynamicclient dynamic.Interface
 	if dynamicclient, err = dynamic.NewForConfig(config); err != nil {
-		fmt.Errorf("could not create dynamic client for config: %w", err)
+		return fmt.Errorf("could not create dynamic client for config: %w", err)
 	}
 
 	c, err := controller.NewController(client, dynamicclient, opts)
@@ -76,7 +127,12 @@ func Dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not create controller: %w", err)
 	}
 
-	if err = c.Start(ctx.Int("workers"), f); err != nil {
+	var nWorkers int
+	if nWorkers = ctx.Int("workers"); nWorkers == 0 {
+		nWorkers = kubedumpConfig.DefaultNWorkers
+	}
+
+	if err = c.Start(nWorkers, dumpFilter); err != nil {
 		return fmt.Errorf("could not Start controller: %w", err)
 	}
 
@@ -152,6 +208,27 @@ func Filter(ctx *cli.Context) error {
 	return nil
 }
 
+func Discover(ctx *cli.Context) error {
+	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
+	if err != nil {
+		return fmt.Errorf("could not load config: %w", err)
+	}
+
+	resources, err := kubedump.Discover(config)
+	if err != nil {
+		return err
+	}
+
+	bytes, err := yaml.Marshal(resources)
+	if err != nil {
+		return fmt.Errorf("could not marshal schema: %w", err)
+	}
+
+	fmt.Println(string(bytes))
+
+	return nil
+}
+
 func NewKubedumpApp() *cli.App {
 	return &cli.App{
 		Name:    "kubedump",
@@ -175,7 +252,6 @@ func NewKubedumpApp() *cli.App {
 					&cli.StringFlag{
 						Name:    "filter",
 						Usage:   "the filter to use when collecting cluster resources",
-						Value:   "",
 						Aliases: []string{"f"},
 						EnvVars: []string{"KUBEDUMP_FILTER"},
 					},
@@ -189,7 +265,6 @@ func NewKubedumpApp() *cli.App {
 					&cli.IntFlag{
 						Name:    "workers",
 						Usage:   "specify how many workers should run concurrently to process dump operations",
-						Value:   5,
 						Aliases: []string{"w"},
 						EnvVars: []string{"KUBEUDMP_N_WORKERS"},
 					},
@@ -220,6 +295,13 @@ func NewKubedumpApp() *cli.App {
 						Aliases: []string{"v"},
 					},
 				},
+			},
+			{
+				Name:      "discover",
+				Usage:     "discover the resources available on the cluster",
+				Action:    Discover,
+				ArgsUsage: "",
+				Flags:     []cli.Flag{},
 			},
 		},
 		Flags: []cli.Flag{
