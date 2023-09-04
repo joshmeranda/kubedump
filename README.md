@@ -14,41 +14,6 @@ so when you have a slow network connection you might want to run kubedump remote
 To run locally you just need run `kubedump dump` via command line and you're off to the races. For more detailed usage
 information run `kubedump dump --help`.
 
-### Running Remotely
-To run kubedump remotely, you will need to keep a few things in mind. When you run kubedump remotely, you are actually
-just installing a helm chart that deploys the kubedump application inside your cluster and exposes it as a service. You
-can verify that you have the necessary commands with `kubectl`:
-
-```bash
-# verify that you will be able to install the helm chart
-kubectl auth can-i create namespaces
-kubectl auth can-i create deployments
-kubectl auth can-i create services
-kubectl auth can-i create serviceaccounts
-kubectl auth can-i create clusterroles
-kubectl auth can-i create clusterrolebindings
-
-# verify that you will be able to install the helm chart
-kubectl auth can-i delete namspaces
-kubectl auth can-i delete deployments
-kubectl auth can-i delete services
-kubectl auth can-i delete serviceaccounts
-kubectl auth can-i delete clusterroles
-kubectl auth can-i delete clusterrolebindings
-```
-
-If all report back that you have those permissions you are able to run kubedump remotely!
-
-There are several sub-commands that you will need to know before you can start to run kubedump:
-
-| Sub-Command | Use                                                       |
-|-------------|-----------------------------------------------------------|
-| create      | install the kubedump helm chart into your cluster         |
-| start       | start watching the cluster                                |
-| stop        | stop watching the cluster                                 |
-| pull        | pull the collected data from the cluster as a tar archive |
-| remove      | uninstall the kubedump helm chat from your cluster        |
-
 **Note** that the `create` and `remove` sub-commands are not included in the `start` and `stop` sub-commands. This is done
 to allow you to re-use a previous installation of kubedump, but also to allow you to use kubedump with the privelages
 needed above as few times as possible if that is a concern for the cluster admin.

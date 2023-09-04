@@ -1,38 +1,39 @@
 package controller
 
 import (
-	kubedump "github.com/joshmeranda/kubedump/pkg"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"path"
 	"testing"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"github.com/stretchr/testify/assert"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestGetSymlinkPaths(t *testing.T) {
-	parent := kubedump.HandledResource{
-		Object: &apimetav1.ObjectMeta{
+	parent := kubedump.NewResourceBuilder().
+		FromObject(apimetav1.ObjectMeta{
 			Name:      "some-job",
 			Namespace: "ns",
-		},
-		TypeMeta: apimetav1.TypeMeta{
+		}).
+		FromType(apimetav1.TypeMeta{
 			Kind:       "Job",
 			APIVersion: "v1",
-		},
-		Resource: nil,
-	}
+		}).
+		Build()
 
-	child := kubedump.HandledResource{
-		Object: &apimetav1.ObjectMeta{
+	child := kubedump.NewResourceBuilder().
+		FromObject(apimetav1.ObjectMeta{
 			Name:      "some-pod",
 			Namespace: "ns",
-		},
-		TypeMeta: apimetav1.TypeMeta{
+		}).
+		FromType(apimetav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
-		},
-		Resource: nil,
-	}
+		}).
+		Build()
 
 	expectedLinkPath := "/ns/Job/some-job/Pod/some-pod"
 	expectedRelativePath := "../../../Pod/some-pod"
@@ -45,67 +46,41 @@ func TestGetSymlinkPaths(t *testing.T) {
 }
 
 func TestDumpResource(t *testing.T) {
-	type DummyStruct struct {
-		I int
-		F float64
-		S string
-	}
-
 	basePath := t.TempDir()
 
-	resource := kubedump.HandledResource{
-		Object: &apimetav1.ObjectMeta{
-			Name:      "some-resource",
-			Namespace: "ns",
-		},
-		TypeMeta: apimetav1.TypeMeta{
-			Kind:       "nothing",
-			APIVersion: "v0",
-		},
-		Resource: DummyStruct{
-			I: 0,
-			F: 1.5,
-			S: "something longer than the next",
-		},
+	u := &unstructured.Unstructured{
+		Object: map[string]interface{}{},
 	}
+	u.SetKind("nothing")
+	u.SetName("some-resource")
+	u.SetNamespace("ns")
 
-	dumpPath := path.Join(basePath, resource.GetNamespace(), resource.Kind, resource.GetName(), resource.GetName()+".yaml")
+	resource := kubedump.NewResourceBuilder().
+		FromUnstructured(u).
+		Build()
 
-	err := dumpResourceDescription(dumpPath, resource)
+	dumpPath := path.Join(basePath, resource.GetNamespace(), resource.GetKind(), resource.GetName(), resource.GetName()+".yaml")
+
+	err := dumpResourceDescription(dumpPath, u)
 	assert.NoError(t, err)
 
-	data, err := ioutil.ReadFile(dumpPath)
+	data, err := os.ReadFile(dumpPath)
 	assert.NoError(t, err)
 
-	expectedData := "F: 1.5\nI: 0\nS: something longer than the next\n"
+	expectedData := "kind: nothing\nmetadata:\n  name: some-resource\n  namespace: ns\n"
 	assert.Equal(t, expectedData, string(data))
 
 	// test overwriting file
-	resource = kubedump.HandledResource{
-		Object: &apimetav1.ObjectMeta{
-			Name:      "some-resource",
-			Namespace: "ns",
-		},
-		TypeMeta: apimetav1.TypeMeta{
-			Kind:       "nothing",
-			APIVersion: "v0",
-		},
-		Resource: DummyStruct{
-			I: 0,
-			F: 1.5,
-			S: "something",
-		},
-	}
-
-	err = dumpResourceDescription(dumpPath, resource)
+	u.SetName("a-resource")
+	err = dumpResourceDescription(dumpPath, u)
 
 	assert.NoError(t, err)
 
-	dumpPath = path.Join(basePath, resource.GetNamespace(), resource.Kind, resource.GetName(), resource.GetName()+".yaml")
+	dumpPath = path.Join(basePath, resource.GetNamespace(), resource.GetKind(), resource.GetName(), resource.GetName()+".yaml")
 
 	data, err = ioutil.ReadFile(dumpPath)
 	assert.NoError(t, err)
 
-	expectedData = "F: 1.5\nI: 0\nS: something\n"
+	expectedData = "kind: nothing\nmetadata:\n  name: a-resource\n  namespace: ns\n"
 	assert.Equal(t, expectedData, string(data))
 }

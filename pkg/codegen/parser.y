@@ -29,7 +29,9 @@ func couldNotParseErr(err error) error {
 %right AND
 %right OR
 
-%token<s> RESOURCE PATTERN NAMESPACE LABEL
+
+// todo: should be a better name than "IDENTIFIER"
+%token<s> IDENTIFIER NAMESPACE LABEL
 
 %type<expression> expr single_expr
 %type<labels> labels
@@ -37,7 +39,7 @@ func couldNotParseErr(err error) error {
 %%
 
 start:         { yylex.(*Lexer).result = truthyExpression{} }
-	| expr { yylex.(*Lexer).result = $1 }
+	| expr     { yylex.(*Lexer).result = $1 }
 	;
 
 expr: single_expr
@@ -48,7 +50,7 @@ expr: single_expr
 	| NOT '(' expr ')' { $$ = notExpression { inner: $3 } }
 	;
 
-single_expr: RESOURCE PATTERN {
+single_expr: IDENTIFIER IDENTIFIER {
 		namespacePattern, namePattern := splitPattern($2)
 		if err := validateNamespace(namespacePattern); err != nil {
 			yylex.Error(couldNotParseErr(err).Error())
@@ -58,33 +60,18 @@ single_expr: RESOURCE PATTERN {
 			yylex.Error(couldNotParseErr(err).Error())
 		}
 
-		switch $1 {
-		case "pod":
-			$$ = resourceExpression { kind: "Pod", namePattern: namePattern, namespacePattern: namespacePattern }
-		case "job":
-			$$ = resourceExpression { kind: "Job", namePattern: namePattern, namespacePattern: namespacePattern }
-		case "replicaset":
-			$$ = resourceExpression { kind: "ReplicaSet", namePattern: namePattern, namespacePattern: namespacePattern }
-		case "deployment":
-			$$ = resourceExpression { kind: "Deployment", namePattern: namePattern, namespacePattern: namespacePattern }
-		case "service":
-			$$ = resourceExpression { kind: "Service", namePattern: namePattern, namespacePattern: namespacePattern }
-		case "configmap":
-			$$ = resourceExpression { kind: "ConfigMap", namePattern: namePattern, namespacePattern: namespacePattern }
-		case "secret":
-			$$ = resourceExpression { kind: "Secret", namePattern: namePattern, namespacePattern: namespacePattern }
-		}
+		$$ = resourceExpression { kind: $1, namePattern: namePattern, namespacePattern: namespacePattern }
 	}
-	| NAMESPACE PATTERN   {
+	| NAMESPACE IDENTIFIER {
 		if err := validateNamespace($2); err != nil {
 			yylex.Error(couldNotParseErr(err).Error())
 		}
 
 		$$ = namespaceExpression{ namespacePattern: $2 }
 	}
-	| LABEL labels        { $$ = labelExpression{ labels: $2 } }
+	| LABEL labels { $$ = labelExpression{ labels: $2 } }
 
-labels: PATTERN          {
+labels: IDENTIFIER {
 		key, val, err := splitLabelPattern($1)
 
 		if err != nil {
@@ -93,7 +80,7 @@ labels: PATTERN          {
 
 		$$ = map[string]string { key: val }
 	}
-	| labels PATTERN {
+	| labels IDENTIFIER {
 		key, val, err := splitLabelPattern($2)
 
 		if err != nil {

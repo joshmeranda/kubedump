@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	apicorev1 "k8s.io/api/core/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,7 +10,7 @@ import (
 )
 
 type Matcher interface {
-	Matches(resource kubedump.HandledResource) bool
+	Matches(resource kubedump.Resource) bool
 }
 
 func MatcherFromLabels(labels labels.Set) (Matcher, error) {
@@ -49,7 +50,7 @@ type mapMatcher struct {
 	labels labels.Set
 }
 
-func (matcher mapMatcher) Matches(resource kubedump.HandledResource) bool {
+func (matcher mapMatcher) Matches(resource kubedump.Resource) bool {
 	labels := resource.GetLabels()
 
 	for key, value := range matcher.labels {
@@ -65,7 +66,7 @@ type labelSelectorMatcher struct {
 	inner labels.Selector
 }
 
-func (matcher labelSelectorMatcher) Matches(resource kubedump.HandledResource) bool {
+func (matcher labelSelectorMatcher) Matches(resource kubedump.Resource) bool {
 	return matcher.inner.Matches(labels.Set(resource.GetLabels()))
 }
 
@@ -74,12 +75,12 @@ type podMatcher struct {
 	volumes   []apicorev1.Volume
 }
 
-func (matcher podMatcher) Matches(resource kubedump.HandledResource) bool {
+func (matcher podMatcher) Matches(resource kubedump.Resource) bool {
 	if matcher.namespace != resource.GetNamespace() {
 		return false
 	}
 
-	switch resource.Kind {
+	switch resource.GetKind() {
 	case "Secret", "ConfigMap":
 	default:
 		return false
@@ -87,9 +88,9 @@ func (matcher podMatcher) Matches(resource kubedump.HandledResource) bool {
 
 	for _, volume := range matcher.volumes {
 		switch {
-		case resource.Kind == "Secret" && volume.Secret != nil:
+		case resource.GetKind() == "Secret" && volume.Secret != nil:
 			return volume.Secret.SecretName == resource.GetName()
-		case resource.Kind == "ConfigMap" && volume.ConfigMap != nil:
+		case resource.GetKind() == "ConfigMap" && volume.ConfigMap != nil:
 			return volume.ConfigMap.Name == resource.GetName()
 		}
 	}

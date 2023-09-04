@@ -2,28 +2,45 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	kubedump "github.com/joshmeranda/kubedump/pkg"
-	"github.com/joshmeranda/kubedump/pkg/filter"
-	"github.com/joshmeranda/kubedump/tests"
-	"github.com/stretchr/testify/assert"
-	apiappsv1 "k8s.io/api/apps/v1"
-	apibatchv1 "k8s.io/api/batch/v1"
-	apicorev1 "k8s.io/api/core/v1"
-	apieventsv1 "k8s.io/api/events/v1"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
 	"os"
 	"path"
 	"strings"
 	"testing"
 	"time"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"github.com/joshmeranda/kubedump/pkg/filter"
+	"github.com/joshmeranda/kubedump/tests"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	apiappsv1 "k8s.io/api/apps/v1"
+	apibatchv1 "k8s.io/api/batch/v1"
+	apicorev1 "k8s.io/api/core/v1"
+	apieventsv1 "k8s.io/api/events/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
-func filterForResource(t *testing.T, resource kubedump.HandledResource) filter.Expression {
-	s := fmt.Sprintf("%s %s/%s", strings.ToLower(resource.Kind), resource.GetNamespace(), resource.GetName())
+func resourceToHandled[T any](t *testing.T, obj T) (kubedump.Resource, T) {
+	data, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var u unstructured.Unstructured
+	require.NoError(t, json.Unmarshal(data, &u))
+
+	resource := kubedump.NewResourceBuilder().FromUnstructured(&u).Build()
+
+	return resource, obj
+}
+
+func filterForResource(t *testing.T, resource kubedump.Resource) filter.Expression {
+	s := fmt.Sprintf("%s %s/%s", resource.GetKind(), resource.GetNamespace(), resource.GetName())
 	expr, err := filter.Parse(s)
 	if err != nil {
 		t.Fatalf("failed to parse expression '%s': %s", s, err)
@@ -34,6 +51,11 @@ func filterForResource(t *testing.T, resource kubedump.HandledResource) filter.E
 
 func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kubernetes.Interface, string, context.Context, *Controller) {
 	client := fake.NewSimpleClientset(objects...)
+
+	scheme := runtime.NewScheme()
+	apicorev1.AddToScheme(scheme)
+
+	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 
 	basePath := path.Join(t.TempDir(), "kubedump-test")
 	logFilePath := path.Join(basePath, "kubedump.log")
@@ -62,7 +84,7 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 		LogSyncTimeout: time.Second,
 	}
 
-	controller, _ := NewController(client, opts)
+	controller, _ := NewController(client, dynamicClient, opts)
 
 	teardown := func() {
 		cancel()
@@ -85,7 +107,10 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 }
 
 func TestEvent(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -93,7 +118,10 @@ func TestEvent(t *testing.T) {
 		},
 	})
 
-	handledEvent, _ := kubedump.NewHandledResource(&apieventsv1.Event{
+	handledEvent, event := resourceToHandled(t, &apieventsv1.Event{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Event",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name: "sample-pod-event",
 		},
@@ -107,22 +135,20 @@ func TestEvent(t *testing.T) {
 		Regarding: apicorev1.ObjectReference{
 			Kind:            "Pod",
 			Namespace:       tests.ResourceNamespace,
-			Name:            handledPod.GetName(),
-			UID:             handledPod.GetUID(),
-			APIVersion:      handledPod.APIVersion,
-			ResourceVersion: handledPod.GetResourceVersion(),
+			Name:            pod.GetName(),
+			UID:             pod.GetUID(),
+			APIVersion:      pod.APIVersion,
+			ResourceVersion: pod.GetResourceVersion(),
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
-
-	t.Log(basePath)
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, handledEvent.Resource.(*apieventsv1.Event), apimetav1.CreateOptions{}); err != nil {
+	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, event, apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("failed to create resource '%s': %s", handledEvent.String(), err)
 	}
 
@@ -140,7 +166,10 @@ func TestEvent(t *testing.T) {
 }
 
 func TestLogs(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -148,7 +177,7 @@ func TestLogs(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
@@ -166,10 +195,14 @@ func TestLogs(t *testing.T) {
 	logFile := kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).WithFileName(handledPod.GetName() + ".log").Build()
 	data, err := os.ReadFile(logFile)
 	assert.GreaterOrEqual(t, 1, strings.Count(string(data), "fake logs"))
+	assert.NoError(t, err)
 }
 
 func TestPod(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -177,7 +210,7 @@ func TestPod(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
@@ -194,7 +227,10 @@ func TestPod(t *testing.T) {
 }
 
 func TestPodWithConfigMap(t *testing.T) {
-	handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
+	handledConfigMap, configmap := resourceToHandled(t, &apicorev1.ConfigMap{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "ConfigMap",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-configmap",
 			Namespace: tests.ResourceNamespace,
@@ -202,7 +238,10 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -224,7 +263,7 @@ func TestPodWithConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap), handledPod.Resource.(*apicorev1.Pod))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, configmap, pod)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
@@ -247,7 +286,10 @@ func TestPodWithConfigMap(t *testing.T) {
 }
 
 func TestPodWithSecret(t *testing.T) {
-	handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
+	handledSecret, secret := resourceToHandled(t, &apicorev1.Secret{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Secret",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-secret",
 			Namespace: tests.ResourceNamespace,
@@ -255,7 +297,10 @@ func TestPodWithSecret(t *testing.T) {
 		},
 	})
 
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -275,7 +320,7 @@ func TestPodWithSecret(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledPod.Resource.(*apicorev1.Pod), handledSecret.Resource.(*apicorev1.Secret))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, pod, secret)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
@@ -294,7 +339,10 @@ func TestPodWithSecret(t *testing.T) {
 }
 
 func TestService(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -305,7 +353,10 @@ func TestService(t *testing.T) {
 		},
 	})
 
-	handledService, _ := kubedump.NewHandledResource(&apicorev1.Service{
+	handledService, service := resourceToHandled(t, &apicorev1.Service{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Service",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-service",
 			Namespace: tests.ResourceNamespace,
@@ -316,7 +367,7 @@ func TestService(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledService.Resource.(*apicorev1.Service))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, service)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledService))
@@ -326,7 +377,7 @@ func TestService(t *testing.T) {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
+	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
@@ -343,7 +394,10 @@ func TestService(t *testing.T) {
 }
 
 func TestJob(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -354,7 +408,10 @@ func TestJob(t *testing.T) {
 		},
 	})
 
-	handledJob, _ := kubedump.NewHandledResource(&apibatchv1.Job{
+	handledJob, job := resourceToHandled(t, &apibatchv1.Job{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Job",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-job",
 			Namespace: tests.ResourceNamespace,
@@ -368,7 +425,7 @@ func TestJob(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledJob.Resource.(*apibatchv1.Job))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, job)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledJob))
@@ -378,7 +435,7 @@ func TestJob(t *testing.T) {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
+	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
@@ -395,7 +452,10 @@ func TestJob(t *testing.T) {
 }
 
 func TestReplicaSet(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -406,7 +466,10 @@ func TestReplicaSet(t *testing.T) {
 		},
 	})
 
-	handledReplicaSet, _ := kubedump.NewHandledResource(&apiappsv1.ReplicaSet{
+	handledReplicaSet, replicaset := resourceToHandled(t, &apiappsv1.ReplicaSet{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "ReplicaSet",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-replica-set",
 			Namespace: tests.ResourceNamespace,
@@ -420,7 +483,7 @@ func TestReplicaSet(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledReplicaSet.Resource.(*apiappsv1.ReplicaSet))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, replicaset)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledReplicaSet))
@@ -430,7 +493,7 @@ func TestReplicaSet(t *testing.T) {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
+	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
@@ -447,7 +510,10 @@ func TestReplicaSet(t *testing.T) {
 }
 
 func TestDeployment(t *testing.T) {
-	handledPod, _ := kubedump.NewHandledResource(&apicorev1.Pod{
+	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Pod",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-pod",
 			Namespace: tests.ResourceNamespace,
@@ -458,7 +524,10 @@ func TestDeployment(t *testing.T) {
 		},
 	})
 
-	handledDeployment, _ := kubedump.NewHandledResource(&apiappsv1.Deployment{
+	handledDeployment, deployment := resourceToHandled(t, &apiappsv1.Deployment{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Deployment",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-deployment",
 			Namespace: tests.ResourceNamespace,
@@ -472,7 +541,7 @@ func TestDeployment(t *testing.T) {
 		},
 	})
 
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, handledDeployment.Resource.(*apiappsv1.Deployment))
+	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, deployment)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledDeployment))
@@ -482,7 +551,7 @@ func TestDeployment(t *testing.T) {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, handledPod.Resource.(*apicorev1.Pod), apimetav1.CreateOptions{}); err != nil {
+	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
 		t.Fatalf("erro creating resource %s: %s", handledPod, err)
 	}
 
@@ -499,7 +568,10 @@ func TestDeployment(t *testing.T) {
 }
 
 func TestConfigMap(t *testing.T) {
-	handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
+	handledConfigMap, configmap := resourceToHandled(t, &apicorev1.ConfigMap{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "ConfigMap",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-configmap",
 			Namespace: tests.ResourceNamespace,
@@ -507,7 +579,7 @@ func TestConfigMap(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledConfigMap.Resource.(*apicorev1.ConfigMap))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, configmap)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledConfigMap))
@@ -524,7 +596,10 @@ func TestConfigMap(t *testing.T) {
 }
 
 func TestSecret(t *testing.T) {
-	handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
+	handledSecret, secret := resourceToHandled(t, &apicorev1.Secret{
+		TypeMeta: apimetav1.TypeMeta{
+			Kind: "Secret",
+		},
 		ObjectMeta: apimetav1.ObjectMeta{
 			Name:      "sample-secret",
 			Namespace: tests.ResourceNamespace,
@@ -532,7 +607,7 @@ func TestSecret(t *testing.T) {
 		},
 	})
 
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, handledSecret.Resource.(*apicorev1.Secret))
+	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, secret)
 	defer teardown()
 
 	err := controller.Start(tests.NWorkers, filterForResource(t, handledSecret))

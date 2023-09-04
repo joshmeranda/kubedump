@@ -1,71 +1,70 @@
 package filter
 
 import (
-	"github.com/joshmeranda/kubedump/pkg"
-	"github.com/stretchr/testify/assert"
-	apibatchv1 "k8s.io/api/batch/v1"
-	apicorev1 "k8s.io/api/core/v1"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"github.com/stretchr/testify/assert"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Entry struct {
-	Resource    kubedump.HandledResource
+	Resource    kubedump.Resource
 	ShouldMatch bool
 }
 
 func TestNot(t *testing.T) {
 	assert.True(t, notExpression{
 		inner: falsyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.False(t, notExpression{
 		inner: truthyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 }
 
 func TestAnd(t *testing.T) {
 	assert.True(t, andExpression{
 		left:  truthyExpression{},
 		right: truthyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.False(t, andExpression{
 		left:  falsyExpression{},
 		right: truthyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.False(t, andExpression{
 		left:  truthyExpression{},
 		right: falsyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.False(t, andExpression{
 		left:  falsyExpression{},
 		right: falsyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 }
 
 func TestOr(t *testing.T) {
 	assert.True(t, orExpression{
 		left:  truthyExpression{},
 		right: truthyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.True(t, orExpression{
 		left:  falsyExpression{},
 		right: truthyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.True(t, orExpression{
 		left:  truthyExpression{},
 		right: falsyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 
 	assert.False(t, orExpression{
 		left:  falsyExpression{},
 		right: falsyExpression{},
-	}.Matches(kubedump.HandledResource{}))
+	}.Matches(kubedump.NewResourceBuilder().Build()))
 }
 
 func TestResource(t *testing.T) {
@@ -77,75 +76,69 @@ func TestResource(t *testing.T) {
 
 	cases := []Entry{
 		{
-			Resource: kubedump.HandledResource{
-				Object: &apimetav1.ObjectMeta{
+			Resource: kubedump.NewResourceBuilder().
+				FromObject(apimetav1.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "default",
-				},
-				TypeMeta: apimetav1.TypeMeta{
+				}).
+				FromType(apimetav1.TypeMeta{
 					Kind:       "Pod",
 					APIVersion: "v1",
-				},
-				Resource: apicorev1.Pod{},
-			},
+				}).
+				Build(),
 			ShouldMatch: true,
 		},
 		{
-			Resource: kubedump.HandledResource{
-				Object: &apimetav1.ObjectMeta{
+			Resource: kubedump.NewResourceBuilder().
+				FromObject(apimetav1.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "non-default",
-				},
-				TypeMeta: apimetav1.TypeMeta{
+				}).
+				FromType(apimetav1.TypeMeta{
 					Kind:       "Pod",
 					APIVersion: "v1",
-				},
-				Resource: apicorev1.Pod{},
-			},
+				}).
+				Build(),
 			ShouldMatch: false,
 		},
 		{
 
-			Resource: kubedump.HandledResource{
-				Object: &apimetav1.ObjectMeta{
+			Resource: kubedump.NewResourceBuilder().
+				FromObject(apimetav1.ObjectMeta{
 					Name:      "some-pod-postfix",
 					Namespace: "default",
-				},
-				TypeMeta: apimetav1.TypeMeta{
+				}).
+				FromType(apimetav1.TypeMeta{
 					Kind:       "Pod",
 					APIVersion: "v1",
-				},
-				Resource: apicorev1.Pod{},
-			},
+				}).
+				Build(),
 			ShouldMatch: false,
 		},
 		{
-			Resource: kubedump.HandledResource{
-				Object: &apimetav1.ObjectMeta{
+			Resource: kubedump.NewResourceBuilder().
+				FromObject(apimetav1.ObjectMeta{
 					Name:      "some-pod-postfix",
 					Namespace: "non-default",
-				},
-				TypeMeta: apimetav1.TypeMeta{
+				}).
+				FromType(apimetav1.TypeMeta{
 					Kind:       "Pod",
 					APIVersion: "v1",
-				},
-				Resource: apicorev1.Pod{},
-			},
+				}).
+				Build(),
 			ShouldMatch: false,
 		},
-
 		{
-			Resource: kubedump.HandledResource{
-				Object: &apimetav1.ObjectMeta{
+			Resource: kubedump.NewResourceBuilder().
+				FromObject(apimetav1.ObjectMeta{
 					Name:      "some-pod",
 					Namespace: "default",
-				},
-				TypeMeta: apimetav1.TypeMeta{
+				}).
+				FromType(apimetav1.TypeMeta{
 					Kind:       "Job",
 					APIVersion: "v1",
-				},
-				Resource: apibatchv1.Job{},
-			},
+				}).
+				Build(),
 			ShouldMatch: false,
 		},
 	}
@@ -157,33 +150,4 @@ func TestResource(t *testing.T) {
 			assert.False(t, expr.Matches(entry.Resource), "should be false: "+entry.Resource.String())
 		}
 	}
-}
-
-func TestResourceUnknownKind(t *testing.T) {
-	expr := resourceExpression{
-		kind:             "Unkown",
-		namePattern:      "something",
-		namespacePattern: "default",
-	}
-
-	handledUnknown := kubedump.HandledResource{
-		Object: &apimetav1.ObjectMeta{
-			Name:      "something",
-			Namespace: "default",
-		},
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Unkown",
-		},
-	}
-
-	handledPod, err := kubedump.NewHandledResource(&apicorev1.Pod{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "something",
-			Namespace: "default",
-		},
-	})
-	assert.NoError(t, err)
-
-	assert.True(t, expr.Matches(handledUnknown))
-	assert.False(t, expr.Matches(handledPod))
 }

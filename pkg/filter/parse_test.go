@@ -1,8 +1,9 @@
 package filter
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseEmpty(t *testing.T) {
@@ -19,25 +20,25 @@ func TestComplex(t *testing.T) {
 	assert.Equal(t, andExpression{
 		left: notExpression{
 			inner: resourceExpression{
-				kind:             "Pod",
+				kind:             "pod",
 				namePattern:      "a",
 				namespacePattern: "default",
 			},
 		},
 		right: orExpression{
 			left: resourceExpression{
-				kind:             "Pod",
+				kind:             "pod",
 				namePattern:      "b",
 				namespacePattern: "default",
 			},
 			right: orExpression{
 				left: resourceExpression{
-					kind:             "Job",
+					kind:             "job",
 					namePattern:      "c",
 					namespacePattern: "default",
 				},
 				right: resourceExpression{
-					kind:             "ReplicaSet",
+					kind:             "replicaset",
 					namePattern:      "d",
 					namespacePattern: "default",
 				},
@@ -58,7 +59,7 @@ func TestParseResourceExpression(t *testing.T) {
 		{
 			Expr: "pod */*",
 			ExpectedExpr: resourceExpression{
-				kind:             "Pod",
+				kind:             "pod",
 				namespacePattern: "*",
 				namePattern:      "*",
 			},
@@ -66,7 +67,7 @@ func TestParseResourceExpression(t *testing.T) {
 		{
 			Expr: "pod *",
 			ExpectedExpr: resourceExpression{
-				kind:             "Pod",
+				kind:             "pod",
 				namespacePattern: "default",
 				namePattern:      "*",
 			},
@@ -103,12 +104,12 @@ func TestParseOperatorExpression(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, andExpression{
 		left: resourceExpression{
-			kind:             "Pod",
+			kind:             "pod",
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
 		right: resourceExpression{
-			kind:             "Pod",
+			kind:             "pod",
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
@@ -122,12 +123,12 @@ func TestParseOperatorExpression(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, orExpression{
 		left: resourceExpression{
-			kind:             "Pod",
+			kind:             "pod",
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
 		right: resourceExpression{
-			kind:             "Pod",
+			kind:             "pod",
 			namePattern:      "*",
 			namespacePattern: "default",
 		},
@@ -144,18 +145,18 @@ func TestParsedChainedOperatorExpression(t *testing.T) {
 
 	expected := andExpression{
 		left: resourceExpression{
-			kind:             "Pod",
+			kind:             "pod",
 			namePattern:      "a",
 			namespacePattern: "default",
 		},
 		right: andExpression{
 			left: resourceExpression{
-				kind:             "Pod",
+				kind:             "pod",
 				namePattern:      "b",
 				namespacePattern: "default",
 			},
 			right: resourceExpression{
-				kind:             "Pod",
+				kind:             "pod",
 				namePattern:      "c",
 				namespacePattern: "default",
 			},
@@ -170,7 +171,7 @@ func TestParseNotExpression(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, notExpression{
 		inner: resourceExpression{
-			kind:             "Pod",
+			kind:             "pod",
 			namePattern:      "*",
 			namespacePattern: "default",
 		},

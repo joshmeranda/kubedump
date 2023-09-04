@@ -2,6 +2,12 @@ package tests
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"path"
+	"testing"
+	"time"
+
 	kubedump "github.com/joshmeranda/kubedump/pkg/cmd"
 	"github.com/joshmeranda/kubedump/tests/deployer"
 	"github.com/stretchr/testify/assert"
@@ -11,11 +17,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"os/exec"
-	"path"
-	"testing"
-	"time"
 )
 
 var kubedumpChartPath = path.Join("..", "charts", "kubedump-server")
@@ -108,7 +109,7 @@ func TestHelm(t *testing.T) {
 	teardown, d, client, _, basePath, ctx := helmSetup(t)
 	defer teardown()
 
-	app := kubedump.NewKubedumpApp(nil)
+	app := kubedump.NewKubedumpApp()
 
 	err := app.Run([]string{"kubedump", "--kubeconfig", d.Kubeconfig(), "create", "--node-port", "30000", "--chart-path", kubedumpChartPath})
 	assert.NoError(t, err)

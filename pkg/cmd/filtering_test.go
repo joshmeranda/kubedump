@@ -1,12 +1,13 @@
 package kubedump
 
 import (
-	"github.com/joshmeranda/kubedump/tests"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
+
+	"github.com/joshmeranda/kubedump/tests"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -44,11 +45,9 @@ func TestFilteringOnlyChildren(t *testing.T) {
 	teardown, destination, basePath := setupFiltering(t, serviceDumpPath)
 	defer teardown()
 
-	stopChan := make(chan interface{})
+	app := NewKubedumpApp()
 
-	app := NewKubedumpApp(stopChan)
-
-	if err := app.Run([]string{"kubedump", "filter", "--verbose", "--destination", destination, basePath, "pod default/sample-pod"}); err != nil {
+	if err := app.Run([]string{"kubedump", "filter", "--verbose", "--destination", destination, basePath, "Pod default/sample-pod"}); err != nil {
 		t.Fatalf("filtering failed: %s", err)
 	}
 
@@ -60,11 +59,9 @@ func TestFilteringParentWithChildren(t *testing.T) {
 	teardown, destination, basePath := setupFiltering(t, serviceDumpPath)
 	defer teardown()
 
-	stopChan := make(chan interface{})
+	app := NewKubedumpApp()
 
-	app := NewKubedumpApp(stopChan)
-
-	if err := app.Run([]string{"kubedump", "filter", "--verbose", "--destination", destination, basePath, "service default/sample-service"}); err != nil {
+	if err := app.Run([]string{"kubedump", "filter", "--verbose", "--destination", destination, basePath, "Service default/sample-service"}); err != nil {
 		t.Fatalf("filtering failed: %s", err)
 	}
 

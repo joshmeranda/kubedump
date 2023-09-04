@@ -1,17 +1,8 @@
-SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump-server/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
+SOURCES=./pkg/cmd/*.go ./pkg/cmd/kubedump/*.go ./pkg/*.go ./pkg/filter/*.go ./pkg/controller/*.go
 
-UNIT_TEST_PATHS=./pkg/filter ./pkg/controller ./pkg/http ./pkg/cmd
+UNIT_TEST_PATHS=./pkg/filter ./pkg/controller ./pkg/cmd
 INTEGRATION_TEST_PATHS=./tests
 TEST_PATHS=${UNIT_TEST_PATHS} ${INTEGRATION_TEST_PATHS}
-
-KUBEDUMP_VERSION=$(shell tools/version.bash get)
-IMAGE_TAG=joshmeranda/kubedump-server:${KUBEDUMP_VERSION}
-
-CHARTS_DIR=charts
-
-BUILDER=docker
-
-HELM_PACKAGE=helm package
 
 KUBEDUMP_VERSION=$(shell tools/version.bash get)
 
@@ -42,9 +33,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  kubedump           build the kubedump binary"
-	@echo "  kubedump-server    build the kubedump server binary"
 	@echo "  generate            run code generation"
-	@echo "  docker             builder the kubedump-serve image"
 	@echo "  all                build all binaries and docker images"
 	@echo "  test               run all tests"
 	@echo "  mostly-clean       clean any project generated files (not-including deliverables)"
@@ -72,7 +61,7 @@ generate: ${YYPARSER}
 # # # # # # # # # # # # # # # # # # # #
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
-.PHONY: kubedump kubedump-server
+.PHONY: kubedump
 
 all: docker charts kubedump
 
@@ -80,29 +69,6 @@ kubedump: bin/kubedump go.mod
 
 bin/kubedump: ${SOURCES}
 	${GO_BUILD} -o $@ ./pkg/cmd/kubedump
-
-kubedump-server: bin/kubedump-server go.mod
-
-bin/kubedump-server: ${SOURCES}
-	${GO_BUILD} -o $@ ./pkg/cmd/kubedump-server
-
-# # # # # # # # # # # # # # # # # # # #
-# Build docker images                 #
-# # # # # # # # # # # # # # # # # # # #
-.PHONY: docker
-
-docker: kubedump-server
-	${BUILDER} build --tag ${IMAGE_TAG} .
-
-# # # # # # # # # # # # # # # # # # # #
-# Package kubedump-seve helm chart    #
-# # # # # # # # # # # # # # # # # # # #
-.PHONY: charts
-
-charts:
-	for chart in $$(ls "${CHARTS_DIR}"); do \
-	   ${HELM_PACKAGE} --destination artifacts "${CHARTS_DIR}/$${chart}"; \
-	done
 
 # # # # # # # # # # # # # # # # # # # #
 # Run go tests                        #

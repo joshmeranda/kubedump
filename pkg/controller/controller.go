@@ -3,32 +3,84 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/joshmeranda/kubedump/pkg/filter"
-	"go.uber.org/zap"
-	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/informers"
-	informersappsv1 "k8s.io/client-go/informers/apps/v1"
-	informersbatchv1 "k8s.io/client-go/informers/batch/v1"
-	informerscorev1 "k8s.io/client-go/informers/core/v1"
-	informerseventsv1 "k8s.io/client-go/informers/events/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/joshmeranda/kubedump/pkg/filter"
+	"go.uber.org/zap"
+	apicorev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
-type Job struct {
-	id uuid.UUID
-	fn *func()
+const (
+	FakeHost   = "FAKE"
+	ResyncTime = time.Second * 5
+)
+
+// todo: load resources kinds from file
+var defaultResources = []schema.GroupVersionResource{
+	{
+		Group:    "events.k8s.io",
+		Version:  "v1",
+		Resource: "events",
+	},
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "pods",
+	},
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "services",
+	},
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "secrets",
+	},
+	{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	},
+	{
+		Group:    "batch",
+		Version:  "v1",
+		Resource: "job",
+	},
+	// {
+	// 	Group:    "apps",
+	// 	Version:  "v1",
+	// 	Resource: "replicaset",
+	// },
+	// {
+	// 	Group:    "apps",
+	// 	Version:  "v1",
+	// 	Resource: "deployments",
+	// },
 }
 
-func NewJob(fn func()) Job {
+type Job struct {
+	id  uuid.UUID
+	ctx context.Context
+	fn  *func()
+}
+
+func NewJob(ctx context.Context, fn func()) Job {
 	return Job{
-		id: uuid.New(),
-		fn: &fn,
+		id:  uuid.New(),
+		ctx: ctx,
+		fn:  &fn,
 	}
 }
 
@@ -47,7 +99,7 @@ type Controller struct {
 
 	filterExpr filter.Expression
 
-	informerFactory informers.SharedInformerFactory
+	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	stopChan        chan struct{}
 
 	workerWaitGroup sync.WaitGroup
@@ -61,24 +113,15 @@ type Controller struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	store Store
-
-	eventInformer      informerseventsv1.EventInformer
-	podInformer        informerscorev1.PodInformer
-	serviceInformer    informerscorev1.ServiceInformer
-	secretInformer     informerscorev1.SecretInformer
-	configMapInformer  informerscorev1.ConfigMapInformer
-	jobInformer        informersbatchv1.JobInformer
-	replicasetInformer informersappsv1.ReplicaSetInformer
-	deploymentInformer informersappsv1.DeploymentInformer
+	store     Store
+	informers map[string]cache.SharedIndexInformer
 }
 
 func NewController(
 	kubeclientset kubernetes.Interface,
+	dynamicclientset dynamic.Interface,
 	opts Options,
 ) (*Controller, error) {
-	informerFactory := informers.NewSharedInformerFactory(kubeclientset, time.Second*5)
-
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if opts.ParentContext != nil {
@@ -91,7 +134,7 @@ func NewController(
 		Options:       opts,
 		kubeclientset: kubeclientset,
 
-		informerFactory: informerFactory,
+		informerFactory: dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicclientset, ResyncTime, apicorev1.NamespaceAll, nil),
 		stopChan:        nil,
 
 		logStreams: make(map[string]Stream),
@@ -103,30 +146,32 @@ func NewController(
 
 		store: NewStore(),
 
-		eventInformer:      informerFactory.Events().V1().Events(),
-		podInformer:        informerFactory.Core().V1().Pods(),
-		serviceInformer:    informerFactory.Core().V1().Services(),
-		secretInformer:     informerFactory.Core().V1().Secrets(),
-		configMapInformer:  informerFactory.Core().V1().ConfigMaps(),
-		jobInformer:        informerFactory.Batch().V1().Jobs(),
-		replicasetInformer: informerFactory.Apps().V1().ReplicaSets(),
-		deploymentInformer: informerFactory.Apps().V1().Deployments(),
+		informers: make(map[string]cache.SharedIndexInformer),
 	}
 
-	handler := cache.ResourceEventHandlerFuncs{
-		AddFunc:    controller.onAdd,
-		UpdateFunc: controller.onUpdate,
-		DeleteFunc: controller.onDelete,
+	for _, resource := range defaultResources {
+		handler := cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj any) {
+				controller.onAdd(resource, obj)
+			},
+			UpdateFunc: func(_ any, new any) {
+				controller.onUpdate(resource, new)
+			},
+			DeleteFunc: func(obj any) {
+				controller.onDelete(resource, obj)
+			},
+		}
+		informer := controller.informerFactory.ForResource(resource).Informer()
+		informer.AddEventHandler(handler)
+		controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
 	}
 
-	controller.eventInformer.Informer().AddEventHandler(handler)
-	controller.podInformer.Informer().AddEventHandler(handler)
-	controller.serviceInformer.Informer().AddEventHandler(handler)
-	controller.secretInformer.Informer().AddEventHandler(handler)
-	controller.configMapInformer.Informer().AddEventHandler(handler)
-	controller.jobInformer.Informer().AddEventHandler(handler)
-	controller.replicasetInformer.Informer().AddEventHandler(handler)
-	controller.deploymentInformer.Informer().AddEventHandler(handler)
+	eventInformer := informers.NewSharedInformerFactory(kubeclientset, ResyncTime).Events().V1().Events().Informer()
+	eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: controller.handleEvent,
+	})
+
+	controller.informers["events.k8s.io/v1"] = eventInformer
 
 	return controller, nil
 }
@@ -134,6 +179,8 @@ func NewController(
 func (controller *Controller) syncLogStreams() {
 	select {
 	case <-controller.stopChan:
+		return
+	case <-controller.ctx.Done():
 		return
 	default:
 	}
@@ -154,7 +201,7 @@ func (controller *Controller) syncLogStreams() {
 
 	controller.logStreamsMu.Unlock()
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 		controller.syncLogStreams()
 	}))
 }
@@ -167,6 +214,8 @@ func (controller *Controller) processNextWorkItem() bool {
 	}
 
 	job, ok := obj.(Job)
+
+	controller.Logger.Debugf("processing next work item '%s'", job.id)
 
 	if !ok {
 		controller.Logger.Errorf("could not understand worker function of type '%T'", obj)
@@ -188,26 +237,11 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	defer runtime.HandleCrash()
 
 	controller.filterExpr = expr
-
 	controller.stopChan = make(chan struct{})
 
 	controller.Logger.Infof("starting controller")
 
 	controller.informerFactory.Start(controller.stopChan)
-
-	controller.Logger.Infof("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(controller.stopChan,
-		controller.eventInformer.Informer().HasSynced,
-		controller.podInformer.Informer().HasSynced,
-		controller.serviceInformer.Informer().HasSynced,
-		controller.secretInformer.Informer().HasSynced,
-		controller.configMapInformer.Informer().HasSynced,
-		controller.jobInformer.Informer().HasSynced,
-		controller.replicasetInformer.Informer().HasSynced,
-		controller.deploymentInformer.Informer().HasSynced,
-	); !ok {
-		return fmt.Errorf("could not wait for caches to sync")
-	}
 
 	controller.startTime = time.Now().UTC()
 
@@ -219,9 +253,11 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 			controller.workerWaitGroup.Done()
 
 			controller.Logger.Debugf("starting worker #%d", n)
+
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
 				controller.processNextWorkItem()
 			}
+
 			controller.Logger.Debugf("stopping worker #%d", n)
 
 			controller.workerWaitGroup.Done()
@@ -232,9 +268,11 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	controller.workerWaitGroup.Wait()
 	controller.workerWaitGroup.Add(nWorkers)
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 		controller.syncLogStreams()
 	}))
+
+	// todo: list and load existing resources on startup
 
 	controller.Logger.Infof("Started controller")
 

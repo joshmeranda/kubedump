@@ -10,6 +10,8 @@ type Lexer struct {
 	s    string
 	head int
 
+	lastToken *int
+
 	err    error
 	result Expression
 }
@@ -28,7 +30,11 @@ func (lexer *Lexer) nextNonSpace() {
 	}
 }
 
-func (lexer *Lexer) Lex(lval *yySymType) int {
+func (lexer *Lexer) Lex(lval *yySymType) (token int) {
+	defer func() {
+		lexer.lastToken = &token
+	}()
+
 	lexer.nextNonSpace()
 
 	if lexer.head == len(lexer.s) {
@@ -56,8 +62,6 @@ func (lexer *Lexer) Lex(lval *yySymType) int {
 
 	lval.s = body
 	switch body {
-	case "pod", "job", "deployment", "replicaset", "service", "configmap", "secret":
-		return RESOURCE
 	case "namespace":
 		return NAMESPACE
 	case "label":
@@ -69,7 +73,7 @@ func (lexer *Lexer) Lex(lval *yySymType) int {
 	case "and":
 		return AND
 	default:
-		return PATTERN
+		return IDENTIFIER
 	}
 }
 

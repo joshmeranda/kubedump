@@ -2,9 +2,10 @@ package controller
 
 import (
 	"fmt"
-	"github.com/joshmeranda/kubedump/pkg"
-	"k8s.io/apimachinery/pkg/types"
 	"sync"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type pair[F any, S any] struct {
@@ -12,20 +13,20 @@ type pair[F any, S any] struct {
 	second S
 }
 
-type storePair pair[Matcher, kubedump.HandledResource]
+type storePair pair[Matcher, kubedump.Resource]
 
 type Store interface {
 	// AddResource adds the given resource with the associated LabelSelector
-	AddResource(resource kubedump.HandledResource, matcher Matcher) error
+	AddResource(resource kubedump.Resource, matcher Matcher) error
 
 	// GetResources fetches all resources whose LabelSelector matches the given Labels.
 	//
 	// Note: if the given resource matches a selector, and they are the same k8s object, that selector should not be
 	// included in the returned slice.
-	GetResources(resource kubedump.HandledResource) ([]kubedump.HandledResource, error)
+	GetResources(resource kubedump.Resource) ([]kubedump.Resource, error)
 
 	// RemoveResource deletes the given resourceId from storage. If no matching resource exists, it will do nothing.
-	RemoveResource(resource kubedump.HandledResource) error
+	RemoveResource(resource kubedump.Resource) error
 }
 
 // NewStore constructs a store using the default implementation.
@@ -40,7 +41,7 @@ type memoryStore struct {
 	inner    map[types.UID]storePair
 }
 
-func (store *memoryStore) AddResource(resource kubedump.HandledResource, matcher Matcher) error {
+func (store *memoryStore) AddResource(resource kubedump.Resource, matcher Matcher) error {
 	store.innerMut.Lock()
 	defer store.innerMut.Unlock()
 
@@ -52,8 +53,8 @@ func (store *memoryStore) AddResource(resource kubedump.HandledResource, matcher
 	return nil
 }
 
-func (store *memoryStore) GetResources(resource kubedump.HandledResource) ([]kubedump.HandledResource, error) {
-	resources := make([]kubedump.HandledResource, 0)
+func (store *memoryStore) GetResources(resource kubedump.Resource) ([]kubedump.Resource, error) {
+	resources := make([]kubedump.Resource, 0)
 
 	store.innerMut.RLock()
 	defer store.innerMut.RUnlock()
@@ -71,11 +72,11 @@ func (store *memoryStore) GetResources(resource kubedump.HandledResource) ([]kub
 	return resources, nil
 }
 
-func (store *memoryStore) RemoveResource(resource kubedump.HandledResource) error {
+func (store *memoryStore) RemoveResource(resource kubedump.Resource) error {
 	_, found := store.inner[resource.GetUID()]
 
 	if !found {
-		return fmt.Errorf("store does not contain any %s %s/%s", resource.Kind, resource.GetNamespace(), resource.GetName())
+		return fmt.Errorf("store does not contain any %s %s/%s", resource.GetKind(), resource.GetNamespace(), resource.GetName())
 	}
 
 	delete(store.inner, resource.GetUID())

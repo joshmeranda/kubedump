@@ -2,20 +2,22 @@ package controller
 
 import (
 	"fmt"
-	"github.com/joshmeranda/kubedump/pkg"
-	apicorev1 "k8s.io/api/core/v1"
-	eventsv1 "k8s.io/api/events/v1"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path"
+
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	eventsv1 "k8s.io/api/events/v1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type HandleKind string
 
 const (
 	HandleAdd    HandleKind = "Add"
-	HandleUpdate            = "Edit"
-	HandleDelete            = "Delete"
+	HandleUpdate HandleKind = "Edit"
+	HandleDelete HandleKind = "Delete"
 )
 
 const (
@@ -23,69 +25,23 @@ const (
 	eventFormat = "[%s] %s %s %s %s\n"
 )
 
-func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource) {
-	event := handledEvent.Resource.(*eventsv1.Event)
+func (controller *Controller) handleEvent(obj any) {
+	event := obj.(*eventsv1.Event)
 	if event.EventTime.Time.Before(controller.startTime) {
 		return
 	}
 
-	var handledResource kubedump.HandledResource
+	resource := kubedump.NewResourceBuilder().
+		WithKind(event.Regarding.Kind).
+		WithName(event.Regarding.Name).
+		WithNamespace(event.Regarding.Namespace).
+		Build()
 
-	switch event.Regarding.Kind {
-	case "Pod":
-		resource, err := controller.podInformer.Lister().Pods(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "Service":
-		resource, err := controller.serviceInformer.Lister().Services(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "Job":
-		resource, err := controller.jobInformer.Lister().Jobs(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "ReplicaSet":
-		resource, err := controller.replicasetInformer.Lister().ReplicaSets(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "Deployment":
-		resource, err := controller.deploymentInformer.Lister().Deployments(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get Pod for event: %s", err)
-			return
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	case "ConfigMap":
-		resource, err := controller.configMapInformer.Lister().ConfigMaps(event.Regarding.Namespace).Get(event.Regarding.Name)
-		if err != nil {
-			controller.Logger.Errorf("could not get ConfigMap for event: %s", err)
-		}
-		handledResource, _ = kubedump.NewHandledResource(resource)
-	default:
-		// unhandled event type
-		return
-	}
-
-	if !controller.filterExpr.Matches(handledResource) {
-		controller.Logger.Debugf("encountered event for unhandled kind '%s'", event.Regarding.Kind)
-		return
-	}
+	// todo: filter event by resource kind
 
 	resourceDir := kubedump.NewResourcePathBuilder().
 		WithBase(controller.BasePath).
-		WithResource(handledResource).
+		WithResource(resource).
 		Build()
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
@@ -107,49 +63,61 @@ func (controller *Controller) handleEvent(handledEvent kubedump.HandledResource)
 	}
 }
 
-func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedump.HandledResource) {
-	pod := handledPod.Resource.(*apicorev1.Pod)
+func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Resource, u *unstructured.Unstructured) {
+	rawPod, err := controller.kubeclientset.CoreV1().Pods(pod.GetNamespace()).Get(controller.ctx, pod.GetName(), apimetav1.GetOptions{})
+	if err != nil {
+		controller.Logger.Errorf("could not get pod: %s", pod)
+		return
+	}
 
 	switch handleKind {
 	case HandleAdd:
-		controller.workQueue.AddRateLimited(NewJob(func() {
-			controller.Logger.Debugf("checking for config map volumes in '%s'", handledPod)
+		// todo: do this afterward
+		controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+			controller.Logger.Debugf("checking for config map volumes in '%s'", pod)
 
-			for _, volume := range pod.Spec.Volumes {
+			for _, volume := range rawPod.Spec.Volumes {
 				if volume.ConfigMap != nil {
-					controller.Logger.Debugf("found config map volume in '%s'", handledPod)
+					controller.Logger.Debugf("found config map volume in '%s'", pod)
 
-					handledConfigMap, _ := kubedump.NewHandledResource(&apicorev1.ConfigMap{
-						ObjectMeta: apimetav1.ObjectMeta{
-							Name:      volume.ConfigMap.Name,
-							Namespace: handledPod.GetNamespace(),
-						},
-					})
+					configMap := kubedump.NewResourceBuilder().
+						WithKind("ConfigMap").
+						WithName(volume.ConfigMap.Name).
+						WithNamespace(pod.GetNamespace()).
+						Build()
 
-					if err := linkResource(controller.BasePath, handledPod, handledConfigMap); err != nil {
+					if err != nil {
+						controller.Logger.Errorf("could not create handled resource from ConfigMap: %s", err)
+						continue
+					}
+
+					if err := linkResource(controller.BasePath, pod, configMap); err != nil {
 						controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
 					}
 				} else if volume.Secret != nil {
-					controller.Logger.Debugf("found secret volume in '%s'", handledPod)
+					controller.Logger.Debugf("found secret volume in '%s'", pod)
 
-					handledSecret, _ := kubedump.NewHandledResource(&apicorev1.Secret{
-						ObjectMeta: apimetav1.ObjectMeta{
-							Name:      volume.Secret.SecretName,
-							Namespace: handledPod.GetNamespace(),
-						},
-					})
+					secret := kubedump.NewResourceBuilder().
+						WithKind("Secret").
+						WithName(volume.Secret.SecretName).
+						WithNamespace(pod.GetNamespace()).
+						Build()
+					if err != nil {
+						controller.Logger.Errorf("could not create handled resource from Secret: %s", err)
+						continue
+					}
 
-					if err := linkResource(controller.BasePath, handledPod, handledSecret); err != nil {
-						controller.Logger.Errorf("could not link secrtr to Pod: %s", err)
+					if err := linkResource(controller.BasePath, pod, secret); err != nil {
+						controller.Logger.Errorf("could not link secret to Pod: %s", err)
 					}
 				}
 			}
 		}))
 
-		for _, container := range pod.Spec.Containers {
-			controller.workQueue.AddRateLimited(NewJob(func() {
+		for _, container := range rawPod.Spec.Containers {
+			controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
 				stream, err := NewLogStream(LogStreamOptions{
-					Pod:           pod,
+					Pod:           rawPod,
 					Container:     &container,
 					Context:       controller.ctx,
 					KubeClientSet: controller.kubeclientset,
@@ -162,7 +130,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedu
 					return
 				}
 
-				logStreamId := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)
+				logStreamId := fmt.Sprintf("%s/%s/%s", rawPod.Namespace, rawPod.Name, container.Name)
 
 				controller.logStreamsMu.Lock()
 				controller.logStreams[logStreamId] = stream
@@ -170,14 +138,13 @@ func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedu
 			}))
 		}
 	case HandleDelete:
-		for _, container := range pod.Spec.Containers {
-			controller.workQueue.AddRateLimited(NewJob(func() {
-				logStreamId := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)
+		for _, container := range rawPod.Spec.Containers {
+			controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+				logStreamId := fmt.Sprintf("%s/%s/%s", rawPod.Namespace, rawPod.Name, container.Name)
 
 				controller.logStreamsMu.Lock()
 
 				stream, found := controller.logStreams[logStreamId]
-
 				if !found {
 					controller.Logger.Errorf("bug: deleting container which isn't being streamed")
 					return
@@ -195,77 +162,64 @@ func (controller *Controller) handlePod(handleKind HandleKind, handledPod kubedu
 	}
 }
 
-func (controller *Controller) handleResource(_ HandleKind, handledResource kubedump.HandledResource) {
-	matcher, err := selectorFromHandled(handledResource)
-	if err != nil {
-		controller.Logger.Debugf("could not create matcher for resource '%s': %s", handledResource.String(), err)
-	} else {
-		controller.Logger.Debugf("adding selector for resource '%s'", handledResource.String())
+// resourceHandlerFunc is the entrypoint for handling all resources after filtering.
+func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schema.GroupVersionResource, obj interface{}) {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		panic("bug: received non-unstructured data")
+	}
+	resource := kubedump.NewResourceBuilder().FromUnstructured(u).Build()
 
-		if err := controller.store.AddResource(handledResource, matcher); err != nil {
-			controller.Logger.Errorf("error storing '%s' label matcher: %s", handledResource.Kind, err)
+	resources, err := controller.store.GetResources(resource)
+	if err != nil {
+		controller.Logger.Errorf("error fetching resources: %s", err)
+	}
+
+	if len(resources) == 0 && !controller.filterExpr.Matches(resource) || resource.GetKind() == "Event" {
+		return
+	}
+
+	for _, r := range resources {
+		if err := linkResource(controller.BasePath, r, resource); err != nil {
+			controller.Logger.Errorf("error: %s", err)
 		}
 	}
 
-	controller.workQueue.AddRateLimited(NewJob(func() {
-		dir := kubedump.NewResourcePathBuilder().WithBase(controller.BasePath).WithResource(handledResource).Build()
-		if err := dumpResourceDescription(path.Join(dir, handledResource.GetName()+".yaml"), handledResource); err != nil {
+	if resource.GetKind() == "Pod" {
+		controller.handlePod(handleKind, resource, u)
+	}
+
+	matcher, err := selectorFromUnstructured(u)
+	if err != nil {
+		controller.Logger.Debugf("could not create matcher for resource '%s': %s", resource.String(), err)
+	} else {
+		controller.Logger.Debugf("adding selector for resource '%s'", resource.String())
+
+		if err := controller.store.AddResource(resource, matcher); err != nil {
+			controller.Logger.Errorf("error storing '%s' label matcher: %s", resource.GetKind(), err)
+		}
+	}
+
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+		dir := kubedump.NewResourcePathBuilder().WithBase(controller.BasePath).WithResource(resource).Build()
+		if err := dumpResourceDescription(path.Join(dir, resource.GetName()+".yaml"), u); err != nil {
 			controller.Logger.With(
-				"namespace", handledResource.GetNamespace(),
-				"name", handledResource.GetName(),
+				"namespace", resource.GetNamespace(),
+				"name", resource.GetName(),
 			).Errorf("could not dump pod description: %s", err)
 		}
 	}))
 }
 
-// resourceHandlerFunc is the entrypoint for handling all resources after filtering.
-func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, obj interface{}) {
-	handledResource, err := kubedump.NewHandledResource(obj)
-	if err != nil {
-		controller.Logger.Errorf("error handling %s event for type %F: %s", handleKind, obj, err)
-		return
-	}
-
-	if handledResource.Kind == "Event" {
-		controller.handleEvent(handledResource)
-		return
-	}
-
-	resources, err := controller.store.GetResources(handledResource)
-	if err != nil {
-		controller.Logger.Errorf("error fetching resources: %s", err)
-	}
-
-	if len(resources) == 0 && !controller.filterExpr.Matches(handledResource) || handledResource.Kind == "Event" {
-		return
-	}
-
-	for _, resource := range resources {
-		if err := linkResource(controller.BasePath, resource, handledResource); err != nil {
-			controller.Logger.Errorf("error: %s", err)
-		}
-	}
-
-	switch handledResource.Kind {
-	case "Pod":
-		controller.handlePod(handleKind, handledResource)
-		fallthrough
-	//case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap", "Secret":
-	case "Service", "Job", "ReplicaSet", "Deployment", "ConfigMap", "Secret":
-		controller.handleResource(handleKind, handledResource)
-	default:
-		controller.Logger.Errorf("bug: unsupported resource was not caught by filter: %s (%F)", handledResource, obj)
-	}
+// todo: replace interface{} with any
+func (controller *Controller) onAdd(informerResource schema.GroupVersionResource, obj interface{}) {
+	controller.resourceHandlerFunc(HandleAdd, informerResource, obj)
 }
 
-func (controller *Controller) onAdd(obj interface{}) {
-	controller.resourceHandlerFunc(HandleAdd, obj)
+func (controller *Controller) onUpdate(informerResource schema.GroupVersionResource, new interface{}) {
+	controller.resourceHandlerFunc(HandleUpdate, informerResource, new)
 }
 
-func (controller *Controller) onUpdate(_ interface{}, new interface{}) {
-	controller.resourceHandlerFunc(HandleUpdate, new)
-}
-
-func (controller *Controller) onDelete(obj interface{}) {
-	controller.resourceHandlerFunc(HandleDelete, obj)
+func (controller *Controller) onDelete(informerResource schema.GroupVersionResource, obj interface{}) {
+	controller.resourceHandlerFunc(HandleDelete, informerResource, obj)
 }

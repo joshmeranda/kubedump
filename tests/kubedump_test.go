@@ -3,8 +3,15 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"testing"
+	"time"
+
 	"github.com/gobwas/glob"
-	kubedump "github.com/joshmeranda/kubedump/pkg/cmd"
+	kubedump "github.com/joshmeranda/kubedump/pkg"
+	kubedumpcmd "github.com/joshmeranda/kubedump/pkg/cmd"
 	"github.com/joshmeranda/kubedump/tests/deployer"
 	"github.com/stretchr/testify/assert"
 	apicorev1 "k8s.io/api/core/v1"
@@ -12,11 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"os/exec"
-	"path"
-	"testing"
-	"time"
 )
 
 func controllerSetup(t *testing.T) (teardown func(), d deployer.Deployer, client kubernetes.Interface, ctx context.Context, basePath string) {
@@ -135,7 +137,6 @@ func TestDumpWithCluster(t *testing.T) {
 	wait.Until(func() { checkPods(t, client, stopCh) }, time.Second*5, stopCh)
 	<-stopCh
 
-	stopChan := make(chan interface{})
 	done := make(chan interface{})
 
 	go func() {
@@ -143,7 +144,7 @@ func TestDumpWithCluster(t *testing.T) {
 		nWorkers := fmt.Sprintf("%d", 5)
 		filter := "namespace default"
 
-		app := kubedump.NewKubedumpApp(stopChan)
+		app := kubedumpcmd.NewKubedumpApp()
 
 		var err error
 		if verbose {
@@ -161,30 +162,33 @@ func TestDumpWithCluster(t *testing.T) {
 
 	waiter()
 
-	close(stopChan)
 	<-done
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePod), true)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SamplePod.ObjectMeta).FromType(SamplePod.TypeMeta).Build(), true)
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleJob), true)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SampleJob.ObjectMeta).FromType(SampleJob.TypeMeta).Build(), true)
 	AssertLinkGlob(t, path.Join(basePath, SampleJob.Namespace, "Job", SampleJob.Name, "Pod"), glob.MustCompile(fmt.Sprintf("%s-*", SampleJob.Name)))
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleReplicaSet), true)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SampleReplicaSet.ObjectMeta).FromType(SampleReplicaSet.TypeMeta).Build(), true)
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleDeployment), true)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SampleDeployment.ObjectMeta).FromType(SampleDeployment.TypeMeta).Build(), true)
 	AssertLinkGlob(t, path.Join(basePath, SampleDeployment.Namespace, "Deployment", SampleDeployment.Name, "ReplicaSet"), glob.MustCompile(fmt.Sprintf("%s-*", SampleDeployment.Name)))
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleService), false)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SampleService.ObjectMeta).FromType(SampleService.TypeMeta).Build(), false)
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleConfigMap), false)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SampleConfigMap.ObjectMeta).FromType(SampleConfigMap.TypeMeta).Build(), false)
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePodWithConfigMapVolume), false)
-	AssertResourceIsLinked(t, basePath, NewHandledResourceNoErr(&SamplePodWithConfigMapVolume), NewHandledResourceNoErr(&SampleConfigMap))
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SamplePodWithConfigMapVolume.ObjectMeta).FromType(SamplePodWithConfigMapVolume.TypeMeta).Build(), false)
+	AssertResourceIsLinked(t, basePath,
+		kubedump.NewResourceBuilder().FromObject(SamplePodWithConfigMapVolume.ObjectMeta).FromType(SamplePodWithConfigMapVolume.TypeMeta).Build(),
+		kubedump.NewResourceBuilder().FromObject(SampleConfigMap.ObjectMeta).FromType(SampleConfigMap.TypeMeta).Build())
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SampleSecret), false)
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SampleSecret.ObjectMeta).FromType(SampleSecret.TypeMeta).Build(), false)
 
-	AssertResource(t, basePath, NewHandledResourceNoErr(&SamplePodWithSecretVolume), false)
-	AssertResourceIsLinked(t, basePath, NewHandledResourceNoErr(&SamplePodWithSecretVolume), NewHandledResourceNoErr(&SampleSecret))
+	AssertResource(t, basePath, kubedump.NewResourceBuilder().FromObject(SamplePodWithSecretVolume.ObjectMeta).FromType(SamplePodWithSecretVolume.TypeMeta).Build(), false)
+	AssertResourceIsLinked(t, basePath,
+		kubedump.NewResourceBuilder().FromObject(SamplePodWithSecretVolume.ObjectMeta).FromType(SamplePodWithSecretVolume.TypeMeta).Build(),
+		kubedump.NewResourceBuilder().FromObject(SampleSecret.ObjectMeta).FromType(SampleSecret.TypeMeta).Build())
 
 	t.Fail()
 }
