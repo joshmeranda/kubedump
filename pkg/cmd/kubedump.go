@@ -57,7 +57,7 @@ func Dump(ctx *cli.Context) error {
 	kubedumpConfig, err := ConfigFromDefaultFile()
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.Warn("no config found, using defaults")
+			logger.Warn(fmt.Sprintf("no config found, using defaults"))
 			kubedumpConfig = DefaultConfig()
 		} else {
 			return fmt.Errorf("could not load kubedump config: %w", err)

@@ -108,7 +108,7 @@ func NewController(
 	}
 
 	for _, resource := range opts.Resources {
-		controller.Logger.Debug("registering resource '%s'", resource.Resource)
+		controller.Logger.Debug(fmt.Sprintf("registering resource '%s'", resource.Resource))
 
 		handler := cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj any) {
@@ -124,7 +124,7 @@ func NewController(
 		informer := controller.informerFactory.ForResource(resource).Informer()
 
 		if _, err := informer.AddEventHandler(handler); err != nil {
-			controller.Logger.Error("could not add event handler for resource '%s': %w", resource.Resource, err)
+			controller.Logger.Error(fmt.Sprintf("could not add event handler for resource '%s': %w", resource.Resource, err))
 		} else {
 			controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
 		}
@@ -154,12 +154,12 @@ func (controller *Controller) syncLogStreams() {
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
 			if strings.Contains(err.Error(), "ContainerCreating") {
-				controller.Logger.Debug("error syncing container '%s': %s", id, err)
+				controller.Logger.Debug(fmt.Sprintf("error syncing container '%s': %s", id, err))
 			} else {
-				controller.Logger.Error("error syncing container '%s': %s", id, err)
+				controller.Logger.Error(fmt.Sprintf("error syncing container '%s': %s", id, err))
 			}
 		} else {
-			controller.Logger.Debug("synced logs for container '%s'", id)
+			controller.Logger.Debug(fmt.Sprintf("synced logs for container '%s'", id))
 		}
 	}
 
@@ -179,10 +179,10 @@ func (controller *Controller) processNextWorkItem() bool {
 
 	job, ok := obj.(Job)
 
-	controller.Logger.Debug("processing next work item '%s'", job.id)
+	controller.Logger.Debug(fmt.Sprintf("processing next work item '%s'", job.id))
 
 	if !ok {
-		controller.Logger.Error("could not understand worker function of type '%T'", obj)
+		controller.Logger.Error(fmt.Sprintf("could not understand worker function of type '%T'", obj))
 		controller.workQueue.Forget(obj)
 		return false
 	}
@@ -216,13 +216,13 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 		go func() {
 			controller.workerWaitGroup.Done()
 
-			controller.Logger.Debug("starting worker #%d", n)
+			controller.Logger.Debug(fmt.Sprintf("starting worker #%d", n))
 
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
 				controller.processNextWorkItem()
 			}
 
-			controller.Logger.Debug("stopping worker #%d", n)
+			controller.Logger.Debug(fmt.Sprintf("stopping worker #%d", n))
 
 			controller.workerWaitGroup.Done()
 		}()

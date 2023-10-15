@@ -41,11 +41,11 @@ func filterKubedumpDir(dir string, opts filteringOptions) error {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			if err := filterNamespaceDir(entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
-				opts.Logger.Error("could not filter namespace '%s': %s", entry.Name(), err)
+				opts.Logger.Error(fmt.Sprintf("could not filter namespace '%s': %s", entry.Name(), err))
 			}
 		} else {
 			if entry.Name() != LogFileName {
-				opts.Logger.Warn("encountered unexpected file '%s'", path.Join(dir, entry.Name()))
+				opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
 			}
 		}
 	}
@@ -62,10 +62,10 @@ func filterNamespaceDir(namespace string, dir string, opts filteringOptions) err
 	for _, entry := range entries {
 		if entry.IsDir() {
 			if err := filterKindDir(namespace, entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
-				opts.Logger.Error("could not filter kind '%s' in namespace '%s': %s", entry.Name(), namespace, err)
+				opts.Logger.Error(fmt.Sprintf("could not filter kind '%s' in namespace '%s': %s", entry.Name(), namespace, err))
 			}
 		} else {
-			opts.Logger.Warn("encountered unexpected file '%s'", path.Join(dir, entry.Name()))
+			opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
 		}
 	}
 
@@ -81,10 +81,10 @@ func filterKindDir(namespace string, kind string, dir string, opts filteringOpti
 	for _, entry := range entries {
 		if entry.IsDir() {
 			if err := filterResourceDir(entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
-				opts.Logger.Error("could not filter resource '%s/%s' in namespace '%s': %s", kind, entry.Name(), namespace, err)
+				opts.Logger.Error(fmt.Sprintf("could not filter resource '%s/%s' in namespace '%s': %s", kind, entry.Name(), namespace, err))
 			}
 		} else {
-			opts.Logger.Warn("encountered unexpected file '%s'", path.Join(dir, entry.Name()))
+			opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
 		}
 	}
 
@@ -103,7 +103,7 @@ func filterResourceDir(name string, dir string, opts filteringOptions) error {
 	}
 
 	if err := copyResourceDir(resource, dir, opts); err != nil {
-		opts.Logger.Error("could not copy resource '%s': %s", resource, err)
+		opts.Logger.Error(fmt.Sprintf("could not copy resource '%s': %s", resource, err))
 	}
 
 	return nil
@@ -130,10 +130,10 @@ func copyResourceDir(resource kubedump.Resource, dir string, opts filteringOptio
 	for _, entry := range entries {
 		if entry.IsDir() {
 			if err := copySubResourceKind(entry.Name(), path.Join(dir, entry.Name()), resource, opts); err != nil {
-				opts.Logger.Error("could not copy '%s' resource for '%s': %s", entry.Name(), resource, err)
+				opts.Logger.Error(fmt.Sprintf("could not copy '%s' resource for '%s': %s", entry.Name(), resource, err))
 			}
 		} else if entry.Name() != resource.GetName()+".yaml" && !strings.HasSuffix(entry.Name(), ".log") {
-			opts.Logger.Warn("found unexpected file: %s", path.Join(dir, entry.Name()))
+			opts.Logger.Warn(fmt.Sprintf("found unexpected file: %s", path.Join(dir, entry.Name())))
 		}
 	}
 
@@ -152,7 +152,7 @@ func copySubResourceKind(kind string, dir string, parent kubedump.Resource, opts
 		if isLink, err := isSymlink(linkPath); isLink {
 			linkDest, err := os.Readlink(linkPath)
 			if err != nil {
-				opts.Logger.Error("could not read link at '%s': %s", linkPath, err)
+				opts.Logger.Error(fmt.Sprintf("could not read link at '%s': %s", linkPath, err))
 			}
 
 			realPath := path.Clean(path.Join(dir, linkDest))
@@ -164,12 +164,12 @@ func copySubResourceKind(kind string, dir string, parent kubedump.Resource, opts
 			}
 
 			if err := copyResourceDir(resource, realPath, opts); err != nil {
-				opts.Logger.Error("could not copy resourec '%s': %s", resource, err)
+				opts.Logger.Error(fmt.Sprintf("could not copy resourec '%s': %s", resource, err))
 			}
 		} else if err != nil {
-			opts.Logger.Error("could not check if path '%s' is a symbolic link: %s", linkPath, err)
+			opts.Logger.Error(fmt.Sprintf("could not check if path '%s' is a symbolic link: %s", linkPath, err))
 		} else {
-			opts.Logger.Warn("encountered unexpected file '%s'", path.Join(dir, entry.Name()))
+			opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
 		}
 	}
 
