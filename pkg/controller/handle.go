@@ -46,18 +46,19 @@ func (controller *Controller) handleEvent(obj any) {
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
-		controller.Logger.Errorf("could not create job event file '%s': %s", eventFilePath, err)
+		controller.Logger.Errorf("could not create event file '%s': %s", eventFilePath, err)
+		return
 	}
 
 	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
 	defer eventFile.Close()
 
 	if err != nil {
-		controller.Logger.Errorf("could not open job event file '%s': %s", eventFilePath, err)
+		controller.Logger.Errorf("could not open event file '%s': %s", eventFilePath, err)
+		return
 	}
 
 	s := fmt.Sprintf(eventFormat, event.EventTime, event.Type, event.Reason, event.ReportingController, event.Note)
-
 	if _, err = eventFile.Write([]byte(s)); err != nil {
 		controller.Logger.Errorf("could not write to event file '%s': %s", eventFilePath, err)
 	}
@@ -166,7 +167,8 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schema.GroupVersionResource, obj interface{}) {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		panic("bug: received non-unstructured data")
+		controller.Logger.Errorf("received non-unstructured data: %T", obj)
+		return
 	}
 	resource := kubedump.NewResourceBuilder().FromUnstructured(u).Build()
 

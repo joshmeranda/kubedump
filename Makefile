@@ -9,7 +9,7 @@ KUBEDUMP_VERSION=$(shell tools/version.bash get)
 # # # # # # # # # # # # # # # # # # # #
 # Go commands                         #
 # # # # # # # # # # # # # # # # # # # #
-GO_BUILD=go build -ldflags "-X kubedump/pkg/cmd.Version=${KUBEDUMP_VERSION}"
+GO_BUILD=go build -ldflags "-X kubedump/pkg/cmd.Version=${KUBEDUMP_VERSION}" -race
 GO_FMT=go fmt
 GO_TEST=go test
 
