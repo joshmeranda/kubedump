@@ -2,8 +2,8 @@ package kubedump
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"time"
 
@@ -12,12 +12,11 @@ import (
 	"github.com/joshmeranda/kubedump/pkg/filter"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -45,15 +44,15 @@ func Dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not create base path '%s': %w", basePath, err)
 	}
 
-	loggerOptions := []kubedump.LoggerOption{
-		kubedump.WithPaths(path.Join(basePath, LogFileName)),
+	loggerOptions := &slog.HandlerOptions{
+		AddSource: true,
 	}
 
 	if ctx.Bool("verbose") {
-		loggerOptions = append(loggerOptions, kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)))
+		loggerOptions.Level = slog.LevelDebug
 	}
 
-	logger := kubedump.NewLogger(loggerOptions...)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, loggerOptions))
 
 	kubedumpConfig, err := ConfigFromDefaultFile()
 	if err != nil {
@@ -178,17 +177,20 @@ func Filter(ctx *cli.Context) error {
 		destination = fmt.Sprintf("kubedump-filtered-%s.dump", time.Now().Format(DefaultTimeFormat))
 	}
 
-	var logger *zap.SugaredLogger
-	if ctx.Bool("verbose") {
-		logger = kubedump.NewLogger(kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)))
-	} else {
-		logger = kubedump.NewLogger()
+	loggerOptions := slog.HandlerOptions{
+		AddSource: true,
 	}
+
+	if ctx.Bool("verbose") {
+		loggerOptions.Level = slog.LevelDebug
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &loggerOptions))
 
 	opts := filteringOptions{
 		Filter:              expression,
 		DestinationBasePath: destination,
-		Logger:              logger.Named("filtering"),
+		Logger:              logger,
 	}
 
 	if err := filterKubedumpDir(basePath, opts); err != nil {

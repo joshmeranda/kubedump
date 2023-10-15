@@ -3,13 +3,13 @@ package controller
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/joshmeranda/kubedump/pkg/filter"
-	"go.uber.org/zap"
 	apicorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -41,9 +41,10 @@ func NewJob(ctx context.Context, fn func()) Job {
 }
 
 type Options struct {
-	BasePath       string
-	ParentContext  context.Context
-	Logger         *zap.SugaredLogger
+	BasePath      string
+	ParentContext context.Context
+	// Logger         *zap.SugaredLogger
+	Logger         *slog.Logger
 	LogSyncTimeout time.Duration
 	Resources      []schema.GroupVersionResource
 }
@@ -107,7 +108,7 @@ func NewController(
 	}
 
 	for _, resource := range opts.Resources {
-		controller.Logger.Debugf("registering resource '%s'", resource.Resource)
+		controller.Logger.Debug("registering resource '%s'", resource.Resource)
 
 		handler := cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj any) {
@@ -123,7 +124,7 @@ func NewController(
 		informer := controller.informerFactory.ForResource(resource).Informer()
 
 		if _, err := informer.AddEventHandler(handler); err != nil {
-			controller.Logger.Errorf("could not add event handler for resource '%s': %w", resource.Resource, err)
+			controller.Logger.Error("could not add event handler for resource '%s': %w", resource.Resource, err)
 		} else {
 			controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
 		}
@@ -153,12 +154,12 @@ func (controller *Controller) syncLogStreams() {
 	for id, stream := range controller.logStreams {
 		if err := stream.Sync(); err != nil {
 			if strings.Contains(err.Error(), "ContainerCreating") {
-				controller.Logger.Debugf("error syncing container '%s': %s", id, err)
+				controller.Logger.Debug("error syncing container '%s': %s", id, err)
 			} else {
-				controller.Logger.Errorf("error syncing container '%s': %s", id, err)
+				controller.Logger.Error("error syncing container '%s': %s", id, err)
 			}
 		} else {
-			controller.Logger.Debugf("synced logs for container '%s'", id)
+			controller.Logger.Debug("synced logs for container '%s'", id)
 		}
 	}
 
@@ -178,10 +179,10 @@ func (controller *Controller) processNextWorkItem() bool {
 
 	job, ok := obj.(Job)
 
-	controller.Logger.Debugf("processing next work item '%s'", job.id)
+	controller.Logger.Debug("processing next work item '%s'", job.id)
 
 	if !ok {
-		controller.Logger.Errorf("could not understand worker function of type '%T'", obj)
+		controller.Logger.Error("could not understand worker function of type '%T'", obj)
 		controller.workQueue.Forget(obj)
 		return false
 	}
@@ -202,7 +203,7 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	controller.filterExpr = expr
 	controller.stopChan = make(chan struct{})
 
-	controller.Logger.Infof("starting controller")
+	controller.Logger.Info("starting controller")
 
 	controller.informerFactory.Start(controller.stopChan)
 
@@ -215,13 +216,13 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 		go func() {
 			controller.workerWaitGroup.Done()
 
-			controller.Logger.Debugf("starting worker #%d", n)
+			controller.Logger.Debug("starting worker #%d", n)
 
 			for !(controller.workQueue.ShuttingDown() && controller.workQueue.Len() == 0) {
 				controller.processNextWorkItem()
 			}
 
-			controller.Logger.Debugf("stopping worker #%d", n)
+			controller.Logger.Debug("stopping worker #%d", n)
 
 			controller.workerWaitGroup.Done()
 		}()
@@ -237,8 +238,6 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 
 	// todo: list and load existing resources on startup
 
-	controller.Logger.Infof("Started controller")
-
 	return nil
 }
 
@@ -246,7 +245,7 @@ func (controller *Controller) Stop() error {
 	if controller.stopChan == nil {
 		return fmt.Errorf("controller was not running")
 	}
-	controller.Logger.Infof("Stopping controller")
+	controller.Logger.Info("Stopping controller")
 
 	close(controller.stopChan)
 	controller.stopChan = nil

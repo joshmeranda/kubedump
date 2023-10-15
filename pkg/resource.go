@@ -5,10 +5,10 @@ import (
 	"os"
 	"path"
 
-	"gopkg.in/yaml.v3"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
 )
 
 // Resource is a collection of methods that can be used to describe a resource being handled by the kubedump controller.

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path"
 
-	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/yaml"
 )
 
 type Config struct {

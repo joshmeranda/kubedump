@@ -46,7 +46,7 @@ func (controller *Controller) handleEvent(obj any) {
 	eventFilePath := path.Join(resourceDir, event.Regarding.Name+".events")
 
 	if err := createPathParents(eventFilePath); err != nil {
-		controller.Logger.Errorf("could not create event file '%s': %s", eventFilePath, err)
+		controller.Logger.Error("could not create event file '%s': %s", eventFilePath, err)
 		return
 	}
 
@@ -54,20 +54,20 @@ func (controller *Controller) handleEvent(obj any) {
 	defer eventFile.Close()
 
 	if err != nil {
-		controller.Logger.Errorf("could not open event file '%s': %s", eventFilePath, err)
+		controller.Logger.Error("could not open event file '%s': %s", eventFilePath, err)
 		return
 	}
 
 	s := fmt.Sprintf(eventFormat, event.EventTime, event.Type, event.Reason, event.ReportingController, event.Note)
 	if _, err = eventFile.Write([]byte(s)); err != nil {
-		controller.Logger.Errorf("could not write to event file '%s': %s", eventFilePath, err)
+		controller.Logger.Error("could not write to event file '%s': %s", eventFilePath, err)
 	}
 }
 
 func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Resource, u *unstructured.Unstructured) {
 	rawPod, err := controller.kubeclientset.CoreV1().Pods(pod.GetNamespace()).Get(controller.ctx, pod.GetName(), apimetav1.GetOptions{})
 	if err != nil {
-		controller.Logger.Errorf("could not get pod: %s", pod)
+		controller.Logger.Error("could not get pod: %s", pod)
 		return
 	}
 
@@ -75,11 +75,11 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 	case HandleAdd:
 		// todo: do this afterward
 		controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
-			controller.Logger.Debugf("checking for config map volumes in '%s'", pod)
+			controller.Logger.Debug("checking for config map volumes in '%s'", pod)
 
 			for _, volume := range rawPod.Spec.Volumes {
 				if volume.ConfigMap != nil {
-					controller.Logger.Debugf("found config map volume in '%s'", pod)
+					controller.Logger.Debug("found config map volume in '%s'", pod)
 
 					configMap := kubedump.NewResourceBuilder().
 						WithKind("ConfigMap").
@@ -88,15 +88,15 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 						Build()
 
 					if err != nil {
-						controller.Logger.Errorf("could not create handled resource from ConfigMap: %s", err)
+						controller.Logger.Error("could not create handled resource from ConfigMap: %s", err)
 						continue
 					}
 
 					if err := linkResource(controller.BasePath, pod, configMap); err != nil {
-						controller.Logger.Errorf("could not link ConfigMap to Pod: %s", err)
+						controller.Logger.Error("could not link ConfigMap to Pod: %s", err)
 					}
 				} else if volume.Secret != nil {
-					controller.Logger.Debugf("found secret volume in '%s'", pod)
+					controller.Logger.Debug("found secret volume in '%s'", pod)
 
 					secret := kubedump.NewResourceBuilder().
 						WithKind("Secret").
@@ -104,12 +104,12 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 						WithNamespace(pod.GetNamespace()).
 						Build()
 					if err != nil {
-						controller.Logger.Errorf("could not create handled resource from Secret: %s", err)
+						controller.Logger.Error("could not create handled resource from Secret: %s", err)
 						continue
 					}
 
 					if err := linkResource(controller.BasePath, pod, secret); err != nil {
-						controller.Logger.Errorf("could not link secret to Pod: %s", err)
+						controller.Logger.Error("could not link secret to Pod: %s", err)
 					}
 				}
 			}
@@ -127,7 +127,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 				})
 
 				if err != nil {
-					controller.Logger.Errorf("%s", err)
+					controller.Logger.Error("%s", err)
 					return
 				}
 
@@ -147,12 +147,12 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 
 				stream, found := controller.logStreams[logStreamId]
 				if !found {
-					controller.Logger.Errorf("bug: deleting container which isn't being streamed")
+					controller.Logger.Error("bug: deleting container which isn't being streamed")
 					return
 				}
 
 				if err := stream.Close(); err != nil {
-					controller.Logger.Warnf("%s", err)
+					controller.Logger.Warn("%s", err)
 				}
 
 				delete(controller.logStreams, logStreamId)
@@ -167,14 +167,14 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schema.GroupVersionResource, obj interface{}) {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		controller.Logger.Errorf("received non-unstructured data: %T", obj)
+		controller.Logger.Error("received non-unstructured data: %T", obj)
 		return
 	}
 	resource := kubedump.NewResourceBuilder().FromUnstructured(u).Build()
 
 	resources, err := controller.store.GetResources(resource)
 	if err != nil {
-		controller.Logger.Errorf("error fetching resources: %s", err)
+		controller.Logger.Error("error fetching resources: %s", err)
 	}
 
 	if len(resources) == 0 && !controller.filterExpr.Matches(resource) || resource.GetKind() == "Event" {
@@ -183,7 +183,7 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schem
 
 	for _, r := range resources {
 		if err := linkResource(controller.BasePath, r, resource); err != nil {
-			controller.Logger.Errorf("error: %s", err)
+			controller.Logger.Error("error: %s", err)
 		}
 	}
 
@@ -193,12 +193,12 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schem
 
 	matcher, err := selectorFromUnstructured(u)
 	if err != nil {
-		controller.Logger.Debugf("could not create matcher for resource '%s': %s", resource.String(), err)
+		controller.Logger.Debug("could not create matcher for resource '%s': %s", resource.String(), err)
 	} else {
-		controller.Logger.Debugf("adding selector for resource '%s'", resource.String())
+		controller.Logger.Debug("adding selector for resource '%s'", resource.String())
 
 		if err := controller.store.AddResource(resource, matcher); err != nil {
-			controller.Logger.Errorf("error storing '%s' label matcher: %s", resource.GetKind(), err)
+			controller.Logger.Error("error storing '%s' label matcher: %s", resource.GetKind(), err)
 		}
 	}
 
@@ -208,7 +208,7 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schem
 			controller.Logger.With(
 				"namespace", resource.GetNamespace(),
 				"name", resource.GetName(),
-			).Errorf("could not dump pod description: %s", err)
+			).Error("could not dump pod description: %s", err)
 		}
 	}))
 }

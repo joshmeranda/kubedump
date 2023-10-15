@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
@@ -72,15 +73,15 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	loggerOptions := []kubedump.LoggerOption{
-		//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
-		kubedump.WithPaths(logFilePath),
-	}
+	// loggerOptions := []kubedump.LoggerOption{
+	// 	//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
+	// 	kubedump.WithPaths(logFilePath),
+	// }
 
 	opts := Options{
 		BasePath:       basePath,
 		ParentContext:  ctx,
-		Logger:         kubedump.NewLogger(loggerOptions...),
+		Logger:         slog.Default(),
 		LogSyncTimeout: time.Second,
 	}
 
