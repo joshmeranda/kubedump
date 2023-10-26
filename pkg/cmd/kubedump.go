@@ -2,8 +2,10 @@ package kubedump
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -44,6 +46,12 @@ func Dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not create base path '%s': %w", basePath, err)
 	}
 
+	f, err := os.Create(path.Join(basePath, "kubedump.log"))
+	if err != nil {
+		return fmt.Errorf("could not create log file: %w", err)
+	}
+
+	out := io.MultiWriter(f, os.Stdout)
 	loggerOptions := &slog.HandlerOptions{}
 
 	if ctx.Bool("verbose") {
@@ -51,7 +59,7 @@ func Dump(ctx *cli.Context) error {
 		loggerOptions.Level = slog.LevelDebug
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, loggerOptions))
+	logger := slog.New(slog.NewTextHandler(out, loggerOptions))
 
 	kubedumpConfig, err := ConfigFromDefaultFile()
 	if err != nil {
