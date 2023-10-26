@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -64,7 +63,7 @@ func CopyTree(target string, destination string) error {
 
 // unmarshalFile will attempt to marshal teh file at the given path into the given object.
 func unmarshalFile(fileName string, obj interface{}) error {
-	data, err := ioutil.ReadFile(fileName)
+	data, err := os.ReadFile(fileName)
 
 	if err != nil {
 		return fmt.Errorf("could not unmarshal file '%s': %w", fileName, err)

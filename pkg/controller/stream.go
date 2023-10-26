@@ -33,11 +33,7 @@ type LogStreamOptions struct {
 
 type logStream struct {
 	LogStreamOptions
-
-	cancel context.CancelFunc
-
-	out io.WriteCloser
-
+	out      io.WriteCloser
 	lastRead time.Time
 }
 

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -78,7 +77,7 @@ func TestDumpResource(t *testing.T) {
 
 	dumpPath = path.Join(basePath, resource.GetNamespace(), resource.GetKind(), resource.GetName(), resource.GetName()+".yaml")
 
-	data, err = ioutil.ReadFile(dumpPath)
+	data, err = os.ReadFile(dumpPath)
 	assert.NoError(t, err)
 
 	expectedData = "kind: nothing\nmetadata:\n  name: a-resource\n  namespace: ns\n"

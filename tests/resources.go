@@ -167,8 +167,6 @@ var SampleConfigMap = apicorev1.ConfigMap{
 	BinaryData: nil,
 }
 
-var hostPathDirOrCreate = apicorev1.HostPathDirectoryOrCreate
-
 var SamplePodWithConfigMapVolume = apicorev1.Pod{
 	ObjectMeta: apimetav1.ObjectMeta{
 		Name:      "test-pod-with-configmap",

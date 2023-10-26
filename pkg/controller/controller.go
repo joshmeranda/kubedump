@@ -124,16 +124,19 @@ func NewController(
 		informer := controller.informerFactory.ForResource(resource).Informer()
 
 		if _, err := informer.AddEventHandler(handler); err != nil {
-			controller.Logger.Error(fmt.Sprintf("could not add event handler for resource '%s': %w", resource.Resource, err))
+			controller.Logger.Error(fmt.Sprintf("could not add event handler for resource '%s': %s", resource.Resource, err))
 		} else {
 			controller.informers[fmt.Sprintf("%s:%s:%s", resource.Group, resource.Version, resource.Resource)] = informer
 		}
 	}
 
 	eventInformer := informers.NewSharedInformerFactory(kubeclientset, ResyncTime).Events().V1().Events().Informer()
-	eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleEvent,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("could not add event handler: %w", err)
+	}
 
 	controller.informers["events.k8s.io/v1"] = eventInformer
 

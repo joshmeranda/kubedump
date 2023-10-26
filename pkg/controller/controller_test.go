@@ -54,7 +54,9 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 	client := fake.NewSimpleClientset(objects...)
 
 	scheme := runtime.NewScheme()
-	apicorev1.AddToScheme(scheme)
+	if err := apicorev1.AddToScheme(scheme); err != nil {
+		t.Errorf("could not add sceheme: %s", err)
+	}
 
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme, objects...)
 

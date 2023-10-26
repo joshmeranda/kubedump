@@ -51,7 +51,11 @@ func (controller *Controller) handleEvent(obj any) {
 	}
 
 	eventFile, err := os.OpenFile(eventFilePath, os.O_WRONLY|os.O_CREATE, 0644)
-	defer eventFile.Close()
+	defer func() {
+		if err := eventFile.Close(); err != nil {
+			controller.Logger.Error(fmt.Sprintf("could not close event file '%s': %s", eventFilePath, err))
+		}
+	}()
 
 	if err != nil {
 		controller.Logger.Error(fmt.Sprintf("could not open event file '%s': %s", eventFilePath, err))

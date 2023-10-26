@@ -82,14 +82,6 @@ func Dump(ctx *cli.Context) error {
 		}
 	}
 
-	var logSyncTimeout time.Duration
-	if logSyncTimeout = ctx.Duration(FlagNameLogSyncTimeout); logSyncTimeout == 0 {
-		logSyncTimeout, err = time.ParseDuration(kubedumpConfig.LogSyncTimeout)
-		if err != nil {
-			return fmt.Errorf("could not parse log sync timeout from config '%s': %w", kubedumpConfig.LogSyncTimeout, err)
-		}
-	}
-
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 	if err != nil {
 		return fmt.Errorf("could not load config: %w", err)
