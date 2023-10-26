@@ -44,11 +44,10 @@ func Dump(ctx *cli.Context) error {
 		return fmt.Errorf("could not create base path '%s': %w", basePath, err)
 	}
 
-	loggerOptions := &slog.HandlerOptions{
-		AddSource: true,
-	}
+	loggerOptions := &slog.HandlerOptions{}
 
 	if ctx.Bool("verbose") {
+		loggerOptions.AddSource = true
 		loggerOptions.Level = slog.LevelDebug
 	}
 
@@ -57,7 +56,7 @@ func Dump(ctx *cli.Context) error {
 	kubedumpConfig, err := ConfigFromDefaultFile()
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.Warn(fmt.Sprintf("no config found, using defaults"))
+			logger.Warn("no config found, using defaults")
 			kubedumpConfig = DefaultConfig()
 		} else {
 			return fmt.Errorf("could not load kubedump config: %w", err)
@@ -177,11 +176,10 @@ func Filter(ctx *cli.Context) error {
 		destination = fmt.Sprintf("kubedump-filtered-%s.dump", time.Now().Format(DefaultTimeFormat))
 	}
 
-	loggerOptions := slog.HandlerOptions{
-		AddSource: true,
-	}
+	loggerOptions := slog.HandlerOptions{}
 
 	if ctx.Bool("verbose") {
+		loggerOptions.AddSource = true
 		loggerOptions.Level = slog.LevelDebug
 	}
 
