@@ -32,9 +32,11 @@ help:
 	@echo "Usage: make [TARGETS]... [VALUES]"
 	@echo ""
 	@echo "Targets:"
+	@echo "  all                build all binaries and  run code generation"
+	@echo "  generate           run code generation"
 	@echo "  kubedump           build the kubedump binary"
-	@echo "  generate            run code generation"
-	@echo "  all                build all binaries and docker images"
+	@echo  "  unit              	run unit tests"
+	@echo  "  integration       run integration tests"
 	@echo "  test               run all tests"
 	@echo "  mostly-clean       clean any project generated files (not-including deliverables)"
 	@echo "  clean              clean built and generated files"
@@ -43,11 +45,11 @@ help:
 	@echo "Values:"
 	@echo "  VERBOSE            if set various recipes are run with verbose output"
 
+all: fmt kubedump generate
+
 # # # # # # # # # # # # # # # # # # # #
 # code generation                     #
 # # # # # # # # # # # # # # # # # # # #
-HANDLER_TEMPLATE=pkg/codegen/handler.tpl
-
 YYPARSER=pkg/filter/yyparser.go
 YACC_FILE=pkg/codegen/parser.y
 
@@ -62,8 +64,6 @@ generate: ${YYPARSER}
 # Source and binary build / compile   #
 # # # # # # # # # # # # # # # # # # # #
 .PHONY: kubedump
-
-all: docker charts kubedump
 
 kubedump: bin/kubedump go.mod
 

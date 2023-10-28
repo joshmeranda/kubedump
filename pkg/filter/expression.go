@@ -49,6 +49,7 @@ func (expr orExpression) Matches(resource kubedump.Resource) bool {
 }
 
 // todo: standardize capitlization for kind
+// todo: add some grouping capabilities (eg Pod, ConfigMaps, Secrets should be grouped)
 type resourceExpression struct {
 	kind             string
 	namePattern      string

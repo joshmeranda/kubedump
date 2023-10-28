@@ -78,7 +78,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 	switch handleKind {
 	case HandleAdd:
 		// todo: do this afterward
-		controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+		controller.workQueue.AddRateLimited(NewJob(controller.ctx, JobNameCheckPodData, func() {
 			controller.Logger.Debug(fmt.Sprintf("checking for config map volumes in '%s'", pod))
 
 			for _, volume := range rawPod.Spec.Volumes {
@@ -120,7 +120,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 		}))
 
 		for _, container := range rawPod.Spec.Containers {
-			controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+			controller.workQueue.AddRateLimited(NewJob(controller.ctx, JobNameAddLogStream, func() {
 				stream, err := NewLogStream(LogStreamOptions{
 					Pod:           rawPod,
 					Container:     &container,
@@ -144,7 +144,7 @@ func (controller *Controller) handlePod(handleKind HandleKind, pod kubedump.Reso
 		}
 	case HandleDelete:
 		for _, container := range rawPod.Spec.Containers {
-			controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+			controller.workQueue.AddRateLimited(NewJob(controller.ctx, JobNameRemoveLogStream, func() {
 				logStreamId := fmt.Sprintf("%s/%s/%s", rawPod.Namespace, rawPod.Name, container.Name)
 
 				controller.logStreamsMu.Lock()
@@ -206,7 +206,7 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schem
 		}
 	}
 
-	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, fmt.Sprintf("%s-%s-%s-%s", JobNameDumpResourcePrefix, resource.GetKind(), resource.GetNamespace(), resource.GetName()), func() {
 		dir := kubedump.NewResourcePathBuilder().WithBase(controller.BasePath).WithResource(resource).Build()
 		if err := dumpResourceDescription(path.Join(dir, resource.GetName()+".yaml"), u); err != nil {
 			controller.Logger.With(

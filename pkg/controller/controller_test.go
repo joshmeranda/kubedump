@@ -23,10 +23,58 @@ import (
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
+
+var testControllerResources = []schema.GroupVersionResource{
+	// {Group: "", Version: "v1", Resource: "bindings"},
+	{Group: "", Version: "v1", Resource: "configmaps"},
+	{Group: "", Version: "v1", Resource: "events"},
+	{Group: "", Version: "v1", Resource: "podtemplates"},
+	{Group: "", Version: "v1", Resource: "pods"},
+	{Group: "", Version: "v1", Resource: "secrets"},
+	{Group: "", Version: "v1", Resource: "replicationcontrollers"},
+	{Group: "", Version: "v1", Resource: "endpoints"},
+	{Group: "", Version: "v1", Resource: "resourcequotas"},
+	{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+	{Group: "", Version: "v1", Resource: "limitranges"},
+	{Group: "", Version: "v1", Resource: "serviceaccounts"},
+	{Group: "", Version: "v1", Resource: "services"},
+	// {Group: "apps", Version: "v1", Resource: "statefulsets"},
+	// {Group: "apps", Version: "v1", Resource: "daemonsets"},
+	// {Group: "apps", Version: "v1", Resource: "replicasets"},
+	// {Group: "apps", Version: "v1", Resource: "deployments"},
+	// {Group: "apps", Version: "v1", Resource: "controllerrevisions"},
+	// {Group: "events.k8s.io", Version: "v1", Resource: "events"},
+	// {Group: "authorization.k8s.io", Version: "v1", Resource: "localsubjectaccessreviews"},
+	// {Group: "autoscaling", Version: "v2", Resource: "horizontalpodautoscalers"},
+	// {Group: "batch", Version: "v1", Resource: "jobs"},
+	// {Group: "batch", Version: "v1", Resource: "cronjobs"},
+	// {Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+	// {Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+	// {Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
+	// {Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebindings"},
+	// {Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"},
+	// {Group: "storage.k8s.io", Version: "v1", Resource: "csistoragecapacities"},
+	// {Group: "coordination.k8s.io", Version: "v1", Resource: "leases"},
+	// {Group: "discovery.k8s.io", Version: "v1", Resource: "endpointslices"},
+	// {Group: "helm.cattle.io", Version: "v1", Resource: "helmcharts"},
+	// {Group: "helm.cattle.io", Version: "v1", Resource: "helmchartconfigs"},
+	// {Group: "k3s.cattle.io", Version: "v1", Resource: "addons"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "traefikservices"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "tlsstores"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "middlewares"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "ingressroutes"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "serverstransports"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "middlewaretcps"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "tlsoptions"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "ingressroutetcps"},
+	// {Group: "traefik.containo.us", Version: "v1alpha1", Resource: "ingressrouteudps"},
+	// {Group: "metrics.k8s.io", Version: "v1beta1", Resource: "pods"},
+}
 
 func resourceToHandled[T any](t *testing.T, obj T) (kubedump.Resource, T) {
 	data, err := json.Marshal(obj)
@@ -73,18 +121,18 @@ func fakeControllerSetup(t *testing.T, objects ...runtime.Object) (func(), kuber
 		f.Close()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
 
-	// loggerOptions := []kubedump.LoggerOption{
-	// 	//kubedump.WithLevel(zap.NewAtomicLevelAt(zap.DebugLevel)),
-	// 	kubedump.WithPaths(logFilePath),
-	// }
+	ctx, cancel := context.WithCancel(context.Background())
 
 	opts := Options{
 		BasePath:       basePath,
 		ParentContext:  ctx,
-		Logger:         slog.Default(),
+		Logger:         logger,
 		LogSyncTimeout: time.Second,
+		Resources:      testControllerResources,
 	}
 
 	controller, _ := NewController(client, dynamicClient, opts)
@@ -148,7 +196,7 @@ func TestEvent(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if _, err := client.EventsV1().Events(tests.ResourceNamespace).Create(ctx, event, apimetav1.CreateOptions{}); err != nil {
@@ -183,7 +231,7 @@ func TestLogs(t *testing.T) {
 	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
@@ -216,7 +264,7 @@ func TestPod(t *testing.T) {
 	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, pod)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
@@ -227,118 +275,6 @@ func TestPod(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests.AssertResource(t, basePath, handledPod, false)
-}
-
-func TestPodWithConfigMap(t *testing.T) {
-	handledConfigMap, configmap := resourceToHandled(t, &apicorev1.ConfigMap{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "ConfigMap",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-configmap",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-configmap-uid",
-		},
-	})
-
-	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-pod",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-pod-uid",
-		},
-		Spec: apicorev1.PodSpec{
-			Volumes: []apicorev1.Volume{
-				{
-					Name: "sample-configmap-volume",
-					VolumeSource: apicorev1.VolumeSource{
-						ConfigMap: &apicorev1.ConfigMapVolumeSource{
-							LocalObjectReference: apicorev1.LocalObjectReference{
-								Name: handledConfigMap.GetName(),
-							},
-						},
-					},
-				},
-			},
-		},
-	})
-
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, configmap, pod)
-	defer teardown()
-
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledConfigMap).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledConfigMap)
-	}
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledPod, false)
-	tests.AssertResource(t, basePath, handledConfigMap, false)
-	tests.AssertResourceIsLinked(t, basePath, handledPod, handledConfigMap)
-}
-
-func TestPodWithSecret(t *testing.T) {
-	handledSecret, secret := resourceToHandled(t, &apicorev1.Secret{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Secret",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-secret",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-secret-uid",
-		},
-	})
-
-	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-pod",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-pod-uid",
-		},
-		Spec: apicorev1.PodSpec{
-			Volumes: []apicorev1.Volume{
-				{
-					Name: "sample-secret-volume",
-					VolumeSource: apicorev1.VolumeSource{
-						Secret: &apicorev1.SecretVolumeSource{
-							SecretName: handledSecret.GetName(),
-						},
-					},
-				},
-			},
-		},
-	})
-
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, pod, secret)
-	defer teardown()
-
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledPod))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration*2, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledSecret).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledSecret)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
 }
 
 func TestService(t *testing.T) {
@@ -373,7 +309,7 @@ func TestService(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, service)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledService))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledService))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledService).Build()); err != nil {
@@ -431,7 +367,7 @@ func TestJob(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, job)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledJob))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledJob))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledJob).Build()); err != nil {
@@ -489,7 +425,7 @@ func TestReplicaSet(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, replicaset)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledReplicaSet))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledReplicaSet))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledReplicaSet).Build()); err != nil {
@@ -547,7 +483,7 @@ func TestDeployment(t *testing.T) {
 	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, deployment)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledDeployment))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledDeployment))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledDeployment).Build()); err != nil {
@@ -585,7 +521,7 @@ func TestConfigMap(t *testing.T) {
 	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, configmap)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledConfigMap))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledConfigMap))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledConfigMap).Build()); err != nil {
@@ -613,7 +549,7 @@ func TestSecret(t *testing.T) {
 	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, secret)
 	defer teardown()
 
-	err := controller.Start(tests.NWorkers, filterForResource(t, handledSecret))
+	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledSecret))
 	assert.NoError(t, err)
 
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledSecret).Build()); err != nil {

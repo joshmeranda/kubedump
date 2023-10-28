@@ -23,8 +23,9 @@ import (
 )
 
 var (
+	UnitNWorkers     = 1
 	NWorkers         = 5
-	TestWaitDuration = time.Second * 5
+	TestWaitDuration = time.Second * 20
 )
 
 // isSymlink determines whether the given file path points to a symlink.

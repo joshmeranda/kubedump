@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	kubedump "github.com/joshmeranda/kubedump/pkg"
@@ -14,11 +15,11 @@ import (
 	"github.com/joshmeranda/kubedump/pkg/filter"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -28,6 +29,9 @@ const (
 	LogFileName = "kubedump.log"
 
 	FlagNameLogSyncTimeout = "log-sync-timeout"
+
+	DiscoverFormatYAML   = "yaml"
+	DiscoverFormatStruct = "go-struct"
 )
 
 var Version = ""
@@ -209,6 +213,12 @@ func Filter(ctx *cli.Context) error {
 }
 
 func Discover(ctx *cli.Context) error {
+	format := ctx.String("format")
+
+	if format != DiscoverFormatYAML && format != DiscoverFormatStruct {
+		return fmt.Errorf("received invalid format: %s", format)
+	}
+
 	config, err := clientcmd.BuildConfigFromFlags("", ctx.String("kubeconfig"))
 	if err != nil {
 		return fmt.Errorf("could not load config: %w", err)
@@ -219,12 +229,24 @@ func Discover(ctx *cli.Context) error {
 		return err
 	}
 
-	bytes, err := yaml.Marshal(resources)
-	if err != nil {
-		return fmt.Errorf("could not marshal schema: %w", err)
-	}
+	switch format {
+	case DiscoverFormatYAML:
+		bytes, err := yaml.Marshal(resources)
+		if err != nil {
+			return fmt.Errorf("could not marshal schema: %w", err)
+		}
 
-	fmt.Println(string(bytes))
+		fmt.Println(string(bytes))
+	case DiscoverFormatStruct:
+		builder := strings.Builder{}
+		builder.WriteString("[]schema.GroupVersionResource{")
+		for _, resource := range resources {
+			builder.WriteString(fmt.Sprintf("\t{Group: %q, Version: %q, Resource: %q},\n", resource.Group, resource.Version, resource.Resource))
+		}
+		builder.WriteString("}")
+
+		fmt.Println(builder.String())
+	}
 
 	return nil
 }
@@ -301,7 +323,13 @@ func NewKubedumpApp() *cli.App {
 				Usage:     "discover the resources available on the cluster",
 				Action:    Discover,
 				ArgsUsage: "",
-				Flags:     []cli.Flag{},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "format",
+						Usage: "the format to use when printing the discovered resources",
+						Value: DiscoverFormatYAML,
+					},
+				},
 			},
 		},
 		Flags: []cli.Flag{

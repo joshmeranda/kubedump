@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/joshmeranda/kubedump/pkg/filter"
 	apicorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,34 +20,20 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+// todo: decrease syn-log frequency
 const (
-	FakeHost   = "FAKE"
 	ResyncTime = time.Second * 5
 )
 
-type Job struct {
-	id  uuid.UUID
-	ctx context.Context
-	fn  *func()
-}
-
-func NewJob(ctx context.Context, fn func()) Job {
-	return Job{
-		id:  uuid.New(),
-		ctx: ctx,
-		fn:  &fn,
-	}
-}
-
 type Options struct {
-	BasePath      string
-	ParentContext context.Context
-	// Logger         *zap.SugaredLogger
+	BasePath       string
+	ParentContext  context.Context
 	Logger         *slog.Logger
 	LogSyncTimeout time.Duration
 	Resources      []schema.GroupVersionResource
 }
 
+// todo: move job handling into job.go
 type Controller struct {
 	Options
 
@@ -105,6 +90,10 @@ func NewController(
 		store: NewStore(),
 
 		informers: make(map[string]cache.SharedIndexInformer),
+	}
+
+	if len(opts.Resources) == 0 {
+		opts.Logger.Warn("no resources were specified")
 	}
 
 	for _, resource := range opts.Resources {
@@ -168,7 +157,8 @@ func (controller *Controller) syncLogStreams() {
 
 	controller.logStreamsMu.Unlock()
 
-	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+	time.Sleep(time.Second * 1)
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, JobNameSyncLogs, func() {
 		controller.syncLogStreams()
 	}))
 }
@@ -182,7 +172,7 @@ func (controller *Controller) processNextWorkItem() bool {
 
 	job, ok := obj.(Job)
 
-	controller.Logger.Debug(fmt.Sprintf("processing next work item '%s'", job.id))
+	controller.Logger.Debug(fmt.Sprintf("processing next work item '%s'", job.name))
 
 	if !ok {
 		controller.Logger.Error(fmt.Sprintf("could not understand worker function of type '%T'", obj))
@@ -235,7 +225,7 @@ func (controller *Controller) Start(nWorkers int, expr filter.Expression) error 
 	controller.workerWaitGroup.Wait()
 	controller.workerWaitGroup.Add(nWorkers)
 
-	controller.workQueue.AddRateLimited(NewJob(controller.ctx, func() {
+	controller.workQueue.AddRateLimited(NewJob(controller.ctx, JobNameSyncLogs, func() {
 		controller.syncLogStreams()
 	}))
 
