@@ -22,9 +22,14 @@ function get_version() {
     echo "$head_tag"
   else
     local most_recent_tag="$(git tag --sort version:refname --list | tail --lines 1)"
-    local commits_since_last="$(git log --oneline $most_recent_tag..HEAD | wc --lines)"
+    local current_commit="$(git rev-parse HEAD)"
 
-    echo "$most_recent_tag-dev-$commits_since_last"
+    if [ -z "$(git status --porcelain)" ]; then
+      echo "$most_recent_tag-$current_commit"
+    else
+      echo "$most_recent_tag-$current_commit-dirty  "
+    fi
+
   fi
 }
 
