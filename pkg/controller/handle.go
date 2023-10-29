@@ -39,7 +39,7 @@ func (controller *Controller) handleEvent(obj any) {
 
 	// todo: filter event by resource kind
 
-	resourceDir := kubedump.NewResourcePathBuilder().
+	resourceDir := kubedump.ResourcePathBuilder{}.
 		WithBase(controller.BasePath).
 		WithResource(resource).
 		Build()
@@ -144,7 +144,7 @@ func (controller *Controller) resourceHandlerFunc(handleKind HandleKind, r schem
 	}
 
 	controller.workQueue.AddRateLimited(NewJob(controller.ctx, fmt.Sprintf("%s-%s-%s-%s", JobNameDumpResourcePrefix, resource.GetKind(), resource.GetNamespace(), resource.GetName()), func() {
-		dir := kubedump.NewResourcePathBuilder().WithBase(controller.BasePath).WithResource(resource).Build()
+		dir := kubedump.ResourcePathBuilder{}.WithBase(controller.BasePath).WithResource(resource).Build()
 		if err := dumpResourceDescription(path.Join(dir, resource.GetName()+".yaml"), u); err != nil {
 			controller.Logger.With(
 				"namespace", resource.GetNamespace(),

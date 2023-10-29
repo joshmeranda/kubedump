@@ -150,7 +150,7 @@ func (builder *ResourceBuilder) Build() Resource {
 	return &builder.resource
 }
 
-// ResourcePathBuilder can be used to build the parent directories for collected resources.
+// ResourcePathBuilder can be used to build the directory paths to a resource. You must build the paths to any resource files or subdirectories yourself.
 type ResourcePathBuilder struct {
 	basePath  string
 	namespace string
@@ -162,65 +162,49 @@ type ResourcePathBuilder struct {
 	kind string
 }
 
-func NewResourcePathBuilder() *ResourcePathBuilder {
-	return &ResourcePathBuilder{}
-}
-
-func (builder *ResourcePathBuilder) WithBase(basePath string) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithBase(basePath string) ResourcePathBuilder {
 	builder.basePath = basePath
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithNamespace(namespace string) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithNamespace(namespace string) ResourcePathBuilder {
 	builder.namespace = namespace
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithName(name string) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithName(name string) ResourcePathBuilder {
 	builder.name = name
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithKind(kind string) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithKind(kind string) ResourcePathBuilder {
 	builder.kind = kind
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithParentName(name string) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithParentName(name string) ResourcePathBuilder {
 	builder.parentName = name
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithParentKind(kind string) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithParentKind(kind string) ResourcePathBuilder {
 	builder.parentKind = kind
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithResource(resource Resource) *ResourcePathBuilder {
+func (builder ResourcePathBuilder) WithResource(resource Resource) ResourcePathBuilder {
 	builder.namespace = resource.GetNamespace()
 	builder.name = resource.GetName()
 	builder.kind = resource.GetKind()
 	return builder
 }
 
-// Reset the state of the builder as if it was new.
-func (builder *ResourcePathBuilder) Reset() {
-	builder.basePath = ""
-	builder.namespace = ""
-
-	builder.parentName = ""
-	builder.parentKind = ""
-
-	builder.name = ""
-	builder.kind = ""
-}
-
 // Build the path to the resource.
-func (builder *ResourcePathBuilder) Build() string {
+func (builder ResourcePathBuilder) Build() string {
 	return path.Join(builder.basePath, builder.namespace, builder.kind, builder.name)
 }
 
 // BuildWithParent builds the resource path the parent name and kind.
-func (builder *ResourcePathBuilder) BuildWithParent() string {
+func (builder ResourcePathBuilder) BuildWithParent() string {
 	return path.Join(builder.basePath, builder.namespace, builder.parentKind, builder.parentName, builder.kind, builder.name)
 }

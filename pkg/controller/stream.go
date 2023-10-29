@@ -38,7 +38,7 @@ type logStream struct {
 }
 
 func NewLogStream(opts LogStreamOptions) (Stream, error) {
-	podDir := kubedump.NewResourcePathBuilder().
+	podDir := kubedump.ResourcePathBuilder{}.
 		WithBase(opts.BasePath).
 		WithNamespace(opts.Pod.Namespace).
 		WithKind("Pod").

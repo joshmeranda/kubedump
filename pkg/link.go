@@ -24,7 +24,7 @@ func createPathParents(filePath string) error {
 	return nil
 }
 
-func linkToParent(childBuilder *ResourcePathBuilder, parentBuilder *ResourcePathBuilder) error {
+func linkToParent(childBuilder ResourcePathBuilder, parentBuilder ResourcePathBuilder) error {
 	ownerPath := parentBuilder.Build()
 	if _, err := os.Lstat(path.Dir(ownerPath)); errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("parent does not exist, doing nothing")
@@ -50,7 +50,7 @@ func linkToParent(childBuilder *ResourcePathBuilder, parentBuilder *ResourcePath
 	return nil
 }
 
-func linkPod(podPathBuilder *ResourcePathBuilder) error {
+func linkPod(podPathBuilder ResourcePathBuilder) error {
 	data, err := os.ReadFile(path.Join(podPathBuilder.Build(), podPathBuilder.name+".yaml"))
 	if err != nil {
 		return fmt.Errorf("could not read resource file: %w", err)
@@ -71,7 +71,7 @@ func linkPod(podPathBuilder *ResourcePathBuilder) error {
 			continue
 		}
 
-		volumeBuilder := NewResourcePathBuilder().
+		volumeBuilder := ResourcePathBuilder{}.
 			WithBase(podPathBuilder.basePath).
 			WithNamespace(podPathBuilder.namespace).
 			WithKind(kind).
@@ -85,7 +85,7 @@ func linkPod(podPathBuilder *ResourcePathBuilder) error {
 	return nil
 }
 
-func linkResource(builder *ResourcePathBuilder) error {
+func linkResource(builder ResourcePathBuilder) error {
 	resourcePath := builder.Build()
 	resourceFilePath := path.Join(resourcePath, builder.name+".yaml")
 	resource, err := NewResourceFromFile(resourceFilePath)
@@ -100,7 +100,7 @@ func linkResource(builder *ResourcePathBuilder) error {
 	}
 
 	for _, owner := range resource.GetOwnershipReferences() {
-		ownerBuilder := NewResourcePathBuilder().
+		ownerBuilder := ResourcePathBuilder{}.
 			WithBase(builder.basePath).
 			WithNamespace(builder.namespace).
 			WithKind(owner.Kind).
@@ -114,7 +114,7 @@ func linkResource(builder *ResourcePathBuilder) error {
 	return nil
 }
 
-func linkKind(builder *ResourcePathBuilder) error {
+func linkKind(builder ResourcePathBuilder) error {
 	entries, err := os.ReadDir(path.Join(builder.basePath, builder.namespace, builder.kind))
 	if err != nil {
 		return fmt.Errorf("could not read directory '%s': %w", builder.kind, err)
@@ -131,7 +131,7 @@ func linkKind(builder *ResourcePathBuilder) error {
 	return nil
 }
 
-func linkNamespace(builder *ResourcePathBuilder) error {
+func linkNamespace(builder ResourcePathBuilder) error {
 	entries, err := os.ReadDir(path.Join(builder.basePath, builder.namespace))
 	if err != nil {
 		return fmt.Errorf("could not read directory '%s': %w", builder.namespace, err)
@@ -156,7 +156,7 @@ func Link(root string) error {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			builder := NewResourcePathBuilder().WithBase(root).WithNamespace(entry.Name())
+			builder := ResourcePathBuilder{}.WithBase(root).WithNamespace(entry.Name())
 			if err := linkNamespace(builder); err != nil {
 				return fmt.Errorf("could not link namespace '%s': %w", entry.Name(), err)
 			}

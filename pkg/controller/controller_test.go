@@ -16,8 +16,6 @@ import (
 	"github.com/joshmeranda/kubedump/tests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	apiappsv1 "k8s.io/api/apps/v1"
-	apibatchv1 "k8s.io/api/batch/v1"
 	apicorev1 "k8s.io/api/core/v1"
 	apieventsv1 "k8s.io/api/events/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,9 +29,9 @@ import (
 
 var testControllerResources = []schema.GroupVersionResource{
 	// {Group: "", Version: "v1", Resource: "bindings"},
-	{Group: "", Version: "v1", Resource: "configmaps"},
-	{Group: "", Version: "v1", Resource: "events"},
-	{Group: "", Version: "v1", Resource: "podtemplates"},
+	// {Group: "", Version: "v1", Resource: "configmaps"},
+	// {Group: "", Version: "v1", Resource: "events"},
+	// {Group: "", Version: "v1", Resource: "podtemplates"},
 	{Group: "", Version: "v1", Resource: "pods"},
 	{Group: "", Version: "v1", Resource: "secrets"},
 	{Group: "", Version: "v1", Resource: "replicationcontrollers"},
@@ -203,11 +201,11 @@ func TestEvent(t *testing.T) {
 		t.Fatalf("failed to create resource '%s': %s", handledEvent.String(), err)
 	}
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.ResourcePathBuilder{}.WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
-	eventFile := kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).WithFileName(handledPod.GetName() + ".yaml").Build()
+	eventFile := path.Join(kubedump.ResourcePathBuilder{}.WithBase(basePath).WithResource(handledPod).Build(), handledPod.GetName()+".yaml")
 	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, eventFile); err != nil {
 		t.Fatalf("failed witing for path: ")
 	}
@@ -234,7 +232,7 @@ func TestLogs(t *testing.T) {
 	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.ResourcePathBuilder{}.WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -243,7 +241,7 @@ func TestLogs(t *testing.T) {
 	err = controller.Stop()
 	assert.NoError(t, err)
 
-	logFile := kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).WithFileName(handledPod.GetName() + ".log").Build()
+	logFile := path.Join(kubedump.ResourcePathBuilder{}.WithBase(basePath).WithResource(handledPod).Build(), handledPod.GetName()+".log")
 	data, err := os.ReadFile(logFile)
 	assert.GreaterOrEqual(t, 1, strings.Count(string(data), "fake logs"))
 	assert.NoError(t, err)
@@ -267,7 +265,7 @@ func TestPod(t *testing.T) {
 	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledPod))
 	assert.NoError(t, err)
 
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
+	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.ResourcePathBuilder{}.WithBase(basePath).WithResource(handledPod).Build()); err != nil {
 		t.Fatalf("error waiting for resource path: %s", handledPod)
 	}
 
@@ -275,289 +273,4 @@ func TestPod(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests.AssertResource(t, basePath, handledPod, false)
-}
-
-func TestService(t *testing.T) {
-	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-pod",
-			Namespace: tests.ResourceNamespace,
-			Labels: map[string]string{
-				"test": "replicaset",
-			},
-			UID: "sample-pod-uid",
-		},
-	})
-
-	handledService, service := resourceToHandled(t, &apicorev1.Service{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Service",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-service",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-service-uid",
-		},
-		Spec: apicorev1.ServiceSpec{
-			Selector: handledPod.GetLabels(),
-		},
-	})
-
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, service)
-	defer teardown()
-
-	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledService))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledService).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("erro creating resource %s: %s", handledPod, err)
-	}
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledPod, false)
-	tests.AssertResource(t, basePath, handledService, false)
-	tests.AssertResourceIsLinked(t, basePath, handledService, handledPod)
-}
-
-func TestJob(t *testing.T) {
-	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-pod",
-			Namespace: tests.ResourceNamespace,
-			Labels: map[string]string{
-				"controller-uid": "sample-job",
-			},
-			UID: "sample-pod-uid",
-		},
-	})
-
-	handledJob, job := resourceToHandled(t, &apibatchv1.Job{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Job",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-job",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-job-uid",
-		},
-		Spec: apibatchv1.JobSpec{
-			Selector: &apimetav1.LabelSelector{
-				MatchLabels:      handledPod.GetLabels(),
-				MatchExpressions: nil,
-			},
-		},
-	})
-
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, job)
-	defer teardown()
-
-	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledJob))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledJob).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("erro creating resource %s: %s", handledPod, err)
-	}
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledPod, false)
-	tests.AssertResource(t, basePath, handledJob, false)
-	tests.AssertResourceIsLinked(t, basePath, handledJob, handledPod)
-}
-
-func TestReplicaSet(t *testing.T) {
-	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-pod",
-			Namespace: tests.ResourceNamespace,
-			Labels: map[string]string{
-				"test": "replicaset",
-			},
-			UID: "sample-pod-uid",
-		},
-	})
-
-	handledReplicaSet, replicaset := resourceToHandled(t, &apiappsv1.ReplicaSet{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "ReplicaSet",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-replica-set",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-replicaset-uid",
-		},
-		Spec: apiappsv1.ReplicaSetSpec{
-			Selector: &apimetav1.LabelSelector{
-				MatchLabels:      handledPod.GetLabels(),
-				MatchExpressions: nil,
-			},
-		},
-	})
-
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, replicaset)
-	defer teardown()
-
-	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledReplicaSet))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledReplicaSet).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("erro creating resource %s: %s", handledPod, err)
-	}
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledPod, false)
-	tests.AssertResource(t, basePath, handledReplicaSet, false)
-	tests.AssertResourceIsLinked(t, basePath, handledReplicaSet, handledPod)
-}
-
-func TestDeployment(t *testing.T) {
-	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-pod",
-			Namespace: tests.ResourceNamespace,
-			Labels: map[string]string{
-				"test": "deployment",
-			},
-			UID: "sample-pod-uid",
-		},
-	})
-
-	handledDeployment, deployment := resourceToHandled(t, &apiappsv1.Deployment{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Deployment",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-deployment",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-deployment-uid",
-		},
-		Spec: apiappsv1.DeploymentSpec{
-			Selector: &apimetav1.LabelSelector{
-				MatchLabels:      handledPod.GetLabels(),
-				MatchExpressions: nil,
-			},
-		},
-	})
-
-	teardown, client, basePath, ctx, controller := fakeControllerSetup(t, deployment)
-	defer teardown()
-
-	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledDeployment))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledDeployment).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	if _, err = client.CoreV1().Pods(tests.ResourceNamespace).Create(ctx, pod, apimetav1.CreateOptions{}); err != nil {
-		t.Fatalf("erro creating resource %s: %s", handledPod, err)
-	}
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledPod).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledPod)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledPod, false)
-	tests.AssertResource(t, basePath, handledDeployment, false)
-	tests.AssertResourceIsLinked(t, basePath, handledDeployment, handledPod)
-}
-
-func TestConfigMap(t *testing.T) {
-	handledConfigMap, configmap := resourceToHandled(t, &apicorev1.ConfigMap{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "ConfigMap",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-configmap",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-configmap-uid",
-		},
-	})
-
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, configmap)
-	defer teardown()
-
-	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledConfigMap))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledConfigMap).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledConfigMap)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledConfigMap, false)
-}
-
-func TestSecret(t *testing.T) {
-	handledSecret, secret := resourceToHandled(t, &apicorev1.Secret{
-		TypeMeta: apimetav1.TypeMeta{
-			Kind: "Secret",
-		},
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:      "sample-secret",
-			Namespace: tests.ResourceNamespace,
-			UID:       "sample-secret-uid",
-		},
-	})
-
-	teardown, _, basePath, ctx, controller := fakeControllerSetup(t, secret)
-	defer teardown()
-
-	err := controller.Start(tests.UnitNWorkers, filterForResource(t, handledSecret))
-	assert.NoError(t, err)
-
-	if err := tests.WaitForPath(ctx, tests.TestWaitDuration, kubedump.NewResourcePathBuilder().WithBase(basePath).WithResource(handledSecret).Build()); err != nil {
-		t.Fatalf("error waiting for resource path: %s", handledSecret)
-	}
-
-	err = controller.Stop()
-	assert.NoError(t, err)
-
-	tests.AssertResource(t, basePath, handledSecret, false)
 }

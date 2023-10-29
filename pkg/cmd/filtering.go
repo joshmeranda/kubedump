@@ -110,7 +110,7 @@ func filterResourceDir(name string, dir string, opts filteringOptions) error {
 }
 
 func copyResourceDir(resource kubedump.Resource, dir string, opts filteringOptions) error {
-	resourceDestinationDir := kubedump.NewResourcePathBuilder().
+	resourceDestinationDir := kubedump.ResourcePathBuilder{}.
 		WithBase(opts.DestinationBasePath).
 		WithResource(resource).
 		Build()
