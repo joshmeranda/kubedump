@@ -45,10 +45,6 @@ func CopyTree(target string, destination string) error {
 		return fmt.Errorf("could not create copy destination '%s': %w", destination, err)
 	}
 
-	//if err := exec.Command("cp", "--recursive", target, destination).Run(); err != nil {
-	//	return fmt.Errorf("could not copy '%s' -> '%s': %w", target, destination, err)
-	//}
-
 	opts := cp.Options{
 		OnSymlink: func(string) cp.SymlinkAction {
 			return cp.Shallow

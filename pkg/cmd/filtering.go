@@ -12,6 +12,8 @@ import (
 	cp "github.com/otiai10/copy"
 )
 
+// todo: a lot of duplicatged code here, we can add some kind of batch resource directory mutator / processor
+
 type filteringOptions struct {
 	Filter              filter.Expression
 	DestinationBasePath string

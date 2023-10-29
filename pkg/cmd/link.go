@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 
+	kubedump "github.com/joshmeranda/kubedump/pkg"
 	apicorev1 "k8s.io/api/core/v1"
 
 	"sigs.k8s.io/yaml"
@@ -24,14 +25,14 @@ func createPathParents(filePath string) error {
 	return nil
 }
 
-func linkToParent(childBuilder ResourcePathBuilder, parentBuilder ResourcePathBuilder) error {
+func linkToParent(childBuilder kubedump.ResourcePathBuilder, parentBuilder kubedump.ResourcePathBuilder) error {
 	ownerPath := parentBuilder.Build()
 	if _, err := os.Lstat(path.Dir(ownerPath)); errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("parent does not exist, doing nothing")
 	}
 
 	resourcePath := childBuilder.Build()
-	linkBuilder := childBuilder.WithParentKind(parentBuilder.kind).WithParentName(parentBuilder.name)
+	linkBuilder := childBuilder.WithParentKind(parentBuilder.Kind).WithParentName(parentBuilder.Name)
 	linkDest := linkBuilder.BuildWithParent()
 
 	relative, err := filepath.Rel(linkDest, resourcePath)
@@ -50,8 +51,8 @@ func linkToParent(childBuilder ResourcePathBuilder, parentBuilder ResourcePathBu
 	return nil
 }
 
-func linkPod(podPathBuilder ResourcePathBuilder) error {
-	data, err := os.ReadFile(path.Join(podPathBuilder.Build(), podPathBuilder.name+".yaml"))
+func linkPod(podPathBuilder kubedump.ResourcePathBuilder) error {
+	data, err := os.ReadFile(path.Join(podPathBuilder.Build(), podPathBuilder.Name+".yaml"))
 	if err != nil {
 		return fmt.Errorf("could not read resource file: %w", err)
 	}
@@ -71,9 +72,9 @@ func linkPod(podPathBuilder ResourcePathBuilder) error {
 			continue
 		}
 
-		volumeBuilder := ResourcePathBuilder{}.
-			WithBase(podPathBuilder.basePath).
-			WithNamespace(podPathBuilder.namespace).
+		volumeBuilder := kubedump.ResourcePathBuilder{}.
+			WithBase(podPathBuilder.BasePath).
+			WithNamespace(podPathBuilder.Namespace).
 			WithKind(kind).
 			WithName(volume.Name)
 
@@ -85,10 +86,10 @@ func linkPod(podPathBuilder ResourcePathBuilder) error {
 	return nil
 }
 
-func linkResource(builder ResourcePathBuilder) error {
+func linkResource(builder kubedump.ResourcePathBuilder) error {
 	resourcePath := builder.Build()
-	resourceFilePath := path.Join(resourcePath, builder.name+".yaml")
-	resource, err := NewResourceFromFile(resourceFilePath)
+	resourceFilePath := path.Join(resourcePath, builder.Name+".yaml")
+	resource, err := kubedump.NewResourceFromFile(resourceFilePath)
 	if err != nil {
 		return fmt.Errorf("could not read resource from file resource: %w", err)
 	}
@@ -100,9 +101,9 @@ func linkResource(builder ResourcePathBuilder) error {
 	}
 
 	for _, owner := range resource.GetOwnershipReferences() {
-		ownerBuilder := ResourcePathBuilder{}.
-			WithBase(builder.basePath).
-			WithNamespace(builder.namespace).
+		ownerBuilder := kubedump.ResourcePathBuilder{}.
+			WithBase(builder.BasePath).
+			WithNamespace(builder.Namespace).
 			WithKind(owner.Kind).
 			WithName(owner.Name)
 
@@ -114,10 +115,10 @@ func linkResource(builder ResourcePathBuilder) error {
 	return nil
 }
 
-func linkKind(builder ResourcePathBuilder) error {
-	entries, err := os.ReadDir(path.Join(builder.basePath, builder.namespace, builder.kind))
+func linkKind(builder kubedump.ResourcePathBuilder) error {
+	entries, err := os.ReadDir(path.Join(builder.BasePath, builder.Namespace, builder.Kind))
 	if err != nil {
-		return fmt.Errorf("could not read directory '%s': %w", builder.kind, err)
+		return fmt.Errorf("could not read directory '%s': %w", builder.Kind, err)
 	}
 
 	for _, entry := range entries {
@@ -131,10 +132,10 @@ func linkKind(builder ResourcePathBuilder) error {
 	return nil
 }
 
-func linkNamespace(builder ResourcePathBuilder) error {
-	entries, err := os.ReadDir(path.Join(builder.basePath, builder.namespace))
+func linkNamespace(builder kubedump.ResourcePathBuilder) error {
+	entries, err := os.ReadDir(path.Join(builder.BasePath, builder.Namespace))
 	if err != nil {
-		return fmt.Errorf("could not read directory '%s': %w", builder.namespace, err)
+		return fmt.Errorf("could not read directory '%s': %w", builder.Namespace, err)
 	}
 
 	for _, entry := range entries {
@@ -148,7 +149,7 @@ func linkNamespace(builder ResourcePathBuilder) error {
 	return nil
 }
 
-func Link(root string) error {
+func LinkDump(root string) error {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return fmt.Errorf("could not read directory '%s': %w", root, err)
@@ -156,7 +157,7 @@ func Link(root string) error {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			builder := ResourcePathBuilder{}.WithBase(root).WithNamespace(entry.Name())
+			builder := kubedump.ResourcePathBuilder{}.WithBase(root).WithNamespace(entry.Name())
 			if err := linkNamespace(builder); err != nil {
 				return fmt.Errorf("could not link namespace '%s': %w", entry.Name(), err)
 			}

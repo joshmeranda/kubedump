@@ -152,59 +152,59 @@ func (builder *ResourceBuilder) Build() Resource {
 
 // ResourcePathBuilder can be used to build the directory paths to a resource. You must build the paths to any resource files or subdirectories yourself.
 type ResourcePathBuilder struct {
-	basePath  string
-	namespace string
+	BasePath  string
+	Namespace string
 
-	parentName string
-	parentKind string
+	ParentName string
+	ParentKind string
 
-	name string
-	kind string
+	Name string
+	Kind string
 }
 
 func (builder ResourcePathBuilder) WithBase(basePath string) ResourcePathBuilder {
-	builder.basePath = basePath
+	builder.BasePath = basePath
 	return builder
 }
 
 func (builder ResourcePathBuilder) WithNamespace(namespace string) ResourcePathBuilder {
-	builder.namespace = namespace
+	builder.Namespace = namespace
 	return builder
 }
 
 func (builder ResourcePathBuilder) WithName(name string) ResourcePathBuilder {
-	builder.name = name
+	builder.Name = name
 	return builder
 }
 
 func (builder ResourcePathBuilder) WithKind(kind string) ResourcePathBuilder {
-	builder.kind = kind
+	builder.Kind = kind
 	return builder
 }
 
 func (builder ResourcePathBuilder) WithParentName(name string) ResourcePathBuilder {
-	builder.parentName = name
+	builder.ParentName = name
 	return builder
 }
 
 func (builder ResourcePathBuilder) WithParentKind(kind string) ResourcePathBuilder {
-	builder.parentKind = kind
+	builder.ParentKind = kind
 	return builder
 }
 
 func (builder ResourcePathBuilder) WithResource(resource Resource) ResourcePathBuilder {
-	builder.namespace = resource.GetNamespace()
-	builder.name = resource.GetName()
-	builder.kind = resource.GetKind()
+	builder.Namespace = resource.GetNamespace()
+	builder.Name = resource.GetName()
+	builder.Kind = resource.GetKind()
 	return builder
 }
 
 // Build the path to the resource.
 func (builder ResourcePathBuilder) Build() string {
-	return path.Join(builder.basePath, builder.namespace, builder.kind, builder.name)
+	return path.Join(builder.BasePath, builder.Namespace, builder.Kind, builder.Name)
 }
 
 // BuildWithParent builds the resource path the parent name and kind.
 func (builder ResourcePathBuilder) BuildWithParent() string {
-	return path.Join(builder.basePath, builder.namespace, builder.parentKind, builder.parentName, builder.kind, builder.name)
+	return path.Join(builder.BasePath, builder.Namespace, builder.ParentKind, builder.ParentName, builder.Kind, builder.Name)
 }

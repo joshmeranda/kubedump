@@ -1,0 +1,4 @@
+2023-01-17T09:34:00-05:00 info kubedump controller/controller.go:194 starting controller
+2023-01-17T09:34:00-05:00 info kubedump controller/controller.go:198 waiting for informer caches to sync
+2023-01-17T09:34:00-05:00 info kubedump controller/controller.go:239 Started controller
+2023-01-17T09:34:01-05:00 info kubedump controller/controller.go:248 Stopping controller

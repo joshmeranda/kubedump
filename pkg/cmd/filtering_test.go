@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	serviceDumpPath, _ = filepath.Abs(path.Join("..", "..", "tests", "resources", "Service.dump"))
+	serviceDumpPath, _       = filepath.Abs(path.Join("..", "..", "tests", "resources", "Service.dump"))
+	linkedServiceDumpPath, _ = filepath.Abs(path.Join("..", "..", "tests", "resources", "LinkedService.dump"))
 )
 
 func setupFiltering(t *testing.T, dumpDir string) (func(), string, string) {
@@ -41,7 +42,7 @@ func setupFiltering(t *testing.T, dumpDir string) (func(), string, string) {
 	return teardown, destination, basePath
 }
 
-func TestFilteringOnlyChildren(t *testing.T) {
+func TestFilteringUnlinked(t *testing.T) {
 	teardown, destination, basePath := setupFiltering(t, serviceDumpPath)
 	defer teardown()
 
@@ -55,8 +56,8 @@ func TestFilteringOnlyChildren(t *testing.T) {
 	assert.NoDirExists(t, path.Join(destination, "default", "Service"))
 }
 
-func TestFilteringParentWithChildren(t *testing.T) {
-	teardown, destination, basePath := setupFiltering(t, serviceDumpPath)
+func TestFilteringLinked(t *testing.T) {
+	teardown, destination, basePath := setupFiltering(t, linkedServiceDumpPath)
 	defer teardown()
 
 	app := NewKubedumpApp()
@@ -65,6 +66,8 @@ func TestFilteringParentWithChildren(t *testing.T) {
 		t.Fatalf("filtering failed: %s", err)
 	}
 
-	assert.DirExists(t, path.Join(destination, "default", "Pod"))
+	assert.NoDirExists(t, path.Join(destination, "default", "Pod"))
 	assert.DirExists(t, path.Join(destination, "default", "Service"))
+	// todo: clean up broken links
+	// assert.NoFileExists(t, path.Join(destination, "default", "Service", "sample-service", "Pod", "sample-pod.yaml"))
 }

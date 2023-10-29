@@ -222,7 +222,7 @@ func Link(ctx *cli.Context) error {
 		return fmt.Errorf("failed to determine root dir: %w", err)
 	}
 
-	return kubedump.Link(root)
+	return LinkDump(root)
 }
 
 func Discover(ctx *cli.Context) error {

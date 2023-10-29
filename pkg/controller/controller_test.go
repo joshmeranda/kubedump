@@ -215,6 +215,7 @@ func TestEvent(t *testing.T) {
 }
 
 func TestLogs(t *testing.T) {
+	t.Skip("skipping because fake clients don't do logs")
 	handledPod, pod := resourceToHandled(t, &apicorev1.Pod{
 		TypeMeta: apimetav1.TypeMeta{
 			Kind: "Pod",
