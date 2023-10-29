@@ -56,7 +56,6 @@ type Controller struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	store     Store
 	informers map[string]cache.SharedIndexInformer
 }
 
@@ -86,8 +85,6 @@ func NewController(
 
 		ctx:    ctx,
 		cancel: cancel,
-
-		store: NewStore(),
 
 		informers: make(map[string]cache.SharedIndexInformer),
 	}

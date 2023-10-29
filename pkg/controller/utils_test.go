@@ -7,10 +7,10 @@ import (
 
 	kubedump "github.com/joshmeranda/kubedump/pkg"
 	"github.com/stretchr/testify/assert"
-	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+/*
 func TestGetSymlinkPaths(t *testing.T) {
 	parent := kubedump.NewResourceBuilder().
 		FromObject(apimetav1.ObjectMeta{
@@ -43,6 +43,7 @@ func TestGetSymlinkPaths(t *testing.T) {
 	assert.Equal(t, expectedLinkPath, linkPath)
 	assert.Equal(t, expectedRelativePath, relativePath)
 }
+*/
 
 func TestDumpResource(t *testing.T) {
 	basePath := t.TempDir()

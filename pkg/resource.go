@@ -11,6 +11,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// todo: these builders don't need to be pointer receivers or returns
+
 // Resource is a collection of methods that can be used to describe a resource being handled by the kubedump controller.
 type Resource interface {
 	fmt.Stringer
@@ -150,12 +152,14 @@ func (builder *ResourceBuilder) Build() Resource {
 
 // ResourcePathBuilder can be used to build the parent directories for collected resources.
 type ResourcePathBuilder struct {
-	basePath           string
-	parentResourcePath string
-	namespace          string
-	name               string
-	kind               string
-	fileName           string
+	basePath  string
+	namespace string
+
+	parentName string
+	parentKind string
+
+	name string
+	kind string
 }
 
 func NewResourcePathBuilder() *ResourcePathBuilder {
@@ -167,16 +171,13 @@ func (builder *ResourcePathBuilder) WithBase(basePath string) *ResourcePathBuild
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithName(name string) *ResourcePathBuilder {
-	builder.name = name
+func (builder *ResourcePathBuilder) WithNamespace(namespace string) *ResourcePathBuilder {
+	builder.namespace = namespace
 	return builder
 }
 
-// WithNamespace instructs the builder to place the other components under tha path of the specified resource, and will
-// also ignore any value passed to WithParentResource.
-func (builder *ResourcePathBuilder) WithNamespace(namespace string) *ResourcePathBuilder {
-	builder.namespace = namespace
-	builder.parentResourcePath = ""
+func (builder *ResourcePathBuilder) WithName(name string) *ResourcePathBuilder {
+	builder.name = name
 	return builder
 }
 
@@ -185,11 +186,13 @@ func (builder *ResourcePathBuilder) WithKind(kind string) *ResourcePathBuilder {
 	return builder
 }
 
-// WithParentResource instructs the builder to place the other components under the path of the specified resource, and
-// will also ignore any value passed to WithNamespace.
-func (builder *ResourcePathBuilder) WithParentResource(resource Resource) *ResourcePathBuilder {
-	builder.parentResourcePath = path.Join(resource.GetNamespace(), resource.GetKind(), resource.GetName())
-	builder.namespace = ""
+func (builder *ResourcePathBuilder) WithParentName(name string) *ResourcePathBuilder {
+	builder.parentName = name
+	return builder
+}
+
+func (builder *ResourcePathBuilder) WithParentKind(kind string) *ResourcePathBuilder {
+	builder.parentKind = kind
 	return builder
 }
 
@@ -200,42 +203,24 @@ func (builder *ResourcePathBuilder) WithResource(resource Resource) *ResourcePat
 	return builder
 }
 
-func (builder *ResourcePathBuilder) WithFileName(fileName string) *ResourcePathBuilder {
-	builder.fileName = fileName
-	return builder
-}
-
-// Validate that the builder will be able to build a resource path.
-func (builder *ResourcePathBuilder) Validate() error {
-	if builder.basePath == "" {
-		return fmt.Errorf("basePath must be set")
-	}
-
-	if builder.name == "" {
-		return fmt.Errorf("name must be set")
-	}
-
-	if builder.kind == "" {
-		return fmt.Errorf("kind must be set")
-	}
-
-	return nil
-}
-
 // Reset the state of the builder as if it was new.
 func (builder *ResourcePathBuilder) Reset() {
 	builder.basePath = ""
-	builder.parentResourcePath = ""
 	builder.namespace = ""
+
+	builder.parentName = ""
+	builder.parentKind = ""
+
 	builder.name = ""
 	builder.kind = ""
 }
 
-// Build joins the different components of the ResourcePathBuilder and panics if any value (except namespace) is unset.
+// Build the path to the resource.
 func (builder *ResourcePathBuilder) Build() string {
-	if err := builder.Validate(); err != nil {
-		panic(err)
-	}
+	return path.Join(builder.basePath, builder.namespace, builder.kind, builder.name)
+}
 
-	return path.Join(builder.basePath, builder.parentResourcePath, builder.namespace, builder.kind, builder.name, builder.fileName)
+// BuildWithParent builds the resource path the parent name and kind.
+func (builder *ResourcePathBuilder) BuildWithParent() string {
+	return path.Join(builder.basePath, builder.namespace, builder.parentKind, builder.parentName, builder.kind, builder.name)
 }

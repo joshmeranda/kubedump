@@ -161,7 +161,7 @@ func Filter(ctx *cli.Context) error {
 
 	basePath, err := filepath.Abs(ctx.Args().First())
 	if err != nil {
-		return fmt.Errorf("failed to determine desitiatno dir: %w", err)
+		return fmt.Errorf("failed to determine destination dir: %w", err)
 	}
 
 	var rawFilter string
@@ -210,6 +210,19 @@ func Filter(ctx *cli.Context) error {
 	}
 
 	return nil
+}
+
+func Link(ctx *cli.Context) error {
+	if nargs := ctx.Args().Len(); nargs != 1 {
+		return fmt.Errorf("expected exactly 1 arg, but received %d", nargs)
+	}
+
+	root, err := filepath.Abs(ctx.Args().First())
+	if err != nil {
+		return fmt.Errorf("failed to determine root dir: %w", err)
+	}
+
+	return kubedump.Link(root)
 }
 
 func Discover(ctx *cli.Context) error {
@@ -317,6 +330,11 @@ func NewKubedumpApp() *cli.App {
 						Aliases: []string{"v"},
 					},
 				},
+			},
+			{
+				Name:   "link",
+				Usage:  "add symlinks to resources which are related (pods to deployment,. secrets to pods, etc.)",
+				Action: Link,
 			},
 			{
 				Name:      "discover",
