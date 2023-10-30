@@ -199,12 +199,18 @@ func (builder ResourcePathBuilder) WithResource(resource Resource) ResourcePathB
 	return builder
 }
 
-// Build the path to the resource.
+func (builder ResourcePathBuilder) BuildNamespace() string {
+	return path.Join(builder.BasePath, builder.Namespace)
+}
+
+func (builder ResourcePathBuilder) BuildKind() string {
+	return path.Join(builder.BasePath, builder.Namespace, builder.Kind)
+}
+
 func (builder ResourcePathBuilder) Build() string {
 	return path.Join(builder.BasePath, builder.Namespace, builder.Kind, builder.Name)
 }
 
-// BuildWithParent builds the resource path the parent name and kind.
 func (builder ResourcePathBuilder) BuildWithParent() string {
 	return path.Join(builder.BasePath, builder.Namespace, builder.ParentKind, builder.ParentName, builder.Kind, builder.Name)
 }
