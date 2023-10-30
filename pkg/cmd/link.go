@@ -115,54 +115,12 @@ func linkResource(builder kubedump.ResourcePathBuilder) error {
 	return nil
 }
 
-func linkKind(builder kubedump.ResourcePathBuilder) error {
-	entries, err := os.ReadDir(path.Join(builder.BasePath, builder.Namespace, builder.Kind))
-	if err != nil {
-		return fmt.Errorf("could not read directory '%s': %w", builder.Kind, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if err := linkResource(builder.WithName(entry.Name())); err != nil {
-				return fmt.Errorf("could not link resource '%s': %w", entry.Name(), err)
-			}
+func LinkDump(base string) error {
+	return kubedump.ForEachResource(base, func(builder kubedump.ResourcePathBuilder) error {
+		if err := linkResource(builder); err != nil {
+			return fmt.Errorf("could not link resource '%s': %w", builder.Name, err)
 		}
-	}
 
-	return nil
-}
-
-func linkNamespace(builder kubedump.ResourcePathBuilder) error {
-	entries, err := os.ReadDir(path.Join(builder.BasePath, builder.Namespace))
-	if err != nil {
-		return fmt.Errorf("could not read directory '%s': %w", builder.Namespace, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if err := linkKind(builder.WithKind(entry.Name())); err != nil {
-				return fmt.Errorf("could not link kind '%s': %w", entry.Name(), err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func LinkDump(root string) error {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return fmt.Errorf("could not read directory '%s': %w", root, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			builder := kubedump.ResourcePathBuilder{}.WithBase(root).WithNamespace(entry.Name())
-			if err := linkNamespace(builder); err != nil {
-				return fmt.Errorf("could not link namespace '%s': %w", entry.Name(), err)
-			}
-		}
-	}
-
-	return nil
+		return nil
+	})
 }

@@ -12,8 +12,6 @@ import (
 	cp "github.com/otiai10/copy"
 )
 
-// todo: a lot of duplicatged code here, we can add some kind of batch resource directory mutator / processor
-
 type filteringOptions struct {
 	Filter              filter.Expression
 	DestinationBasePath string
@@ -35,66 +33,18 @@ func filterKubedumpDir(dir string, opts filteringOptions) error {
 		return fmt.Errorf("could not create destination: %w", err)
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("could not read dump dir '%s': %w", dir, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if err := filterNamespaceDir(entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
-				opts.Logger.Error(fmt.Sprintf("could not filter namespace '%s': %s", entry.Name(), err))
-			}
-		} else {
-			if entry.Name() != LogFileName {
-				opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
-			}
-		}
+	if err := kubedump.ForEachResource(dir, func(builder kubedump.ResourcePathBuilder) error {
+		return filterResourceDir(builder, opts)
+	}); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func filterNamespaceDir(namespace string, dir string, opts filteringOptions) error {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("could not read dir for namespace '%s': %w", namespace, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if err := filterKindDir(namespace, entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
-				opts.Logger.Error(fmt.Sprintf("could not filter kind '%s' in namespace '%s': %s", entry.Name(), namespace, err))
-			}
-		} else {
-			opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
-		}
-	}
-
-	return nil
-}
-
-func filterKindDir(namespace string, kind string, dir string, opts filteringOptions) error {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("could not read dir for kind '%s' in namespace '%s': %w", kind, namespace, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if err := filterResourceDir(entry.Name(), path.Join(dir, entry.Name()), opts); err != nil {
-				opts.Logger.Error(fmt.Sprintf("could not filter resource '%s/%s' in namespace '%s': %s", kind, entry.Name(), namespace, err))
-			}
-		} else {
-			opts.Logger.Warn(fmt.Sprintf("encountered unexpected file '%s'", path.Join(dir, entry.Name())))
-		}
-	}
-
-	return nil
-}
-
-func filterResourceDir(name string, dir string, opts filteringOptions) error {
-	resourceFile := path.Join(dir, name+".yaml")
+func filterResourceDir(builder kubedump.ResourcePathBuilder, opts filteringOptions) error {
+	resourceDir := builder.Build()
+	resourceFile := path.Join(resourceDir, builder.Name+".yaml")
 	resource, err := kubedump.NewResourceFromFile(resourceFile)
 	if err != nil {
 		return fmt.Errorf("could not unmarshal resource file: %w", err)
@@ -104,14 +54,14 @@ func filterResourceDir(name string, dir string, opts filteringOptions) error {
 		return nil
 	}
 
-	if err := copyResourceDir(resource, dir, opts); err != nil {
+	if err := copyResourceDir(resource, resourceDir, opts); err != nil {
 		opts.Logger.Error(fmt.Sprintf("could not copy resource '%s': %s", resource, err))
 	}
 
 	return nil
 }
 
-func copyResourceDir(resource kubedump.Resource, dir string, opts filteringOptions) error {
+func copyResourceDir(resource kubedump.Resource, resourceDir string, opts filteringOptions) error {
 	resourceDestinationDir := kubedump.ResourcePathBuilder{}.
 		WithBase(opts.DestinationBasePath).
 		WithResource(resource).
@@ -119,23 +69,23 @@ func copyResourceDir(resource kubedump.Resource, dir string, opts filteringOptio
 
 	// todo: will probably skip symlinks
 	// copy resource dir
-	if err := cp.Copy(dir, resourceDestinationDir, cp.Options{}); err != nil {
-		return fmt.Errorf("could not copy resource dir: %s", dir)
+	if err := cp.Copy(resourceDir, resourceDestinationDir, cp.Options{}); err != nil {
+		return fmt.Errorf("could not copy resource dir: %s", resourceDir)
 	}
 
 	// check for child resources
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(resourceDir)
 	if err != nil {
-		return fmt.Errorf("could not read resource dir '%s': %w", dir, err)
+		return fmt.Errorf("could not read resource dir '%s': %w", resourceDir, err)
 	}
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			if err := copySubResourceKind(entry.Name(), path.Join(dir, entry.Name()), resource, opts); err != nil {
+			if err := copySubResourceKind(entry.Name(), path.Join(resourceDir, entry.Name()), resource, opts); err != nil {
 				opts.Logger.Error(fmt.Sprintf("could not copy '%s' resource for '%s': %s", entry.Name(), resource, err))
 			}
 		} else if entry.Name() != resource.GetName()+".yaml" && !strings.HasSuffix(entry.Name(), ".log") {
-			opts.Logger.Warn(fmt.Sprintf("found unexpected file: %s", path.Join(dir, entry.Name())))
+			opts.Logger.Warn(fmt.Sprintf("found unexpected file: %s", path.Join(resourceDir, entry.Name())))
 		}
 	}
 
